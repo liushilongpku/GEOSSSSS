@@ -147,6 +147,7 @@ set( constitutive_headers
      fluid/twophaseimmisciblefluid/TwoPhaseImmiscibleFluidFields.hpp
      permeability/CarmanKozenyPermeability.hpp
      permeability/ConstantPermeability.hpp
+     permeability/PorosityBasedPermeability.hpp
      permeability/DamagePermeability.hpp
      permeability/ExponentialDecayPermeability.hpp
      permeability/ParallelPlatesPermeability.hpp
@@ -297,6 +298,7 @@ set( constitutive_sources
      fluid/twophaseimmisciblefluid/TwoPhaseImmiscibleFluid.cpp
      permeability/CarmanKozenyPermeability.cpp
      permeability/ConstantPermeability.cpp
+     permeability/PorosityBasedPermeability.cpp
      permeability/DamagePermeability.cpp
      permeability/ExponentialDecayPermeability.cpp
      permeability/ParallelPlatesPermeability.cpp
