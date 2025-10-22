@@ -1670,8 +1670,10 @@ Wrapper< TBASE > & Group::registerWrapper( string const & name,
                                            ViewKey::index_type * const rkey )
 {
   std::unique_ptr< TBASE > newObj = std::make_unique< T >();
+  auto  test_ptr = new Wrapper< TBASE >( name, *this, std::move( newObj ) );
+  //NOTE@LSL: test_ptr is still the derived class.
   m_wrappers.insert( name,
-                     new Wrapper< TBASE >( name, *this, std::move( newObj ) ),
+                     test_ptr,
                      true );
 
   if( rkey != nullptr )

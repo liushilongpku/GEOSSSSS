@@ -461,6 +461,7 @@ private:
   stdVector< int > m_ownsValues;
 };
 
+//NOTE@LSL: upcasting and the m_data is unavailable, which is different from my test.I dont know why
 template< typename T, typename T_PTR, typename KEY_TYPE, typename INDEX_TYPE >
 T * MappedVector< T, T_PTR, KEY_TYPE, INDEX_TYPE >::insert( KEY_TYPE const & keyName,
                                                             T_PTR source,

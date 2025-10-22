@@ -165,6 +165,7 @@ void FlowSolverBase::registerDataOnMesh( Group & meshBodies )
       subRegion.registerField< flow::gravityCoefficient >( getName() );
       subRegion.registerField< flow::netToGross >( getName() );
 
+      //NOTE@LSL: first time to register the pressure field.
       subRegion.registerField< flow::pressure >( getName() );
       subRegion.registerField< flow::pressure_n >( getName() );
       subRegion.registerField< flow::initialPressure >( getName() );
