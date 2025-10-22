@@ -300,6 +300,7 @@ private:
     LvArray::tensorOps::symAddIdentity< 3 >( totalStress, -biotCoefficient * pressure - 3 * thermalExpansionCoefficientTimesBulkModulus * deltaTemperature );
 
     // Compute derivatives of total stress
+    // NOTE@LSL: these parameters maybe be used to accelerate the calculation process.
     dTotalStress_dPressure[0] = -biotCoefficient;
     dTotalStress_dPressure[1] = -biotCoefficient;
     dTotalStress_dPressure[2] = -biotCoefficient;

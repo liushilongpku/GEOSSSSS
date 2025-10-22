@@ -405,6 +405,7 @@ struct ConstitutivePassThru< CoupledSolidBase >
   template< typename LAMBDA >
   static void execute( ConstitutiveBase & constitutiveRelation, LAMBDA && lambda )
   {
+    //NOTE@LSL: A switch table for constitutive module to downcast?
     ConstitutivePassThruHandler< CompressibleSolid< PressurePorosity, ConstantPermeability >,
                                  CompressibleSolid< PressurePorosity, CarmanKozenyPermeability >,
                                  CompressibleSolid< PressurePorosity, ExponentialDecayPermeability >,

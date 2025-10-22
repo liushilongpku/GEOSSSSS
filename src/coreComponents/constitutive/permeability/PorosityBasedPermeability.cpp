@@ -6,11 +6,7 @@
 /**
  * @file PorosityBasedPermeability.cpp
  */
-//new tap a tap tap tap
 
-
-
-//new tap2
 #include "PorosityBasedPermeability.hpp"
 
 namespace geos
@@ -25,35 +21,36 @@ namespace constitutive
 PorosityBasedPermeability::PorosityBasedPermeability( string const & name, Group * const parent ):
   PermeabilityBase( name, parent )
 {
-  registerWrapper( viewKeyStruct::permeabilityComponentsString(), &m_permeabilityComponents ).
+  registerWrapper( viewKeyStruct::particleDiameterString(), &m_particleDiameter ).
     setInputFlag( InputFlags::REQUIRED ).
-    setRestartFlags( RestartFlags::NO_WRITE ).
-    setDescription( "xx, yy and zz components of a diagonal permeability tensor." );
+    setDescription( "Diameter of the spherical particles." );
+
+  registerWrapper( viewKeyStruct::sphericityString(), &m_sphericity ).
+    setInputFlag( InputFlags::REQUIRED ).
+    setDescription( "Sphericity of the particles." );
+
+  registerWrapper( viewKeyStruct::anisotropyString(), &m_anisotropy ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setApplyDefaultValue( { 1.0, 1.0, 1.0 } ).
+    setDescription( "Anisotropy factors for three permeability components." );
+
+  registerWrapper( viewKeyStruct::dPerm_dPorosityString(), &m_dPerm_dPorosity );
 }
 
 std::unique_ptr< ConstitutiveBase >
 PorosityBasedPermeability::deliverClone( string const & name,
-                                    Group * const parent ) const
+                                        Group * const parent ) const
 {
   return PermeabilityBase::deliverClone( name, parent );
 }
 
-void PorosityBasedPermeability::allocateConstitutiveData( dataRepository::Group & parent,
-                                                     localIndex const numConstitutivePointsPerParentIndex )
+void PorosityBasedPermeability::allocateConstitutiveData( Group & parent,
+                                                         localIndex const numPts )
 {
-  PermeabilityBase::allocateConstitutiveData( parent, numConstitutivePointsPerParentIndex );
+  // NOTE: enforcing 1 quadrature point
+  m_dPerm_dPorosity.resize( 0, 1, 3 );
 
-  integer const numQuad = 1; // NOTE: enforcing 1 quadrature point
-
-  for( localIndex ei = 0; ei < parent.size(); ++ei )
-  {
-    for( localIndex q = 0; q < numQuad; ++q )
-    {
-      m_permeability[ei][q][0] =  m_permeabilityComponents[0];
-      m_permeability[ei][q][1] =  m_permeabilityComponents[1];
-      m_permeability[ei][q][2] =  m_permeabilityComponents[2];
-    }
-  }
+  PermeabilityBase::allocateConstitutiveData( parent, numPts );
 }
 
 void PorosityBasedPermeability::initializeState() const
@@ -62,9 +59,9 @@ void PorosityBasedPermeability::initializeState() const
   integer constexpr numQuad = 1; // NOTE: enforcing 1 quadrature point
 
   auto permView = m_permeability.toView();
-  real64 const permComponents[3] = { m_permeabilityComponents[0],
-                                     m_permeabilityComponents[1],
-                                     m_permeabilityComponents[2] };
+  real64 const permComponents[3] = { m_particleDiameter,
+                                     m_particleDiameter,
+                                     m_particleDiameter };
 
   forAll< parallelDevicePolicy<> >( numE, [=] GEOS_HOST_DEVICE ( localIndex const ei )
   {
