@@ -102,7 +102,7 @@
       compressibility="5e-10"
       viscosibility="0.0"/>
 
-    <CompressibleSolidCarmanKozenyPermeability
+    <CompressibleSolidPorosityBasedPermeability
       name="rock"
       solidModelName="nullSolid"
       porosityModelName="rockPorosity"
@@ -116,12 +116,16 @@
       defaultReferencePorosity="0.1"
       referencePressure="0.0"
       compressibility="1.0e-9"/>
-
+<!--
     <CarmanKozenyPermeability
       name="channelPerm"
       particleDiameter="5e-6"
       sphericity="0.9"/>
-
+-->
+    <PorosityBasedPermeability
+      name="channelPerm"
+      particleDiameter="5e-6"
+      sphericity="0.9"/>
   </Constitutive>
 
   <FieldSpecifications>

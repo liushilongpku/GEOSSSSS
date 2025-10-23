@@ -51,9 +51,10 @@ public:
   virtual void updateFromPressureAndPorosity( localIndex const k,
                                               localIndex const q,
                                               real64 const & pressure,
-                                              real64 const & porosity ) const
+                                              real64 const & porosity,
+                                              real64 const & porosity_n) const
   {
-    GEOS_UNUSED_VAR( k, q, pressure, porosity );
+    GEOS_UNUSED_VAR( k, q, pressure, porosity, porosity_n );
   }
 
   GEOS_HOST_DEVICE

@@ -76,7 +76,8 @@ public:
   virtual void updateFromPressureAndPorosity( localIndex const k,
                                               localIndex const q,
                                               real64 const & pressure,
-                                              real64 const & porosity ) const override
+                                              real64 const & porosity,
+                                              real64 const & porosity_n) const override
   {
     GEOS_UNUSED_VAR( q, porosity );
 

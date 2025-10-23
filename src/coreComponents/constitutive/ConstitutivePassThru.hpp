@@ -45,6 +45,7 @@
 #include "solid/porosity/ProppantPorosity.hpp"
 #include "permeability/ConstantPermeability.hpp"
 #include "permeability/CarmanKozenyPermeability.hpp"
+#include "permeability/PorosityBasedPermeability.hpp"
 #include "permeability/ExponentialDecayPermeability.hpp"
 #include "permeability/ParallelPlatesPermeability.hpp"
 #include "permeability/PressurePermeability.hpp"
@@ -405,9 +406,10 @@ struct ConstitutivePassThru< CoupledSolidBase >
   template< typename LAMBDA >
   static void execute( ConstitutiveBase & constitutiveRelation, LAMBDA && lambda )
   {
-    //NOTE@LSL: A switch table for constitutive module to downcast?
+    //NOTE@LSL: match the constitutive relation through divide the Pake collection
     ConstitutivePassThruHandler< CompressibleSolid< PressurePorosity, ConstantPermeability >,
                                  CompressibleSolid< PressurePorosity, CarmanKozenyPermeability >,
+                                 CompressibleSolid< PressurePorosity, PorosityBasedPermeability >,
                                  CompressibleSolid< PressurePorosity, ExponentialDecayPermeability >,
                                  CompressibleSolid< PressurePorosity, ParallelPlatesPermeability >,
                                  CompressibleSolid< PressurePorosity, PressurePermeability >,
@@ -446,6 +448,7 @@ struct ConstitutivePassThru< CoupledSolidBase >
   {
     ConstitutivePassThruHandler< CompressibleSolid< PressurePorosity, ConstantPermeability >,
                                  CompressibleSolid< PressurePorosity, CarmanKozenyPermeability >,
+                                 CompressibleSolid< PressurePorosity, PorosityBasedPermeability >,
                                  CompressibleSolid< PressurePorosity, ExponentialDecayPermeability >,
                                  CompressibleSolid< PressurePorosity, ParallelPlatesPermeability >,
                                  CompressibleSolid< PressurePorosity, PressurePermeability >,
