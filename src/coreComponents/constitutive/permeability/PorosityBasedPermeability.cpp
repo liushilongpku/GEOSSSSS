@@ -17,7 +17,7 @@ using namespace dataRepository;
 namespace constitutive
 {
 
-
+//NOTE@LSL: add attribute like this
 PorosityBasedPermeability::PorosityBasedPermeability( string const & name, Group * const parent ):
   PermeabilityBase( name, parent )
 {

@@ -136,6 +136,7 @@ public:
    * @return Static catalog string
    */
   static string catalogName() { return string( "CompressibleSolid" ) + PERM_TYPE::catalogName(); }
+//NOTE@LSL: name combining
 
   /**
    * @brief Get catalog name
