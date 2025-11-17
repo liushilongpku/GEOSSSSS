@@ -135,7 +135,7 @@ void LaplaceBaseH1::setupDofs( DomainPartition const & GEOS_UNUSED_PARAM( domain
                        FieldLocation::Node,
                        1,
                        getMeshTargets() );
-
+//NOTE@LSL Coupling???
   dofManager.addCoupling( m_fieldName,
                           m_fieldName,
                           DofManager::Connector::Elem );

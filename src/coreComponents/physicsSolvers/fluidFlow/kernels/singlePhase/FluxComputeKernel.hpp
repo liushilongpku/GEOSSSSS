@@ -191,6 +191,8 @@ public:
                     StackVariables & stack,
                     FUNC && kernelOp = NoOpFunc{} ) const
   {
+    //NOTE@LSL: the flux is computed in here.
+
     // first, compute the transmissibilities at this face
     m_stencilWrapper.computeWeights( iconn,
                                      m_permeability,

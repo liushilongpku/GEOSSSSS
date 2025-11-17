@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 
-<Problem>
-  <Solvers>
+<Problem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../../src/coreComponents/schema/schema.xsd">
   <!--
     <SinglePhaseFVM
       name="reservoirSystem"
@@ -12,17 +12,42 @@
 
     </SinglePhase>
 -->
-    <SinglePhaseFVM
-      name="reservoirSystem"
-      logLevel="3"
+
+
+
+  <Solvers>
+    <SinglePhasePoromechanics
+      name="singlePhasePoroelasticity"
+      solidSolverName="linearElasticity"
+      flowSolverName="singlePhaseFlow"
+      logLevel="1"
       writeLinearSystem="2"
-      discretization="singlePhaseTPFA"
-      targetRegions="{ Region1 }">
-      <NonlinearSolverParameters
-        newtonMaxIter="40"/>
+      targetRegions="{ Domain }">
       <LinearSolverParameters
         directParallel="0"/>
-      </SinglePhaseFVM>
+    </SinglePhasePoromechanics>
+
+    <SolidMechanicsLagrangianFEM
+      name="linearElasticity"
+      logLevel="1"
+      discretization="FE1"
+      targetRegions="{ Domain }"/>
+
+    <SinglePhaseFVM
+            name="reservoirSystem"
+            logLevel="3"
+            writeLinearSystem="2"
+            discretization="singlePhaseTPFA"
+            targetRegions="{ Region1 }">
+      <NonlinearSolverParameters
+              newtonMaxIter="40"/>
+      <LinearSolverParameters
+              directParallel="0"/>
+    </SinglePhaseFVM>
+  </Solvers>
+
+
+
 <!--
     <SinglePhaseWell
       name="singlePhaseWell"
@@ -44,7 +69,6 @@
         targetTotalRate="1e-7"/>
     </SinglePhaseWell>
     -->
-  </Solvers>
 
   <Mesh>
     <InternalMesh
