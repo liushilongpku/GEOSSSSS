@@ -1,11 +1,10 @@
 <?xml version="1.0" ?>
 
 <Problem>
-  <Included>
-     <File name="faultPoroelastic_base.xml"/>
-  </Included>
+
 
   <Solvers gravityVector="{0.0, 0.0, 0.0}">
+    <!--
     <SinglePhasePoromechanics 
       name="poromechanicsSolver" 
       solidSolverName="mechanicsSolver"
@@ -30,10 +29,11 @@
         newtonTol = "1.0e-5"
         newtonMaxIter = "15"/>      
     </SolidMechanicsLagrangianFEM>
-
+-->
     <SinglePhaseFVM 
       name="singlePhaseFlowSolver"
       logLevel="1"
+      writeLinearSystem="2"
       discretization="singlePhaseTPFA"
       targetRegions="{ Domain }"> 
       <NonlinearSolverParameters
@@ -113,9 +113,97 @@
     <PeriodicEvent
       name="solverApplications"
       forceDt="10"
-      target="/Solvers/poromechanicsSolver"/>	
+      target="/Solvers/singlePhaseFlowSolver"/>
 
 
   </Events>
 
+
+<!-- SPHINX_ELEMENTREGIONS -->
+<ElementRegions>
+  <CellElementRegion
+          name="Domain"
+          cellBlocks="{ * }"
+          materialList="{ water, porousRock }"/>
+</ElementRegions>
+<!-- SPHINX_ELEMENTREGIONS_END -->
+
+<!-- SPHINX_NUMERICAL -->
+<NumericalMethods>
+  <FiniteElements>
+    <FiniteElementSpace
+            name="FE1"
+            order="1"/>
+  </FiniteElements>
+
+  <FiniteVolume>
+    <TwoPointFluxApproximation
+            name="singlePhaseTPFA"
+    />
+  </FiniteVolume>
+</NumericalMethods>
+<!-- SPHINX_NUMERICAL_END -->
+
+<!-- SPHINX_MATERIAL -->
+<Constitutive>
+  <PorousElasticIsotropic
+          name="porousRock"
+          solidModelName="rock"
+          porosityModelName="rockPorosity"
+          permeabilityModelName="rockPerm"
+  />
+
+  <ElasticIsotropic
+          name="rock"
+          defaultDensity="2700"
+          defaultYoungModulus="14.95e9"
+          defaultPoissonRatio="0.15"
+  />
+
+  <CompressibleSinglePhaseFluid
+          name="water"
+          defaultDensity="1000"
+          defaultViscosity="0.001"
+          referencePressure="0e6"
+          referenceDensity="1000"
+          compressibility="2.09028227021e-10"
+          referenceViscosity="0.001"
+          viscosibility="0.0"
+  />
+
+  <BiotPorosity
+          name="rockPorosity"
+          defaultGrainBulkModulus="7.12e10"
+          defaultReferencePorosity="0.3"
+  />
+
+  <ConstantPermeability
+          name="rockPerm"
+          permeabilityComponents="{1.0e-18, 1.0e-18, 1.0e-18}"
+  />
+</Constitutive>
+<!-- SPHINX_MATERIAL_END -->
+
+<!-- SPHINX_BC -->
+<FieldSpecifications>
+  <FieldSpecification
+          name="initialPressure"
+          initialCondition="1"
+          setNames="{all}"
+          objectPath="ElementRegions/Domain"
+          fieldName="pressure"
+          scale="35.0e6"
+  />
+
+</FieldSpecifications>
+<!-- SPHINX_BC_END -->
+
+<!-- SPHINX_OUTPUT -->
+<Outputs>
+  <VTK
+          name="vtkOutput"
+          plotFileRoot="faultModel"/>
+
+</Outputs>
+<!-- SPHINX_OUTPUT_END -->
 </Problem>

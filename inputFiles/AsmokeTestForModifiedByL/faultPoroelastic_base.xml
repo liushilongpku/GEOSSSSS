@@ -113,7 +113,7 @@
       fieldName="totalDisplacement"
       component="0"
       scale="0.0"
-      setNames="{ 89, 88 }"/>
+      setNames="{ xpos, xneg }"/>
 
     <FieldSpecification
       name="yconstraint"
@@ -121,7 +121,7 @@
       fieldName="totalDisplacement"
       component="1"
       scale="0.0"
-      setNames="{ 90 }"/>
+      setNames="{ yneg }"/>
 
     <FieldSpecification
       name="zconstraintFront"
@@ -129,14 +129,14 @@
       fieldName="totalDisplacement"
       component="2"
       scale="0.0"
-      setNames="{ 92, 93 }"/>
+      setNames="{ zneg, zpos }"/>
 
     <Traction
       name="NormalTraction"
       objectPath="faceManager"
       tractionType="normal"
       scale="-70.0e6"      
-      setNames="{ 91 }"/>  	  
+      setNames="{ ypos }"/>
   </FieldSpecifications>
   <!-- SPHINX_BC_END -->
 
@@ -146,9 +146,6 @@
       name="vtkOutput"
       plotFileRoot="faultModel"/>
 
-    <Restart
-      name="restartOutput"
-    />  
   </Outputs>
   <!-- SPHINX_OUTPUT_END -->
 </Problem>
