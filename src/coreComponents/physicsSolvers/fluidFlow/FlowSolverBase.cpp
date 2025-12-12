@@ -109,6 +109,7 @@ FlowSolverBase::FlowSolverBase( string const & name,
   PhysicsSolverBase( name, parent ),
   m_numDofPerCell( 0 ),
   m_isThermal( 0 ),
+  m_isDPDK(0),
   m_keepVariablesConstantDuringInitStep( false ),
   m_isFixedStressPoromechanicsUpdate( false ),
   m_isJumpStabilized( false ),
@@ -118,6 +119,11 @@ FlowSolverBase::FlowSolverBase( string const & name,
     setApplyDefaultValue( 0 ).
     setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Flag indicating whether the problem is thermal or not." );
+
+  this->registerWrapper( viewKeyStruct::isDPDKString(), &m_isDPDK ).
+    setApplyDefaultValue( 0 ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Flag indicating whether the problem is DPDK or not." );
 
   this->registerWrapper( viewKeyStruct::allowNegativePressureString(), &m_allowNegativePressure ).
     setApplyDefaultValue( 0 ). // negative pressure is not allowed by default
@@ -189,8 +195,46 @@ void FlowSolverBase::registerDataOnMesh( Group & meshBodies )
         subRegion.registerField< flow::energy >( getName() );
         subRegion.registerField< flow::energy_n >( getName() );
       }
+      if( m_isDPDK )
+      {
+        GEOS_LOG("registering DPDK field");
+        subRegion.registerField< flow::deltaVolume_DPDK >( getName() );
+        subRegion.registerField< flow::gravityCoefficient_DPDK >( getName() );
+        subRegion.registerField< flow::netToGross_DPDK >( getName() );
+
+        // Primary DPDK pressure fields
+        subRegion.registerField< flow::pressure_DPDK >( getName() );
+        subRegion.registerField< flow::pressure_n_DPDK >( getName() );
+        subRegion.registerField< flow::initialPressure_DPDK >( getName() );
+        subRegion.registerField< flow::deltaPressure_DPDK >( getName() );      // for reporting/stats
+        subRegion.registerField< flow::bcPressure_DPDK >( getName() );        // boundary conditions
+
+        if( m_isFixedStressPoromechanicsUpdate )
+        {
+          subRegion.registerField< flow::pressure_k_DPDK >( getName() );      // fixed-stress update
+        }
+
+        // DPDK temperature fields
+        subRegion.registerField< flow::temperature_DPDK >( getName() );
+        subRegion.registerField< flow::temperature_n_DPDK >( getName() );
+        subRegion.registerField< flow::initialTemperature_DPDK >( getName() );
+        subRegion.registerField< flow::bcTemperature_DPDK >( getName() );
+
+        if( m_isFixedStressPoromechanicsUpdate )
+        {
+          subRegion.registerField< flow::temperature_k_DPDK >( getName() );
+        }
+
+        if( m_isThermal )
+        {
+          subRegion.registerField< flow::energy_DPDK >( getName() );
+          subRegion.registerField< flow::energy_n_DPDK >( getName() );
+        }
+        GEOS_LOG("register DPDK field successfully!");
+      }
     } );
 
+    //NOTE@LSL: the fracture may not need to add DPDK
     elemManager.forElementSubRegionsComplete< SurfaceElementSubRegion >( [&]( localIndex const,
                                                                               localIndex const,
                                                                               ElementRegionBase & region,
@@ -524,6 +568,7 @@ void FlowSolverBase::initializeState( DomainPartition & domain )
     // - This step depends on porosity and phaseVolFraction
     if( m_isThermal )
     {
+      GEOS_LOG("some adjust for DPDK shoudld be do here");
       initializeThermalState( mesh, regionNames );
     }
 

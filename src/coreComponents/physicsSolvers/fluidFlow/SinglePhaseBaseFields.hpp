@@ -94,6 +94,63 @@ DECLARE_FIELD( dEnergy,
                NO_WRITE,
                "Derivatives of energy" );
 
+DECLARE_FIELD( mass_DPDK,
+               "mass",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Fluid mass" );
+
+DECLARE_FIELD( mass_n_DPDK,
+               "mass_n",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Fluid mass at the previous converged time step" );
+
+DECLARE_FIELD( dMass_DPDK,
+               "dMass",
+               array2dLayoutFluid,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Derivatives of the fluid mass" );
+
+DECLARE_FIELD( massCreated_DPDK,
+               "massCreated",
+               array1d< real64 >,
+               0,
+               LEVEL_1,
+               WRITE_AND_READ,
+               "The amount of remaining mass that was introduced when the SurfaceElement was created." );
+
+DECLARE_FIELD( mobility_DPDK,
+               "mobility",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Mobility" );
+
+DECLARE_FIELD( dMobility_DPDK,
+               "dMobility",
+               array2dLayoutFluid,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "dMobility" );
+
+DECLARE_FIELD( dEnergy_DPDK,
+               "dEnergy",
+               array2dLayoutFluid,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Derivatives of energy" );
+
+
 }
 
 }

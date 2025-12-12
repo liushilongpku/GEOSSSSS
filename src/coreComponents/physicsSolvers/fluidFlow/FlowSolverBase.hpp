@@ -74,6 +74,7 @@ public:
   {
     // misc inputs
     static constexpr char const * isThermalString() { return "isThermal"; }
+    static constexpr char const * isDPDKString() { return "isDPDK"; }
     static constexpr char const * inputTemperatureString() { return "temperature"; }
     static constexpr char const * allowNegativePressureString() { return "allowNegativePressure"; }
     static constexpr char const * maxAbsolutePresChangeString() { return "maxAbsolutePressureChange"; }
@@ -116,6 +117,8 @@ public:
   virtual void saveSequentialIterationState( DomainPartition & domain ) override;
 
   integer & isThermal() { return m_isThermal; }
+
+  integer & isDPDK() { return m_isDPDK; }
 
   /**
    * @return The unit in which we evaluate the amount of fluid per element (Mass or Mole).
@@ -257,6 +260,9 @@ protected:
 
   /// flag to determine whether or not this is a thermal simulation
   integer m_isThermal;
+
+  /// flag to determine whether or not this is a thermal simulation
+  integer m_isDPDK;
 
   /// the input temperature
   real64 m_inputTemperature;

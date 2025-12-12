@@ -244,6 +244,12 @@ CellElementStencilTPFAWrapper::
 
     real64 faceConormal[3];
     real64 dFaceConormal_dVar[3];
+    //NOTE@LSL it indeed is a vector of three dimension
+    // $coefficient$ is the permeability
+    // $m_cellToFaceVec$ is the vector from elem center to face center
+    // $halfWeight$ is the transmissibility from the elem center to face center in elem i
+    // if we want to change the calculate method of transmissibility
+    // maybe use the tensorOps method
     LvArray::tensorOps::hadamardProduct< 3 >( faceConormal, coefficient[er][esr][ei][0], faceNormal );
     LvArray::tensorOps::hadamardProduct< 3 >( dFaceConormal_dVar, dCoeff_dVar[er][esr][ei][0], faceNormal );
     halfWeight[i] *= LvArray::tensorOps::AiBi< 3 >( m_cellToFaceVec[iconn][i], faceConormal );

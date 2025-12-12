@@ -484,7 +484,11 @@ public:
                      ParallelMatrix const & matrix,
                      ParallelVector const & rhs ) const;
 
-  /**
+
+  void printDataOut(ParallelMatrix const & obj ) const;
+  void printCRSMatrix(CRSMatrix< real64, globalIndex > const & obj ) const;
+
+    /**
    * @brief Output the linear system solution for debug purposes.
    * @param time beginning-of-step time
    * @param cycleNumber event cycle number
@@ -1218,7 +1222,7 @@ private:
   void logEndOfCycleInformation( integer const cycleNumber,
                                  integer const numOfSubSteps,
                                  stdVector< real64 > const & subStepDts ) const;
-};
+    };
 
 
 template< typename CONSTITUTIVE_BASE_TYPE >

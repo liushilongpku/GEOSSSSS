@@ -264,6 +264,239 @@ DECLARE_FIELD( fractureCreationTime,
                LEVEL_1,
                WRITE_AND_READ,
                "The creation time for the fracture cell." );
+
+DECLARE_FIELD( pressure_DPDK,
+               "pressure_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Pressure (DPDK)" );
+
+DECLARE_FIELD( pressure_n_DPDK,
+               "pressure_n_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Pressure at the previous converged time step (DPDK)" );
+
+DECLARE_FIELD( pressure_k_DPDK,
+               "pressure_k_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Pressure at the previous sequential iteration (DPDK)" );
+
+DECLARE_FIELD( initialPressure_DPDK,
+               "initialPressure_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Initial pressure (DPDK)" );
+
+DECLARE_FIELD( deltaPressure_DPDK,
+               "deltaPressure_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Delta pressure: current pressure - initial pressure (DPDK)" );
+
+DECLARE_FIELD( facePressure_DPDK,
+               "facePressure_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Face pressure (DPDK)" );
+
+DECLARE_FIELD( facePressure_n_DPDK,
+               "facePressure_n_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Face pressure at the previous converged time step (DPDK)" );
+
+DECLARE_FIELD( pressureGradient_DPDK,
+               "pressureGradient_DPDK",
+               array2d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Pressure gradient (DPDK)" );
+
+DECLARE_FIELD( temperature_DPDK,
+               "temperature_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Temperature (DPDK)" );
+
+DECLARE_FIELD( temperature_n_DPDK,
+               "temperature_n_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Temperature at the previous converged time step (DPDK)" );
+
+DECLARE_FIELD( temperature_k_DPDK,
+               "temperature_k_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Temperature at the previous sequential iteration (DPDK)" );
+
+DECLARE_FIELD( initialTemperature_DPDK,
+               "initialTemperature_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Initial temperature (DPDK)" );
+
+DECLARE_FIELD( faceTemperature_DPDK,
+               "faceTemperature_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Face temperature (DPDK)" );
+
+DECLARE_FIELD( netToGross_DPDK,
+               "netToGross_DPDK",
+               array1d< real64 >,
+               1,
+               NOPLOT,
+               NO_WRITE,
+               "Net to gross (DPDK)" );
+
+DECLARE_FIELD( deltaVolume_DPDK,
+               "deltaVolume_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Accumulated volume updates (DPDK)" );
+
+DECLARE_FIELD( aperture0_DPDK,
+               "aperture_n_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Initial aperture (DPDK)" );
+
+DECLARE_FIELD( hydraulicAperture_DPDK,
+               "hydraulicAperture_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Hydraulic aperture (DPDK)" );
+
+DECLARE_FIELD( gravityCoefficient_DPDK,
+               "gravityCoefficient_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Gravity coefficient (dot product of gravity acceleration by gravity vector) (DPDK)" );
+
+DECLARE_FIELD( mimGravityCoefficient_DPDK,
+               "mimGravityCoefficient_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Mimetic gravity coefficient (DPDK)" );
+
+DECLARE_FIELD( macroElementIndex_DPDK,
+               "macroElementIndex_DPDK",
+               array1d< integer >,
+               -1,
+               LEVEL_1,
+               WRITE_AND_READ,
+               "Index of the macroelement for a given element (DPDK)" );
+
+DECLARE_FIELD( bcPressure_DPDK,
+               "bcPressure_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Boundary condition pressure (DPDK)" );
+
+DECLARE_FIELD( bcTemperature_DPDK,
+               "bcTemperature_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               WRITE_AND_READ,
+               "Boundary condition temperature (DPDK)" );
+
+DECLARE_FIELD( elementStabConstant_DPDK,
+               "elementStabConstant_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_1,
+               WRITE_AND_READ,
+               "Stabilization constant for pressure jump stabilization (DPDK)" );
+
+DECLARE_FIELD( transMultiplier_DPDK,
+               "permeabilityTransMultiplier_DPDK",
+               array1d< real64 >,
+               1,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Permeability transmissibility multipliers (DPDK)" );
+
+DECLARE_FIELD( pressureScalingFactor_DPDK,
+               "pressureScalingFactor_DPDK",
+               array1d< real64 >,
+               1,
+               NOPLOT,
+               NO_WRITE,
+               "Scaling factors for pressure (DPDK)" );
+
+DECLARE_FIELD( temperatureScalingFactor_DPDK,
+               "temperatureScalingFactor_DPDK",
+               array1d< real64 >,
+               1,
+               NOPLOT,
+               NO_WRITE,
+               "Scaling factors for temperature (DPDK)" );
+
+DECLARE_FIELD( energy_DPDK,
+               "energy_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_0,
+               WRITE_AND_READ,
+               "Energy (DPDK)" );
+
+DECLARE_FIELD( energy_n_DPDK,
+               "energy_n_DPDK",
+               array1d< real64 >,
+               0,
+               NOPLOT,
+               NO_WRITE,
+               "Energy at the previous converged time step (DPDK)" );
+
+DECLARE_FIELD( fractureCreationTime_DPDK,
+               "fractureCreationTime_DPDK",
+               array1d< real64 >,
+               0,
+               LEVEL_1,
+               WRITE_AND_READ,
+               "The creation time for the fracture cell (DPDK)." );
+
 }
 
 }

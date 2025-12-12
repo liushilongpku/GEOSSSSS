@@ -12,18 +12,17 @@
 
     </SinglePhase>
 -->
-    <SinglePhaseFVM
+    <SinglePhaseHybridFVM
       name="reservoirSystem"
-      logLevel="3"
-      isDPDK="1"
+      logLevel="1"
+      discretization="fluidHM"
       writeLinearSystem="1"
-      discretization="singlePhaseTPFA"
       targetRegions="{ Region1 }">
       <NonlinearSolverParameters
         newtonMaxIter="40"/>
       <LinearSolverParameters
         directParallel="0"/>
-      </SinglePhaseFVM>
+      </SinglePhaseHybridFVM>
 <!--
     <SinglePhaseWell
       name="singlePhaseWell"
@@ -52,7 +51,7 @@
       name="mesh1"
       elementTypes="{ C3D8 }"
       xCoords="{ 0, 3 }"
-      yCoords="{ 0, 6 }"
+      yCoords="{ 0, 3 }"
       zCoords="{ 0, 1 }"
       nx="{ 3 }"
       ny="{ 3 }"
@@ -116,7 +115,13 @@
         name="singlePhaseTPFA"/>
     </FiniteVolume>
   </NumericalMethods>
-
+  <NumericalMethods>
+    <FiniteVolume>
+      <HybridMimeticDiscretization
+              name="fluidHM"
+              innerProductType="beiraoDaVeigaLipnikovManzini"/>
+    </FiniteVolume>
+  </NumericalMethods>
   <ElementRegions>
     <CellElementRegion
       name="Region1"
@@ -160,7 +165,7 @@
 
     <ConstantPermeability
       name="rockPerm"
-      permeabilityComponents="{ 1.0e-16, 2.0e-16, 3.0e-16 }"/>
+      permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
   </Constitutive>
 
   <FieldSpecifications>

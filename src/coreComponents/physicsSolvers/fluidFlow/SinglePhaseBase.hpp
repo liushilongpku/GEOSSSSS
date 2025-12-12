@@ -121,6 +121,10 @@ public:
 
   virtual void
   resetStateToBeginningOfStep( DomainPartition & domain ) override;
+  
+  virtual void updateSolidInternalEnergyModel_DPDK( subRegion );
+
+  virtual void updateEnergy_DPDK( subRegion );
 
   virtual void
   implicitStepComplete( real64 const & time,
@@ -284,11 +288,25 @@ public:
   updateFluidModel( ObjectManagerBase & dataGroup ) const;
 
   /**
+   * @brief Function to update constitutive models for DPDK (fracture) variables
+   * @param dataGroup group that contains the fields
+   */
+  virtual void
+  updateFluidModel_DPDK( ObjectManagerBase & dataGroup ) const;
+
+  /**
    * @brief Function to update fluid mass
    * @param subRegion subregion that contains the fields
    */
   void
   updateMass( ElementSubRegionBase & subRegion ) const;
+
+  /**
+   * @brief Function to update fluid mass for DPDK (fracture) variables
+   * @param subRegion subregion that contains the fields
+   */
+  void
+  updateMass_DPDK( ElementSubRegionBase & subRegion ) const;
 
   /**
    * @brief Template function to update fluid mass
@@ -322,6 +340,13 @@ public:
    */
   void
   updateMobility( ObjectManagerBase & dataGroup ) const;
+
+  /**
+   * @brief Function to update mobility for DPDK (fracture) variables
+   * @param dataGroup group that contains the fields
+   */
+  void
+  updateMobility_DPDK( ObjectManagerBase & dataGroup ) const;
 
   virtual void initializePreSubGroups() override;
 

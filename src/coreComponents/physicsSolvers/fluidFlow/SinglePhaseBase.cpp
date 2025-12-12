@@ -104,6 +104,22 @@ void SinglePhaseBase::registerDataOnMesh( Group & meshBodies )
       {
         subRegion.registerField< flow::dEnergy >( getName() ).reference().resizeDimension< 1 >( m_numDofPerCell );
       }
+      if( m_isDPDK )
+      {
+        GEOS_LOG("Registering the attribute of SinglePhaseBase");
+        subRegion.registerField< flow::mobility_DPDK >( getName() );
+        subRegion.registerField< flow::dMobility_DPDK >( getName() ).reference().resizeDimension< 1 >( m_numDofPerCell );
+
+        subRegion.registerField< flow::mass_DPDK >( getName() );
+        subRegion.registerField< flow::mass_n_DPDK >( getName() );
+        subRegion.registerField< flow::dMass_DPDK >( getName() ).reference().resizeDimension< 1 >( m_numDofPerCell );
+
+        if( m_isThermal )
+        {
+          subRegion.registerField< flow::dEnergy_DPDK >( getName() ).reference().resizeDimension< 1 >( m_numDofPerCell );
+        }
+        GEOS_LOG("Registered attributes of SinglePhaseBase successfully! ");
+      }
     } );
 
     elemManager.forElementSubRegions< SurfaceElementSubRegion >( regionNames,
@@ -130,6 +146,17 @@ void SinglePhaseBase::setConstitutiveNames( ElementSubRegionBase & subRegion ) c
   if( m_isThermal )
   {
     setConstitutiveName< SinglePhaseThermalConductivityBase >( subRegion, viewKeyStruct::thermalConductivityNamesString(), "singlephase thermal conductivity" );
+  }
+  //the fluid in the fracture element for DPDK
+  if( m_isDPDK )
+  { 
+    GEOS_LOG("Setting the constitutive names of DPDK here");
+    setConstitutiveName< SingleFluidBase >( subRegion, viewKeyStruct::fluidNamesString(), "singlephase fluid" );
+
+    if( m_isThermal )
+    {
+      setConstitutiveName< SinglePhaseThermalConductivityBase >( subRegion, viewKeyStruct::thermalConductivityNamesString(), "singlephase thermal conductivity" );
+    }
   }
 }
 
@@ -219,6 +246,23 @@ void SinglePhaseBase::updateFluidModel( ObjectManagerBase & dataGroup ) const
   } );
 }
 
+void SinglePhaseBase::updateFluidModel_DPDK( ObjectManagerBase & dataGroup ) const
+{
+  GEOS_MARK_FUNCTION;
+
+  arrayView1d< real64 const > const pres = dataGroup.getField< flow::pressure_DPDK >();
+  arrayView1d< real64 const > const temp = dataGroup.getField< flow::temperature_DPDK >();
+
+  SingleFluidBase & fluid =
+    getConstitutiveModel< SingleFluidBase >( dataGroup, dataGroup.getReference< string >( viewKeyStruct::fluidNamesString() ) );
+
+  constitutiveUpdatePassThru( fluid, [&]( auto & castedFluid )
+  {
+    typename TYPEOFREF( castedFluid ) ::KernelWrapper fluidWrapper = castedFluid.createKernelWrapper();
+    singlePhaseBaseKernels::FluidUpdateKernel::launch( fluidWrapper, pres, temp );
+  } );
+}
+
 void SinglePhaseBase::updateMass( ElementSubRegionBase & subRegion ) const
 {
   GEOS_MARK_FUNCTION;
@@ -277,6 +321,59 @@ void SinglePhaseBase::updateMass( ElementSubRegionBase & subRegion ) const
     } );
   }
 }
+
+
+void SinglePhaseBase::updateMass_DPDK( ElementSubRegionBase & subRegion ) const
+{
+  GEOS_MARK_FUNCTION;
+
+  geos::internal::kernelLaunchSelectorThermalSwitch ( m_isThermal, [&] ( auto ISTHERMAL )
+  {
+    integer constexpr IS_THERMAL = ISTHERMAL();
+    using DerivOffset = constitutive::singlefluid::DerivativeOffsetC< IS_THERMAL >;
+
+    arrayView1d< real64 > const mass = subRegion.getField< flow::mass_DPDK >();
+    arrayView1d< real64 > const mass_n = subRegion.getField< flow::mass_n_DPDK >();
+    arrayView2d< real64, constitutive::singlefluid::USD_FLUID > const dMass = subRegion.getField< flow::dMass_DPDK >();
+
+    CoupledSolidBase const & porousSolid =
+      getConstitutiveModel< CoupledSolidBase >( subRegion, subRegion.template getReference< string >( viewKeyStruct::solidNamesString()));
+    arrayView2d< real64 const > const porosity = porousSolid.getPorosity();
+    arrayView2d< real64 const > const dPorosity_dP = porousSolid.getDporosity_dPressure();
+    arrayView2d< real64 const > const porosity_n = porousSolid.getPorosity_n();
+
+    arrayView1d< real64 const > const volume = subRegion.getElementVolume();
+    arrayView1d< real64 const > const deltaVolume = subRegion.getField< fields::flow::deltaVolume >();
+
+    SingleFluidBase & fluid =
+      getConstitutiveModel< SingleFluidBase >( subRegion, subRegion.getReference< string >( viewKeyStruct::fluidNamesString()));
+    arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > const density = fluid.density();
+    arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > const density_n = fluid.density_n();
+    arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > const dDensity = fluid.dDensity();
+
+    forAll< parallelDevicePolicy<> >( subRegion.size(), [=] GEOS_HOST_DEVICE ( localIndex const ei )
+    {
+      real64 const vol = volume[ei] + deltaVolume[ei];
+      mass[ei] = porosity[ei][0] * density[ei][0] * vol;
+      dMass[ei][DerivOffset::dP] = ( dPorosity_dP[ei][0] * density[ei][0] + porosity[ei][0] * dDensity[ei][0][DerivOffset::dP] ) * vol;
+      if( isZero( mass_n[ei] ) )
+      {
+        mass_n[ei] = porosity_n[ei][0] * volume[ei] * density_n[ei][0];
+      }
+    } );
+
+    if constexpr (IS_THERMAL)
+    {
+      arrayView2d< real64 const > const dPorosity_dT = porousSolid.getDporosity_dTemperature();
+      forAll< parallelDevicePolicy<> >( subRegion.size(), [=] GEOS_HOST_DEVICE ( localIndex const ei )
+      {
+        real64 const vol = volume[ei] + deltaVolume[ei];
+        dMass[ei][DerivOffset::dT] = ( dPorosity_dT[ei][0] * density[ei][0] + porosity[ei][0] * dDensity[ei][0][DerivOffset::dT] ) * vol;
+      } );
+    }
+  } );
+}
+
 
 void SinglePhaseBase::updateEnergy( ElementSubRegionBase & subRegion ) const
 {
@@ -352,6 +449,13 @@ real64 SinglePhaseBase::updateFluidState( ElementSubRegionBase & subRegion ) con
   updateFluidModel( subRegion );
   updateMass( subRegion );
   updateMobility( subRegion );
+  if( m_isDPDK )
+  {
+    // Update the fluid model, mass and mobility in the fracture elements for DPDK
+    updateFluidModel_DPDK( subRegion );
+    updateMass_DPDK( subRegion );
+    updateMobility_DPDK( subRegion );
+  }
   return 0.0;
 }
 
@@ -362,6 +466,32 @@ void SinglePhaseBase::updateMobility( ObjectManagerBase & dataGroup ) const
   // output
   arrayView1d< real64 > const mob = dataGroup.getField< flow::mobility >();
   arrayView2d< real64, constitutive::singlefluid::USD_FLUID > const dMobility = dataGroup.getField< flow::dMobility >();
+
+  // input
+  SingleFluidBase & fluid =
+    getConstitutiveModel< SingleFluidBase >( dataGroup, dataGroup.getReference< string >( viewKeyStruct::fluidNamesString() ) );
+
+  geos::internal::kernelLaunchSelectorThermalSwitch( m_isThermal, [&] ( auto ISTHERMAL )
+  {
+    integer constexpr NUMDOF = ISTHERMAL() + 1;
+    singlePhaseBaseKernels::MobilityKernel::compute_value_and_derivatives< parallelDevicePolicy<>, NUMDOF >( dataGroup.size(),
+                                                                                                             fluid.density(),
+                                                                                                             fluid.dDensity(),
+                                                                                                             fluid.viscosity(),
+                                                                                                             fluid.dViscosity(),
+                                                                                                             mob,
+                                                                                                             dMobility );
+  } );
+
+}
+
+void SinglePhaseBase::updateMobility_DPDK( ObjectManagerBase & dataGroup ) const
+{
+  GEOS_MARK_FUNCTION;
+
+  // output
+  arrayView1d< real64 > const mob = dataGroup.getField< flow::mobility_DPDK >();
+  arrayView2d< real64, constitutive::singlefluid::USD_FLUID > const dMobility = dataGroup.getField< flow::dMobility_DPDK >();
 
   // input
   SingleFluidBase & fluid =
@@ -634,6 +764,9 @@ void SinglePhaseBase::implicitStepSetup( real64 const & GEOS_UNUSED_PARAM( time_
         updateSolidInternalEnergyModel( subRegion );
         updateThermalConductivity( subRegion );
         updateEnergy( subRegion );
+        updateSolidInternalEnergyModel_DPDK( subRegion );
+        updateThermalConductivity_DPDK( subRegion );
+        updateEnerg_DPDK( subRegion );
       }
 
     } );
@@ -918,6 +1051,19 @@ void SinglePhaseBase::applyDirichletBC( real64 const time_n,
                                  1, flow::temperature::key(), flow::bcTemperature::key(),
                                  localMatrix, localRhs );
     }
+    if( m_isDPDK )
+    //NOTE@LSL 
+    {
+      applyAndSpecifyFieldValue( time_n, dt, mesh, rankOffset, dofKey, isFirstNonlinearIteration,
+                               0, flow::pressure_DPDK::key(), flow::bcPressure_DPDK::key(),
+                               localMatrix, localRhs );
+      if( m_isThermal )
+      {
+        applyAndSpecifyFieldValue( time_n, dt, mesh, rankOffset, dofKey, isFirstNonlinearIteration,
+                                 1, flow::temperature::key(), flow::bcTemperature::key(),
+                                 localMatrix, localRhs );
+      }
+    }
   } );
 }
 
@@ -1198,6 +1344,8 @@ void SinglePhaseBase::updateState( DomainPartition & domain )
       {
         updateSolidInternalEnergyModel( subRegion );
         updateEnergy( subRegion );
+        updateSolidInternalEnergyModel_DPDK( subRegion );
+        updateEnergy_DPDK( subRegion );
       }
     } );
   } );
@@ -1230,10 +1378,24 @@ void SinglePhaseBase::resetStateToBeginningOfStep( DomainPartition & domain )
       {
         updateSolidInternalEnergyModel( subRegion );
         updateEnergy( subRegion );
+        updateSolidInternalEnergyModel_DPDK( subRegion );
+        updateEnergy_DPDK( subRegion );
       }
     } );
   } );
 }
+
+
+void updateSolidInternalEnergyModel_DPDK( subRegion )
+{
+  GEOS_LOG("some code is need for updateSolidInternalEnergyModel_DPDK");
+}
+
+void updateEnergy_DPDK( subRegion )
+{
+  GEOS_LOG("some code is need for updateEnergy_DPDK");
+}
+
 
 real64 SinglePhaseBase::scalingForSystemSolution( DomainPartition & domain,
                                                   DofManager const & dofManager,
