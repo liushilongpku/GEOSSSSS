@@ -35,6 +35,7 @@ set( multiPhysicsSolvers_headers
     PhaseFieldPoromechanicsSolver.hpp
     PoromechanicsInitialization.hpp
     PoromechanicsFields.hpp
+    DualContinuumFlowSolver.hpp
     PoromechanicsInitialization.hpp
     poromechanicsKernels/MultiphasePoromechanics.hpp
     poromechanicsKernels/MultiphasePoromechanics_impl.hpp

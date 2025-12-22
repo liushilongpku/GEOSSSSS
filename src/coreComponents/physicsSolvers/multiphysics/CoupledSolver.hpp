@@ -44,6 +44,31 @@ public:
                  Group * const parent )
     : PhysicsSolverBase( name, parent )
   {
+    //handle the situation of multi flow solver(two for now)
+    //if the name is same, suffix "1" will be added
+    //like solver0: flowSolverName, solver1: flowSolverName1
+    std::unordered_map<string, localIndex> prefixCount;
+
+    forEachArgInTuple( m_solvers, [&]( auto solver, auto idx )
+    {
+        using SolverType = TYPEOFPTR( solver );
+        string const & prefix = SolverType::coupledSolverAttributePrefix();
+        ++prefixCount[prefix];
+
+        using SolverType = TYPEOFPTR( solver );
+        string key = prefix + "SolverName";
+
+        if( prefixCount[prefix] > 1 )
+        {
+          key +=  std::to_string( prefixCount[prefix] - 1);
+        }
+
+        registerWrapper( key, &m_names[idx()] )
+                .setRTTypeName( rtTypes::CustomTypes::groupNameRef )
+                .setInputFlag( dataRepository::InputFlags::REQUIRED )
+                .setDescription( "Name of the " + prefix + " solver used by the coupled solver" );
+    } );
+    /*
     forEachArgInTuple( m_solvers, [&]( auto solver, auto idx )
     {
       using SolverType = TYPEOFPTR( solver );
@@ -53,7 +78,7 @@ public:
         setInputFlag( dataRepository::InputFlags::REQUIRED ).
         setDescription( "Name of the " + SolverType::coupledSolverAttributePrefix() + " solver used by the coupled solver" );
     } );
-
+    */
     this->getWrapper< string >( PhysicsSolverBase::viewKeyStruct::discretizationString() ).
       setInputFlag( dataRepository::InputFlags::FALSE );
 

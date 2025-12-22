@@ -35,6 +35,7 @@ set( fluidFlowSolvers_headers
      SinglePhaseBase.hpp
      SinglePhaseBaseFields.hpp
      SinglePhaseStatistics.hpp
+     SinglePhaseDualContinuum.hpp
      SinglePhaseFVM.hpp
      SinglePhaseHybridFVM.hpp
      SinglePhaseProppantBase.hpp
@@ -137,6 +138,7 @@ set( fluidFlowSolvers_sources
      SinglePhaseBase.cpp
      SinglePhaseStatistics.cpp
      SinglePhaseFVM.cpp
+     SinglePhaseDualContinuum.cpp
      SinglePhaseHybridFVM.cpp
      SinglePhaseProppantBase.cpp
      SourceFluxStatistics.cpp
