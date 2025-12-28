@@ -1295,6 +1295,20 @@ void debugOutputLAObject( T const & obj,
 }
 
 }
+//NOTE@LSL could not use GEOS_LOG in terminal directly,
+// which will complain that No symbol "GEOS_LOG" in current context.
+
+void PhysicsSolverBase::printDataOut(ParallelMatrix const & obj) const
+{
+  GEOS_LOG(obj);
+}
+
+void PhysicsSolverBase::printCRSMatrix(CRSMatrix< real64, globalIndex > const & obj ) const
+{
+  decltype(m_matrix) matrixFromCRSMatrix;
+  matrixFromCRSMatrix.create(obj.toViewConst(), m_dofManager.numLocalDofs(), MPI_COMM_GEOS);
+  GEOS_LOG(matrixFromCRSMatrix);
+}
 
 void PhysicsSolverBase::debugOutputSystem( real64 const & time,
                                            integer const cycleNumber,

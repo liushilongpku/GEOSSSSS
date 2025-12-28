@@ -374,7 +374,9 @@ public:
     constexpr static char const * objectPathString() { return "objectPath"; }
     /// @return The key for fieldName
     constexpr static char const * fieldNameString() { return "fieldName"; }
-    /// @return The key for dataType
+    /// @return The key for targetMesh
+    constexpr static char const * targetMeshString() { return "targetMesh"; }
+      /// @return The key for dataType
     constexpr static char const * dataTypeString() { return "dataType"; }
     /// @return The key for component
     constexpr static char const * componentString() { return "component"; }
@@ -412,6 +414,14 @@ public:
     return m_objectPath;
   }
 
+    /**
+     * Accessor
+     * @return const reference to m_objectPath
+     */
+  virtual const string & getTargetMesh() const
+  {
+    return m_targetMesh;
+  }
   /**
    * Accessor
    * @return const reference to m_fieldName
@@ -566,8 +576,10 @@ private:
   /// determining whether or not to apply the boundary condition.
   string m_fieldName;
 
+  /// the mesh name which contains the fields that the boundary condition is applied to
+  string m_targetMesh;
 
-  /// The component the boundary condition acts on. Not used if field is a scalar.
+    /// The component the boundary condition acts on. Not used if field is a scalar.
   int m_component;
 
   /// The direction the boundary condition acts in.

@@ -41,20 +41,69 @@
         newtonMaxIter = "8"/>       
     </SinglePhaseFVM>
   </Solvers>
-
+<!--
   <Mesh>
      <VTKMesh         
       name="FaultModel"      
       file="faultMesh_smoke.vtk"
       regionAttribute="CellEntityIds"/>
-  </Mesh> 
+  </Mesh>
+-->
+  <Mesh>
+    <InternalMesh
+            name="mesh1"
+            elementTypes="{ C3D8 }"
+            xCoords="{ 0, 1, 9, 10 }"
+            yCoords="{ 0, 10 }"
+            zCoords="{ 0, 10 }"
+            nx="{ 1, 1, 1 }"
+            ny="{ 1 }"
+            nz="{ 1 }"
+            cellBlockNames="{ block1 }"/>
+  </Mesh>
 
+  <Geometry>
+    <Box
+            name="source"
+            xMin="{ -0.01, -0.01, -0.01 }"
+            xMax="{ 1.01, 11, 11 }"/>
+
+    <Box
+            name="sink"
+            xMin="{ 8.99, -0.01, -0.01 }"
+            xMax="{ 10.01, 1.01, 1.01 }"/>
+    <Box
+            name="88"
+            xMin="{ -1, -1, -1 }"
+            xMax="{ 1, 11, 11 }"/>
+    <Box
+            name="89"
+            xMin="{ 9, -1, -1 }"
+            xMax="{ 11, 11, 11 }"/>
+    <Box
+            name="90"
+            xMin="{ -1, -1, -1 }"
+            xMax="{ 11, 1, 11 }"/>
+    <Box
+            name="91"
+            xMin="{ -1, 9, -1 }"
+            xMax="{ 11, 11, 11 }"/>
+    <Box
+            name="92"
+            xMin="{ -1, -1, -1 }"
+            xMax="{ 11, 11, 1 }"/>
+    <Box
+            name="93"
+            xMin="{ -1, -1, 9 }"
+            xMax="{ 11, 11, 11 }"/>
+
+  </Geometry>
   <FieldSpecifications>
     <FieldSpecification 
       name="injection"
       initialCondition="0"
-      setNames="{all}"
-      objectPath="ElementRegions/Domain/97_hexahedra"
+      setNames="{source}"
+      objectPath="ElementRegions/Domain/block1"
       fieldName="pressure"      
       scale="55.0e6"/>   	  
   </FieldSpecifications>
@@ -70,11 +119,6 @@
       forceDt="10"
       target="/Solvers/poromechanicsSolver"/>	
 
-    <PeriodicEvent
-      name="restarts"
-      timeFrequency="2.0"
-      targetExactTimestep="0"
-      target="/Outputs/restartOutput"  />   
   </Events>
 
 </Problem>

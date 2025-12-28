@@ -42,7 +42,7 @@ template< typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER >
 void DualContinuumFVM< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER  >::setupCoupling( DomainPartition const & GEOS_UNUSED_PARAM( domain ),
                                                                                DofManager & dofManager ) const
 {
-  dofManager.addCoupling( flow::pressure::key(),
+  dofManager.addCoupling( SinglePhaseBase::viewKeyStruct::elemDofFieldString(),
                           SinglePhaseBase::viewKeyStruct::elemDofFieldString(),
                           DofManager::Connector::Elem );
 }
@@ -53,14 +53,14 @@ void DualContinuumFVM< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER  >::initialize
   Base::initializePreSubGroups();
   // Ensure discretization is valid for each underlying flow solver if needed
 }
-
+/*
 template< typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
 void DualContinuumFVM< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER  >::setupDofs( DomainPartition const & domain, DofManager & dofManager ) const
 {
   // Let the base DualContinuumFlowSolver call each sub-solver's setupDofs
   Base::setupDofs( domain, dofManager );
 }
-
+*/
 template< typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
 void DualContinuumFVM< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER  >::setupSystem( DomainPartition & domain,
                                             DofManager & dofManager,
@@ -104,7 +104,14 @@ void DualContinuumFVM< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >::assembleSys
                                                                                 arrayView1d< real64 > const & localRhs )
 {
   GEOS_MARK_FUNCTION;
-
+  this->primarySolver()->assembleAccumulationTerms(domain,
+                                                    dofManager,
+                                                    localMatrix,
+                                                    localRhs );
+  this->secondarySolver()->assembleAccumulationTerms(domain,
+                                                   dofManager,
+                                                   localMatrix,
+                                                   localRhs );
   if( 0 )
   {
     this->primarySolver()->assembleStabilizedFluxTerms( dt,

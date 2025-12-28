@@ -16,7 +16,7 @@
 #define GEOS_PHYSICSSOLVERS_FLUIDFLOW_DUALCONTINUUMFVM_HPP_
 
 #include "physicsSolvers/multiphysics/DualContinuumFlowSolver.hpp"
-#include "physicsSolvers/fluidFlow/SinglePhaseFVM.hpp"
+#include "physicsSolvers/fluidFlow/SinglePhaseDpdkFVM.hpp"
 
 namespace geos
 {
@@ -40,10 +40,10 @@ public:
   virtual void postInputInitialization() override;
 
   virtual void initializePreSubGroups() override;
-
+/*
   virtual void setupDofs( DomainPartition const & domain,
                          DofManager & dofManager ) const override;
-
+*/
   virtual void setupCoupling( DomainPartition const & domain,
                               DofManager & dofManager ) const override;
 

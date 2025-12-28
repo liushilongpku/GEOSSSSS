@@ -18,6 +18,7 @@
 #include "physicsSolvers/multiphysics/CoupledSolver.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBase.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
+#include "physicsSolvers/fluidFlow/SinglePhaseBaseDpdk.hpp"
 #include "mesh/DomainPartition.hpp"
 #include "codingUtilities/Utilities.hpp"
 
@@ -114,7 +115,7 @@ public:
                               DofManager & dofManager ) const override
   {
     // ensure element-based coupling (two components per element) has sparsity
-    dofManager.addCoupling( SinglePhaseBase::viewKeyStruct::elemDofFieldString(),
+    dofManager.addCoupling( SinglePhaseBaseDpdk::viewKeyStruct::elemDofFieldString(),
                             SinglePhaseBase::viewKeyStruct::elemDofFieldString(),
                             DofManager::Connector::Elem );
   }
@@ -204,7 +205,14 @@ public:
                                     DomainPartition & domain ) override
   {
     // let each flow solver apply their part of the solution
-    Base::applySystemSolution( dofManager, localSolution, scalingFactor, dt, domain );
+    // 此处基于bug运行，应该将两个求解器的解分别应用到对应网格中，但是刚好singlephasefvm中的应用解向量对全局都应用，所以只需要调用一次
+    // 应用两次会造成双倍解
+    // TODO@LSL：为单项流添加网格适配
+    std::get<0>(m_solvers)->applySystemSolution( dofManager,
+                                         localSolution,
+                                         scalingFactor,
+                                         dt,
+                                         domain );
   }
 
 protected:

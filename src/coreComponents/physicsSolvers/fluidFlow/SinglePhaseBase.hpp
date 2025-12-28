@@ -138,7 +138,9 @@ public:
    * @param localMatrix the system matrix
    * @param localRhs the system right-hand side vector
    */
-  void assembleAccumulationTerms( DomainPartition & domain,
+
+  //addde an "vitual" for dpdk model 
+  virtual void assembleAccumulationTerms( DomainPartition & domain,
                                   DofManager const & dofManager,
                                   CRSMatrixView< real64, globalIndex const > const & localMatrix,
                                   arrayView1d< real64 > const & localRhs );
@@ -211,8 +213,13 @@ public:
 
   struct viewKeyStruct : FlowSolverBase::viewKeyStruct
   {
-    static constexpr char const * elemDofFieldString() { return "singlePhaseVariables"; }
+    static constexpr char const *elemDofFieldString()
+    {
+      return "singlePhaseVariables";
+    }
+
   };
+
 
   /**
    * @brief Function to perform the Application of Dirichlet type BC's
@@ -223,7 +230,7 @@ public:
    * @param localMatrix local system matrix
    * @param localRhs local system right-hand side vector
    */
-  void
+  virtual void //此处添加了virtual，可能会造成新的问题。
   applyDirichletBC( real64 const time_n,
                     real64 const dt,
                     DomainPartition & domain,

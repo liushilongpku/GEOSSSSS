@@ -1123,6 +1123,10 @@ public:
   WrapperBase const & getWrapperBase( KEY const & key ) const
   {
     WrapperBase const * const wrapper = m_wrappers[ key ];
+    if(wrapper == nullptr)
+    {
+      GEOS_LOG("it will break next step");
+    }
     GEOS_THROW_IF( wrapper == nullptr,
                    "Group " << getDataContext() << " has no wrapper named " << key << std::endl
                             << dumpWrappersNames(),
@@ -1138,6 +1142,10 @@ public:
   WrapperBase & getWrapperBase( KEY const & key )
   {
     WrapperBase * const wrapper = m_wrappers[ key ];
+    if(wrapper == nullptr)
+    {
+      GEOS_LOG("simulation will be stopped next step");
+    }
     GEOS_THROW_IF( wrapper == nullptr,
                    "Group " << getDataContext() << " has no wrapper named " << key << std::endl
                             << dumpWrappersNames(),

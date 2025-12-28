@@ -42,6 +42,12 @@ FieldSpecificationBase::FieldSpecificationBase( string const & name, Group * par
     setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Name of field that boundary condition is applied to." );
 
+  registerWrapper( viewKeyStruct::targetMeshString(), &m_targetMesh ).
+    setRTTypeName( rtTypes::CustomTypes::groupNameRef ).
+    setApplyDefaultValue( "" ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Name of Mesh that boundary condition is applied to." );
+
   registerWrapper( viewKeyStruct::componentString(), &m_component ).
     setApplyDefaultValue( -1 ).
     setInputFlag( InputFlags::OPTIONAL ).

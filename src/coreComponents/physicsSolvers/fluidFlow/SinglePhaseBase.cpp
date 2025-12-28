@@ -785,7 +785,6 @@ void SinglePhaseBase::assembleAccumulationTerms( DomainPartition & domain,
                                                  arrayView1d< real64 > const & localRhs )
 {
   GEOS_MARK_FUNCTION;
-
   forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&]( string const &,
                                                                MeshLevel & mesh,
                                                                string_array const & regionNames )
@@ -819,6 +818,7 @@ void SinglePhaseBase::applyBoundaryConditions( real64 time_n,
   }
   else
   {
+    //TODO@LSL: verify if the source flux BC and the aquifer BC are correct for dpdk case
     applySourceFluxBC( time_n, dt, domain, dofManager, localMatrix, localRhs );
     applyDirichletBC( time_n, dt, domain, dofManager, localMatrix, localRhs );
     applyAquiferBC( time_n, dt, domain, dofManager, localMatrix, localRhs );
@@ -851,46 +851,48 @@ void applyAndSpecifyFieldValue( real64 const & time_n,
                                                 ElementSubRegionBase & subRegion,
                                                 string const & )
   {
-    // Specify the bc value of the field
-    fs.applyFieldValue< FieldSpecificationEqual,
-                        parallelDevicePolicy<> >( lset,
-                                                  time_n + dt,
-                                                  subRegion,
-                                                  boundaryFieldKey );
-
-    arrayView1d< integer const > const ghostRank = subRegion.ghostRank();
-    arrayView1d< globalIndex const > const dofNumber =
-      subRegion.getReference< array1d< globalIndex > >( dofKey );
-    arrayView1d< real64 const > const bcField =
-      subRegion.getReference< array1d< real64 > >( boundaryFieldKey );
-    arrayView1d< real64 const > const field =
-      subRegion.getReference< array1d< real64 > >( fieldKey );
-
-    forAll< parallelDevicePolicy<> >( lset.size(), [=] GEOS_HOST_DEVICE ( localIndex const a )
+    if( fs.getTargetMesh()== ""|| fs.getTargetMesh() == mesh.getParent().getParent().getName())
     {
-      localIndex const ei = lset[a];
-      if( ghostRank[ei] >= 0 )
+      // Specify the bc value of the field
+      fs.applyFieldValue< FieldSpecificationEqual,
+              parallelDevicePolicy<> >( lset,
+                                        time_n + dt,
+                                        subRegion,
+                                        boundaryFieldKey );
+
+      arrayView1d< integer const > const ghostRank = subRegion.ghostRank();
+      arrayView1d< globalIndex const > const dofNumber =
+              subRegion.getReference< array1d< globalIndex > >( dofKey );
+      arrayView1d< real64 const > const bcField =
+              subRegion.getReference< array1d< real64 > >( boundaryFieldKey );
+      arrayView1d< real64 const > const field =
+              subRegion.getReference< array1d< real64 > >( fieldKey );
+
+      forAll< parallelDevicePolicy<> >( lset.size(), [=] GEOS_HOST_DEVICE ( localIndex const a )
       {
-        return;
-      }
+          localIndex const ei = lset[a];
+          if( ghostRank[ei] >= 0 )
+          {
+            return;
+          }
 
-      globalIndex const dofIndex = dofNumber[ei];
-      localIndex const localRow = dofIndex - rankOffset;
-      real64 rhsValue;
+          globalIndex const dofIndex = dofNumber[ei];
+          localIndex const localRow = dofIndex - rankOffset;
+          real64 rhsValue;
 
-      // Apply field value to the matrix/rhs
-      FieldSpecificationEqual::SpecifyFieldValue( dofIndex + idof,
-                                                  rankOffset,
-                                                  localMatrix,
-                                                  rhsValue,
-                                                  bcField[ei],
-                                                  field[ei] );
-      localRhs[localRow + idof] = rhsValue;
-    } );
-  } );
+          // Apply field value to the matrix/rhs
+          FieldSpecificationEqual::SpecifyFieldValue( dofIndex + idof,
+                                                      rankOffset,
+                                                      localMatrix,
+                                                      rhsValue,
+                                                      bcField[ei],
+                                                      field[ei] );
+          localRhs[localRow + idof] = rhsValue;
+      } );
+    };
+  });
 }
-
-}
+}//namespace
 
 void SinglePhaseBase::applyDirichletBC( real64 const time_n,
                                         real64 const dt,

@@ -258,6 +258,8 @@ protected:
   /// flag to determine whether or not this is a thermal simulation
   integer m_isThermal;
 
+  integer m_isDPDK;
+
   /// the input temperature
   real64 m_inputTemperature;
 

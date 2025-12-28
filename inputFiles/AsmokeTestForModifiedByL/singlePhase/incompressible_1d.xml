@@ -6,7 +6,6 @@
       name="SinglePhaseFlow"
       discretization="singlePhaseTPFA"
       targetRegions="{ Region1 }"
-      isDPDK="1"
       writeLinearSystem="1"
       logLevel="1">
       <NonlinearSolverParameters
@@ -154,7 +153,7 @@
       fieldName="pressure"
       scale="-5e6"
       setNames="{ sink }"/>
-    
+    <!--
     <FieldSpecification
             name="initialPressure_DPDK"
             initialCondition="1"
@@ -176,7 +175,7 @@
             fieldName="pressure_DPDK"
             scale="5e6"
             setNames="{ sink }"/>
-            
+            -->
   </FieldSpecifications>
 
   <Outputs>
