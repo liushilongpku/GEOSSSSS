@@ -7,7 +7,7 @@
             flowSolverName="singlePhaseFlowSolver"
             flowSolverName1="singlePhaseFlowSolver1"
             logLevel="1"
-            writeLinearSystem="1"
+            writeLinearSystem="0"
             targetRegions="{ mesh1/Region1 ,mesh2/Region2}">
       <LinearSolverParameters
               solverType="direct"
@@ -49,7 +49,7 @@
     <InternalMesh
       name="mesh1"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 1, 9, 10 }"
+      xCoords="{ 0, 1, 99, 100 }"
       yCoords="{ 0, 1 }"
       zCoords="{ 0, 1 }"
       nx="{ 1, 98, 1 }"
@@ -59,7 +59,7 @@
     <InternalMesh
             name="mesh2"
             elementTypes="{ C3D8 }"
-            xCoords="{ 0, 1, 9, 10 }"
+            xCoords="{ 0, 1, 99, 100 }"
             yCoords="{ 0, 1 }"
             zCoords="{ 0, 1 }"
             nx="{ 1, 98, 1 }"
@@ -76,33 +76,33 @@
 
     <Box
       name="sink"
-      xMin="{ 8.99, -0.01, -0.01 }"
-      xMax="{ 10.01, 1.01, 1.01 }"/>
+      xMin="{ 98.99, -0.01, -0.01 }"
+      xMax="{ 100.01, 1.01, 1.01 }"/>
   </Geometry>
 
   <Events
-    maxTime="1.0">
+    maxTime="1000.0">
     <PeriodicEvent
       name="outputs"
       timeFrequency="1.0"
-      target="/Outputs/siloOutput"/>
+      target="/Outputs/vtkOutput"/>
 
     <PeriodicEvent
       name="solverApplications"
       forceDt="1.0"
       target="/Solvers/DualContinuumSolver"/>
 
-    <PeriodicEvent
-      name="restarts"
-      timeFrequency="1.0"
-      targetExactTimestep="0"
-      target="/Outputs/restartOutput"/>
+
   </Events>
 
   <NumericalMethods>
     <FiniteVolume>
       <TwoPointFluxApproximation
         name="singlePhaseTPFA"/>
+    </FiniteVolume>
+        <FiniteVolume>
+      <TwoPointFluxApproximation
+        name="singlePhaseTPFA1"/>
     </FiniteVolume>
   </NumericalMethods>
 
@@ -125,7 +125,7 @@
       defaultDensity="1000"
       defaultViscosity="0.001"
       referencePressure="0.0"
-      compressibility="5e-10"
+      compressibility="0.0"
       viscosibility="0.0"/>
 
     <CompressibleSolidConstantPermeability
@@ -141,12 +141,11 @@
       name="rockPorosity"
       defaultReferencePorosity="0.05"
       referencePressure="0.0"
-      compressibility="1e-7"/>
+      compressibility="0.0"/>
 
     <ConstantPermeability
       name="rockPerm"
-      permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
-
+      permeabilityComponents="{ 2.0e-13, 2.0e-13, 2.0e-13 }"/>
 
     <CompressibleSolidConstantPermeability
             name="rock_DPDK"
@@ -161,14 +160,15 @@
             name="rockPorosity_DPDK"
             defaultReferencePorosity="0.05"
             referencePressure="0.0"
-            compressibility="1e-8"/>
+            compressibility="0.0"/>
 
     <ConstantPermeability
             name="rockPerm_DPDK"
-            permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
+      permeabilityComponents="{ 2.0e-13, 2.0e-13, 2.0e-13 }"/>
   </Constitutive>
 
   <FieldSpecifications>
+<!--
     <FieldSpecification
             name="Porosity"
             initialCondition="1"
@@ -185,7 +185,7 @@
             objectPath="ElementRegions"
             fieldName="rockPorosity_DPDK_referencePorosity"
             scale="0.05"/>
-
+-->
     <FieldSpecification
             name="initialPressure1"
             initialCondition="1"
@@ -193,7 +193,7 @@
             targetMesh="mesh1"
             objectPath="ElementRegions"
             fieldName="pressure"
-            scale="0.0"/>
+            scale="1e6"/>
     <FieldSpecification
             name="initialPressure2"
             initialCondition="1"
@@ -201,133 +201,85 @@
             targetMesh="mesh2"
             objectPath="ElementRegions"
             fieldName="pressure"
-            scale="0"/>
+            scale="1e6"/>
 
+        <!-- Source Pressure BC for mesh1
+                targetMesh="mesh1"
+     1e6 min pressure max pressure : 4.6e7
+     
+     when using the /home/hello/codes/GEOSSSSS/build-your-platform-debug/bin/geosx
+     the result is the same whit the single version 
+     -->
+    
     <FieldSpecification
-            name="sourceTerm1"
+            name="sourcePressure1"
             objectPath="ElementRegions"
-            fieldName="pressure"
             targetMesh="mesh1"
-            scale="8e6"
-            setNames="{ source }"/>
-    <FieldSpecification
-            name="sinkTerm1"
-            objectPath="ElementRegions"
             fieldName="pressure"
+            scale="5e6"
+            setNames="{ source }"/>
+    <!-- Sink Flux BC for mesh1
+    <SourceFlux
+            name="sinkFlux1"
+            objectPath="ElementRegions"
             targetMesh="mesh1"
-            scale="-8e6"
-            setNames="{ sink }"/>
+            scale="-0.1"
+            setNames="{ sink }"/> -->
 
-
-
-
-    <FieldSpecification
-            name="sourceTerm2"
+    <!-- Source Flux BC for mesh2
+    <SourceFlux
+            name="sourceFlux2"
             objectPath="ElementRegions"
-            fieldName="pressure"
             targetMesh="mesh2"
-            scale="-5e6"
-            setNames="{ source }"/>
-<!--targetMesh is null means that both mesh will be applied -->
-
+            scale="-0.1"
+            setNames="{ source }"/> -->
+    <!-- Sink Pressure BC for mesh2 -->
     <FieldSpecification
-            name="sinkTerm2"
+            name="sinkPressure2"
             objectPath="ElementRegions"
-            fieldName="pressure"
             targetMesh="mesh2"
-            scale="5e6"
-            setNames="{ sink }"/>
-    <!--
-    <FieldSpecification
-      name="Porosity"
-      initialCondition="1"
-      setNames="{ all }"
-      objectPath="ElementRegions/Region1/"
-      fieldName="rockPorosity_referencePorosity"
-      scale="0.05"/>
-
-    <FieldSpecification
-      name="initialPressure"
-      initialCondition="1"
-      setNames="{ all }"
-      objectPath="ElementRegions/Region1/block1"
-      fieldName="pressure"
-      scale="0.0"/>
-
-    <FieldSpecification
-      name="sourceTerm"
-      objectPath="ElementRegions/Region1/block1"
-      fieldName="pressure"
-      scale="5e6"
-      setNames="{ source }"/>
-
-    <FieldSpecification
-      name="sinkTerm"
-      objectPath="ElementRegions/Region1/block1"
-      fieldName="pressure"
-      scale="-5e6"
-      setNames="{ sink }"/>
-
-    <FieldSpecification
-            name="Porosity2"
-            initialCondition="1"
-            setNames="{ all }"
-            objectPath="ElementRegions/Region2/block2"
-            fieldName="rockPorosity_referencePorosity"
-            scale="0.05"/>
-
-    <FieldSpecification
-            name="initialPressure2"
-            initialCondition="1"
-            setNames="{ all }"
-            objectPath="ElementRegions/Region2/block2"
-            fieldName="pressure"
-            scale="0.0"/>
-
-    <FieldSpecification
-            name="sourceTerm2"
-            objectPath="ElementRegions/Region2/block2"
             fieldName="pressure"
             scale="5e6"
-            setNames="{ source }"/>
-
-    <FieldSpecification
-            name="sinkTerm2"
-            objectPath="ElementRegions/Region2/block2"
-            fieldName="pressure"
-            scale="-5e6"
             setNames="{ sink }"/>
-    -->
-    <!--
-    <FieldSpecification
-            name="initialPressure_DPDK"
-            initialCondition="1"
-            setNames="{ all }"
-            objectPath="ElementRegions/Region1/block1"
-            fieldName="pressure_DPDK"
-            scale="0.0"/>
 
-    <FieldSpecification
-            name="sourceTerm_DPDK"
-            objectPath="ElementRegions/Region1/block1"
-            fieldName="pressure_DPDK"
-            scale="-5e6"
-            setNames="{ source }"/>
+    <!-- Aquifer BC for mesh1
+    <Aquifer
+            name="aquifer1"
+            targetMesh="mesh1"
+            setNames="{ source }"
+            aquiferPorosity="0.1"
+            aquiferPermeability="1e-12"
+            aquiferThickness="1.0"
+            aquiferInitialPressure="1e6"
+            aquiferWaterViscosity="0.001"
+            aquiferWaterDensity="1000"
+            aquiferTotalCompressibility="1e-9"
+            aquiferElevation="0.0"
+            aquiferInnerRadius="1.0"
+            aquiferAngle="6.283185307"
+            allowAllPhasesIntoAquifer="1"/>    -->
+    <!-- Aquifer BC for mesh2
+    <Aquifer
+            name="aquifer2"
+            targetMesh="mesh2"
+            setNames="{ sink }"
+            aquiferPorosity="0.1"
+            aquiferPermeability="1e-12"
+            aquiferThickness="1.0"
+            aquiferInitialPressure="1e6"
+            aquiferWaterViscosity="0.001"
+            aquiferWaterDensity="1000"
+            aquiferTotalCompressibility="1e-9"
+            aquiferElevation="0.0"
+            aquiferInnerRadius="1.0"
+            aquiferAngle="6.283185307"
+            allowAllPhasesIntoAquifer="1"/> -->
 
-    <FieldSpecification
-            name="sinkTerm_DPDK"
-            objectPath="ElementRegions/Region1/block1"
-            fieldName="pressure_DPDK"
-            scale="5e6"
-            setNames="{ sink }"/>
-            -->
   </FieldSpecifications>
 
   <Outputs>
     <VTK
-      name="siloOutput"/>
-
-    <Restart
-      name="restartOutput"/>
+      name="vtkOutput"
+      childDirectory="../../datafile"/>
   </Outputs>
 </Problem>

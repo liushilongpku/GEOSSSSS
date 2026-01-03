@@ -979,59 +979,62 @@ void TwoPointFluxApproximation::computeAquiferStencil( DomainPartition & domain,
                                                      FaceManager const &,
                                                      string const & )
   {
-    BoundaryStencil & stencil = getStencil< BoundaryStencil >( mesh, setName );
-
-    stackArray1d< localIndex, numPts > stencilRegionIndices( numPts );
-    stackArray1d< localIndex, numPts > stencilSubRegionIndices( numPts );
-    stackArray1d< localIndex, numPts > stencilElemOrFaceIndices( numPts );
-    stackArray1d< real64, numPts > stencilWeights( numPts );
-
-    localIndex const aquiferIndex = aquiferNameToAquiferId.at( bc.getName() );
-
-    stencil.reserve( targetSet.size() );
-    for( localIndex iface : targetSet )
+    if( bc.getTargetMesh().empty() || bc.getTargetMesh() == mesh.getParent().getParent().getName())
     {
+      BoundaryStencil & stencil = getStencil< BoundaryStencil >( mesh, setName );
 
-      for( localIndex ke = 0; ke < numPts; ++ke )
+      stackArray1d< localIndex, numPts > stencilRegionIndices( numPts );
+      stackArray1d< localIndex, numPts > stencilSubRegionIndices( numPts );
+      stackArray1d< localIndex, numPts > stencilElemOrFaceIndices( numPts );
+      stackArray1d< real64, numPts > stencilWeights( numPts );
+
+      localIndex const aquiferIndex = aquiferNameToAquiferId.at( bc.getName() );
+
+      stencil.reserve( targetSet.size() );
+      for( localIndex iface : targetSet )
       {
-        // Filter out elements not locally present
-        if( elemRegionList[iface][ke] < 0 )
+
+        for( localIndex ke = 0; ke < numPts; ++ke )
         {
-          continue;
+          // Filter out elements not locally present
+          if( elemRegionList[iface][ke] < 0 )
+          {
+            continue;
+          }
+
+          // Filter out elements not in target regions
+          if( !regionFilterView.contains( elemRegionList[iface][ke] ))
+          {
+            continue;
+          }
+
+          localIndex const er  = elemRegionList[iface][ke];
+          localIndex const esr = elemSubRegionList[iface][ke];
+          localIndex const ei  = elemList[iface][ke];
+
+          // Filter out ghosted elements
+          if( elemGhostRank[er][esr][ei] >= 0 )
+          {
+            continue;
+          }
+
+          stencilRegionIndices[BoundaryStencil::Order::ELEM] = er;
+          stencilSubRegionIndices[BoundaryStencil::Order::ELEM] = esr;
+          stencilElemOrFaceIndices[BoundaryStencil::Order::ELEM] = ei;
+          stencilWeights[BoundaryStencil::Order::ELEM] = faceArea[iface] / globalSumFaceAreas[aquiferIndex];
+
+          stencilRegionIndices[BoundaryStencil::Order::FACE] = -1;
+          stencilSubRegionIndices[BoundaryStencil::Order::FACE] = -1;
+          stencilElemOrFaceIndices[BoundaryStencil::Order::FACE] = iface;
+          stencilWeights[BoundaryStencil::Order::FACE] = -faceArea[iface] / globalSumFaceAreas[aquiferIndex]; // likely unused for aquifers
+
+          stencil.add( stencilRegionIndices.size(),
+                       stencilRegionIndices.data(),
+                       stencilSubRegionIndices.data(),
+                       stencilElemOrFaceIndices.data(),
+                       stencilWeights.data(),
+                       iface );
         }
-
-        // Filter out elements not in target regions
-        if( !regionFilterView.contains( elemRegionList[iface][ke] ))
-        {
-          continue;
-        }
-
-        localIndex const er  = elemRegionList[iface][ke];
-        localIndex const esr = elemSubRegionList[iface][ke];
-        localIndex const ei  = elemList[iface][ke];
-
-        // Filter out ghosted elements
-        if( elemGhostRank[er][esr][ei] >= 0 )
-        {
-          continue;
-        }
-
-        stencilRegionIndices[BoundaryStencil::Order::ELEM] = er;
-        stencilSubRegionIndices[BoundaryStencil::Order::ELEM] = esr;
-        stencilElemOrFaceIndices[BoundaryStencil::Order::ELEM] = ei;
-        stencilWeights[BoundaryStencil::Order::ELEM] = faceArea[iface] / globalSumFaceAreas[aquiferIndex];
-
-        stencilRegionIndices[BoundaryStencil::Order::FACE] = -1;
-        stencilSubRegionIndices[BoundaryStencil::Order::FACE] = -1;
-        stencilElemOrFaceIndices[BoundaryStencil::Order::FACE] = iface;
-        stencilWeights[BoundaryStencil::Order::FACE] = -faceArea[iface] / globalSumFaceAreas[aquiferIndex]; // likely unused for aquifers
-
-        stencil.add( stencilRegionIndices.size(),
-                     stencilRegionIndices.data(),
-                     stencilSubRegionIndices.data(),
-                     stencilElemOrFaceIndices.data(),
-                     stencilWeights.data(),
-                     iface );
       }
     }
   } );

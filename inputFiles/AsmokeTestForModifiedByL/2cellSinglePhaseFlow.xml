@@ -15,10 +15,10 @@
     <SinglePhaseFVM
       name="reservoirSystem"
       logLevel="3"
-      isDPDK="1"
       writeLinearSystem="1"
       discretization="singlePhaseTPFA"
       targetRegions="{ Region1 }">
+      <!--isDPDK="1"-->
       <NonlinearSolverParameters
         newtonMaxIter="40"/>
       <LinearSolverParameters

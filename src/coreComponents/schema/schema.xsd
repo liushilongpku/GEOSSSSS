@@ -1290,6 +1290,8 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="scale" type="real64" default="0" />
 		<!--setNames => Name of sets that boundary condition is applied to.-->
 		<xsd:attribute name="setNames" type="groupNameRef_array" use="required" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
@@ -1316,6 +1318,8 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="scale" type="real64" default="0" />
 		<!--setNames => Name of sets that boundary condition is applied to.-->
 		<xsd:attribute name="setNames" type="groupNameRef_array" use="required" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
@@ -1342,6 +1346,8 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="scale" type="real64" default="0" />
 		<!--setNames => Name of sets that boundary condition is applied to.-->
 		<xsd:attribute name="setNames" type="groupNameRef_array" use="required" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
@@ -1376,6 +1382,8 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="objectPath" type="groupNameRef" default="" />
 		<!--scale => Scale factor for value of the boundary condition.-->
 		<xsd:attribute name="scale" type="real64" default="0" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--temperatureVsElevationTableName => Name of the table specifying the (temperature [K] vs elevation) relationship-->
 		<xsd:attribute name="temperatureVsElevationTableName" type="groupNameRef" default="" />
 		<!--name => A name is required for any non-unique nodes-->
@@ -1402,6 +1410,8 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="scale" type="real64" default="0" />
 		<!--setNames => Name of sets that boundary condition is applied to.-->
 		<xsd:attribute name="setNames" type="groupNameRef_array" use="required" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--thicknessMaxXYZ => Thickness of the PML region, at right, back, and bottom sides, used to compute the damping profile-->
 		<xsd:attribute name="thicknessMaxXYZ" type="R1Tensor32" default="{-1,-1,-1}" />
 		<!--thicknessMinXYZ => Thickness of the PML region, at left, front, and top sides, used to compute the damping profile-->
@@ -1438,6 +1448,8 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="scale" type="real64" default="0" />
 		<!--setNames => Name of sets that boundary condition is applied to.-->
 		<xsd:attribute name="setNames" type="groupNameRef_array" use="required" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
@@ -1466,6 +1478,8 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="scaleSet" type="real64_array" default="{0}" />
 		<!--setNames => Name of sets that boundary condition is applied to.-->
 		<xsd:attribute name="setNames" type="groupNameRef_array" use="required" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--tractionType => Type of traction boundary condition. Options are:
 vector - traction is applied to the faces as specified from the scale and direction,
 normal - traction is applied to the faces as a pressure specified from the product of scale and the outward face normal,

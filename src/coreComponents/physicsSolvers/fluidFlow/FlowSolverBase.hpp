@@ -128,6 +128,22 @@ public:
   void allowNegativePressure() { m_allowNegativePressure = 1; }
 
   /**
+   * @brief Set the flag to apply boundary conditions
+   * @param applyBC true to apply boundary conditions, false otherwise
+   *
+   * This setter is made public to allow derived classes, such as DualContinuumFlowSolver,
+   * to control boundary condition application in multi-physics coupled solvers.
+   * Previously, m_applyBC was private, preventing access from coupled solvers.
+   */
+  void setApplyBC( bool applyBC ) { m_applyBC = applyBC; }
+
+  /**
+   * @brief Get the flag to apply boundary conditions
+   * @return true if boundary conditions should be applied, false otherwise
+   */
+  bool getApplyBC() const { return m_applyBC; }
+
+  /**
    * @brief Utility function to keep the flow variables during a time step (used in poromechanics simulations)
    * @param[in] keepVariablesConstantDuringInitStep flag to tell the solver to freeze its primary variables during a time step
    * @detail This function is meant to be called by a specific task before/after the initialization step
@@ -286,8 +302,17 @@ protected:
   real64 m_sequentialTempChange;
   real64 m_maxSequentialTempChange;
 
+  /// flag to apply boundary conditions
+  bool m_applyBC = true;
+
+public:
+
   /**
    * @brief Class used for displaying boundary warning message
+   *
+   * This class is made public to allow derived classes and coupled solvers
+   * to access boundary condition warning messages. Previously, it was private,
+   * limiting its usability in multi-physics scenarios.
    */
   class BCMessage
   {

@@ -23,7 +23,8 @@
       discretization="singlePhaseTPFA"
       targetRegions="{mesh1/Region1 }"
       writeLinearSystem="1"
-      logLevel="1">
+      logLevel="1"
+      isThermal="1">
       <NonlinearSolverParameters
         newtonTol="1.0e-5"
         newtonMaxIter="8"/>
@@ -36,7 +37,8 @@
             discretization="singlePhaseTPFA"
             targetRegions="{ mesh2/Region2 }"
             writeLinearSystem="1"
-            logLevel="1">
+            logLevel="1"
+            isThermal="1">
       <NonlinearSolverParameters
               newtonTol="1.0e-5"
               newtonMaxIter="8"/>
@@ -52,7 +54,7 @@
       xCoords="{ 0, 1, 9, 10 }"
       yCoords="{ 0, 1 }"
       zCoords="{ 0, 1 }"
-      nx="{ 1, 98, 1 }"
+      nx="{ 1, 1, 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
       cellBlockNames="{ block1 }"/>
@@ -62,7 +64,7 @@
             xCoords="{ 0, 1, 9, 10 }"
             yCoords="{ 0, 1 }"
             zCoords="{ 0, 1 }"
-            nx="{ 1, 98, 1 }"
+            nx="{ 1, 1, 1 }"
             ny="{ 1 }"
             nz="{ 1 }"
             cellBlockNames="{ block2 }"/>
@@ -111,28 +113,33 @@
       name="Region1"
       meshBody="mesh1"
       cellBlocks="{ block1 }"
-      materialList="{ water, rock }"/>
+      materialList="{ water, rock, thermalCond }"/>
     <CellElementRegion
             name="Region2"
             meshBody="mesh2"
             cellBlocks="{ block2 }"
-            materialList="{ water, rock_DPDK }"/>
+            materialList="{ water, rock, thermalCond }"/>
   </ElementRegions>
 
   <Constitutive>
-    <CompressibleSinglePhaseFluid
+    <ThermalCompressibleSinglePhaseFluid
       name="water"
       defaultDensity="1000"
       defaultViscosity="0.001"
       referencePressure="0.0"
+      referenceTemperature="0"
       compressibility="5e-10"
-      viscosibility="0.0"/>
+      thermalExpansionCoeff="3e-4"
+      viscosibility="0.0"
+      specificHeatCapacity="1"
+      referenceInternalEnergy="0.99"/>
 
     <CompressibleSolidConstantPermeability
       name="rock"
       solidModelName="nullSolid"
       porosityModelName="rockPorosity"
-      permeabilityModelName="rockPerm"/>
+      permeabilityModelName="rockPerm"
+      solidInternalEnergyModelName="rockInternalEnergy"/>
 
     <NullModel
       name="nullSolid"/>
@@ -147,12 +154,25 @@
       name="rockPerm"
       permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
 
+    <SolidInternalEnergy
+      name="rockInternalEnergy"
+      referenceVolumetricHeatCapacity="1.0e6"
+      referenceTemperature="0"
+      referenceInternalEnergy="0"/>
+
+    <SinglePhaseThermalConductivity
+      name="thermalCond"
+      defaultThermalConductivityComponents="{ 1.66, 1.66, 1.66 }"
+      thermalConductivityGradientComponents="{ 0, 0, 0 }"
+      referenceTemperature="0"/>
+
 
     <CompressibleSolidConstantPermeability
             name="rock_DPDK"
             solidModelName="nullSolid_DPDK"
             porosityModelName="rockPorosity_DPDK"
-            permeabilityModelName="rockPerm_DPDK"/>
+            permeabilityModelName="rockPerm_DPDK"
+            solidInternalEnergyModelName="rockInternalEnergy_DPDK"/>
 
     <NullModel
             name="nullSolid_DPDK"/>
@@ -166,6 +186,18 @@
     <ConstantPermeability
             name="rockPerm_DPDK"
             permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
+
+    <SolidInternalEnergy
+            name="rockInternalEnergy_DPDK"
+            referenceVolumetricHeatCapacity="1.0e6"
+            referenceTemperature="0"
+            referenceInternalEnergy="0"/>
+
+    <SinglePhaseThermalConductivity
+            name="thermalCond_DPDK"
+            defaultThermalConductivityComponents="{ 1.66, 1.66, 1.66 }"
+            thermalConductivityGradientComponents="{ 0, 0, 0 }"
+            referenceTemperature="0"/>
   </Constitutive>
 
   <FieldSpecifications>
@@ -183,7 +215,7 @@
             targetMesh="mesh2"
             setNames="{ all }"
             objectPath="ElementRegions"
-            fieldName="rockPorosity_DPDK_referencePorosity"
+            fieldName="rockPorosity_referencePorosity"
             scale="0.05"/>
 
     <FieldSpecification
@@ -202,20 +234,36 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             scale="0"/>
+    <FieldSpecification
+            name="initialTemperature1"
+            initialCondition="1"
+            setNames="{ all }"
+            targetMesh="mesh1"
+            objectPath="ElementRegions"
+            fieldName="temperature"
+            scale="100"/>
+    <FieldSpecification
+            name="initialTemperature2"
+            initialCondition="1"
+            setNames="{ all }"
+            targetMesh="mesh2"
+            objectPath="ElementRegions"
+            fieldName="temperature"
+            scale="100"/>
 
     <FieldSpecification
             name="sourceTerm1"
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh1"
-            scale="8e6"
+            scale="2e6"
             setNames="{ source }"/>
     <FieldSpecification
             name="sinkTerm1"
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh1"
-            scale="-8e6"
+            scale="1e6"
             setNames="{ sink }"/>
 
 
@@ -226,7 +274,7 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh2"
-            scale="-5e6"
+            scale="2e6"
             setNames="{ source }"/>
 <!--targetMesh is null means that both mesh will be applied -->
 
@@ -235,92 +283,36 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh2"
-            scale="5e6"
+            scale="1e6"
             setNames="{ sink }"/>
-    <!--
     <FieldSpecification
-      name="Porosity"
-      initialCondition="1"
-      setNames="{ all }"
-      objectPath="ElementRegions/Region1/"
-      fieldName="rockPorosity_referencePorosity"
-      scale="0.05"/>
-
-    <FieldSpecification
-      name="initialPressure"
-      initialCondition="1"
-      setNames="{ all }"
-      objectPath="ElementRegions/Region1/block1"
-      fieldName="pressure"
-      scale="0.0"/>
-
-    <FieldSpecification
-      name="sourceTerm"
-      objectPath="ElementRegions/Region1/block1"
-      fieldName="pressure"
-      scale="5e6"
-      setNames="{ source }"/>
-
-    <FieldSpecification
-      name="sinkTerm"
-      objectPath="ElementRegions/Region1/block1"
-      fieldName="pressure"
-      scale="-5e6"
-      setNames="{ sink }"/>
-
-    <FieldSpecification
-            name="Porosity2"
-            initialCondition="1"
-            setNames="{ all }"
-            objectPath="ElementRegions/Region2/block2"
-            fieldName="rockPorosity_referencePorosity"
-            scale="0.05"/>
-
-    <FieldSpecification
-            name="initialPressure2"
-            initialCondition="1"
-            setNames="{ all }"
-            objectPath="ElementRegions/Region2/block2"
-            fieldName="pressure"
-            scale="0.0"/>
-
-    <FieldSpecification
-            name="sourceTerm2"
-            objectPath="ElementRegions/Region2/block2"
-            fieldName="pressure"
-            scale="5e6"
+            name="sourceTemperature1"
+            objectPath="ElementRegions"
+            fieldName="temperature"
+            targetMesh="mesh1"
+            scale="120"
             setNames="{ source }"/>
-
     <FieldSpecification
-            name="sinkTerm2"
-            objectPath="ElementRegions/Region2/block2"
-            fieldName="pressure"
-            scale="-5e6"
+            name="sinkTemperature1"
+            objectPath="ElementRegions"
+            fieldName="temperature"
+            targetMesh="mesh1"
+            scale="80"
             setNames="{ sink }"/>
-    -->
-    <!--
     <FieldSpecification
-            name="initialPressure_DPDK"
-            initialCondition="1"
-            setNames="{ all }"
-            objectPath="ElementRegions/Region1/block1"
-            fieldName="pressure_DPDK"
-            scale="0.0"/>
-
-    <FieldSpecification
-            name="sourceTerm_DPDK"
-            objectPath="ElementRegions/Region1/block1"
-            fieldName="pressure_DPDK"
-            scale="-5e6"
+            name="sourceTemperature2"
+            objectPath="ElementRegions"
+            fieldName="temperature"
+            targetMesh="mesh2"
+            scale="120"
             setNames="{ source }"/>
-
     <FieldSpecification
-            name="sinkTerm_DPDK"
-            objectPath="ElementRegions/Region1/block1"
-            fieldName="pressure_DPDK"
-            scale="5e6"
+            name="sinkTemperature2"
+            objectPath="ElementRegions"
+            fieldName="temperature"
+            targetMesh="mesh2"
+            scale="80"
             setNames="{ sink }"/>
-            -->
   </FieldSpecifications>
 
   <Outputs>

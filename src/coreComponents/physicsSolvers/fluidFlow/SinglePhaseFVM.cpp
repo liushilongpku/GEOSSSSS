@@ -269,35 +269,46 @@ void SinglePhaseFVM< BASE >::applySystemSolution( DofManager const & dofManager,
                                                   DomainPartition & domain )
 {
   GEOS_UNUSED_VAR( dt );
-  if( m_isThermal )
-  {
-    DofManager::CompMask pressureMask( m_numDofPerCell, 0, 1 );
-    DofManager::CompMask temperatureMask( m_numDofPerCell, 1, 2 );
 
-    dofManager.addVectorToField( localSolution,
-                                 BASE::viewKeyStruct::elemDofFieldString(),
-                                 flow::pressure::key(),
-                                 scalingFactor,
-                                 pressureMask );
-
-    dofManager.addVectorToField( localSolution,
-                                 BASE::viewKeyStruct::elemDofFieldString(),
-                                 flow::temperature::key(),
-                                 scalingFactor,
-                                 temperatureMask );
-  }
-  else
-  {
-    dofManager.addVectorToField( localSolution,
-                                 BASE::viewKeyStruct::elemDofFieldString(),
-                                 flow::pressure::key(),
-                                 scalingFactor );
-  }
+  string const dofKey = dofManager.getKey( BASE::viewKeyStruct::elemDofFieldString() );
 
   this->forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
                                                                       MeshLevel & mesh,
                                                                       string_array const & regionNames )
   {
+    ElementRegionManager & elemManager = mesh.getElemManager();
+
+    for( string const & regionName : regionNames )
+    {
+      ElementRegionBase & region = elemManager.getRegion< ElementRegionBase >( regionName );
+      region.forElementSubRegions< ElementSubRegionBase >( [&]( ElementSubRegionBase & subRegion )
+      {
+        arrayView1d< globalIndex const > const & dofIndex = subRegion.getReference< globalIndex_array >( dofKey );
+        arrayView1d< real64 > const & pressure = subRegion.getReference< array1d< real64 > >( flow::pressure::key() );
+        localIndex const numElems = subRegion.size();
+
+        if( m_isThermal )
+        {
+          arrayView1d< real64 > const & temperature = subRegion.getReference< array1d< real64 > >( flow::temperature::key() );
+
+          for( localIndex ei = 0; ei < numElems; ++ei )
+          {
+            globalIndex const elemDofIndex = dofIndex[ei];
+            pressure[ei] += scalingFactor * localSolution[elemDofIndex * m_numDofPerCell + 0];
+            temperature[ei] += scalingFactor * localSolution[elemDofIndex * m_numDofPerCell + 1];
+          }
+        }
+        else
+        {
+          for( localIndex ei = 0; ei < numElems; ++ei )
+          {
+            globalIndex const elemDofIndex = dofIndex[ei];
+            pressure[ei] += scalingFactor * localSolution[elemDofIndex];
+          }
+        }
+      } );
+    }
+
     stdVector< string > fields{ flow::pressure::key() };
 
     if( m_isThermal )
@@ -911,10 +922,23 @@ void SinglePhaseFVM<>::applyAquiferBC( real64 const time,
 
   string const & elemDofKey = dofManager.getKey( viewKeyStruct::elemDofFieldString() );
 
-  forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
+  // Collect target mesh body names
+  std::set< string > targetMeshBodiesSet;
+  for( auto const & pair : this->getMeshTargets() )
+  {
+    targetMeshBodiesSet.insert( pair.first.first );
+  }
+
+  forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const & meshBodyName,
                                                                 MeshLevel & mesh,
                                                                 string_array const & )
   {
+    // Check if this mesh body is a target for this solver
+    if( targetMeshBodiesSet.find( meshBodyName ) == targetMeshBodiesSet.end() )
+    {
+      return;
+    }
+
     ElementRegionManager const & elemManager = mesh.getElemManager();
     ElementRegionManager::ElementViewAccessor< arrayView1d< globalIndex const > > elemDofNumber =
       elemManager.constructArrayViewAccessor< globalIndex, 1 >( elemDofKey );
@@ -933,31 +957,34 @@ void SinglePhaseFVM<>::applyAquiferBC( real64 const time,
                                                        FaceManager &,
                                                        string const & )
     {
-      BoundaryStencil const & stencil = fluxApprox.getStencil< BoundaryStencil >( mesh, setName );
-      if( stencil.size() == 0 )
+      if( bc.getTargetMesh() == "" || bc.getTargetMesh() == mesh.getParent().getParent().getName() )
       {
-        return;
+        BoundaryStencil const & stencil = fluxApprox.getStencil< BoundaryStencil >( mesh, setName );
+        if( stencil.size() == 0 )
+        {
+          return;
+        }
+
+        AquiferBoundaryCondition::KernelWrapper aquiferBCWrapper = bc.createKernelWrapper();
+        real64 const & aquiferDens = bc.getWaterPhaseDensity();
+
+        singlePhaseFVMKernels::AquiferBCKernel::launch( stencil,
+                                                        dofManager.rankOffset(),
+                                                        elemDofNumber.toNestedViewConst(),
+                                                        flowAccessors.get< fields::ghostRank >(),
+                                                        aquiferBCWrapper,
+                                                        aquiferDens,
+                                                        flowAccessors.get< flow::pressure >(),
+                                                        flowAccessors.get< flow::pressure_n >(),
+                                                        flowAccessors.get< flow::gravityCoefficient >(),
+                                                        fluidAccessors.get< fields::singlefluid::density >(),
+                                                        fluidAccessors.get< fields::singlefluid::dDensity >(),
+                                                        time,
+                                                        dt,
+                                                        localMatrix.toViewConstSizes(),
+                                                        localRhs.toView() );
+
       }
-
-      AquiferBoundaryCondition::KernelWrapper aquiferBCWrapper = bc.createKernelWrapper();
-      real64 const & aquiferDens = bc.getWaterPhaseDensity();
-
-      singlePhaseFVMKernels::AquiferBCKernel::launch( stencil,
-                                                      dofManager.rankOffset(),
-                                                      elemDofNumber.toNestedViewConst(),
-                                                      flowAccessors.get< fields::ghostRank >(),
-                                                      aquiferBCWrapper,
-                                                      aquiferDens,
-                                                      flowAccessors.get< flow::pressure >(),
-                                                      flowAccessors.get< flow::pressure_n >(),
-                                                      flowAccessors.get< flow::gravityCoefficient >(),
-                                                      fluidAccessors.get< fields::singlefluid::density >(),
-                                                      fluidAccessors.get< fields::singlefluid::dDensity >(),
-                                                      time,
-                                                      dt,
-                                                      localMatrix.toViewConstSizes(),
-                                                      localRhs.toView() );
-
     } );
   } );
 

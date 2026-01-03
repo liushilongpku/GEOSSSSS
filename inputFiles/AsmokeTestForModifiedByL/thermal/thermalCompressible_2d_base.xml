@@ -8,8 +8,8 @@
       discretization="tpfaFlow"
       temperature="0"
       isThermal="1"
-      isDPDK="0"
       targetRegions="{ region }">
+            <!--isDPDK="0"-->
       <NonlinearSolverParameters
         newtonTol="1.0e-6"
         newtonMaxIter="100"/>

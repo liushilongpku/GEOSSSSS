@@ -204,15 +204,24 @@ public:
                                     real64 const dt,
                                     DomainPartition & domain ) override
   {
-    // let each flow solver apply their part of the solution
-    // 此处基于bug运行，应该将两个求解器的解分别应用到对应网格中，但是刚好singlephasefvm中的应用解向量对全局都应用，所以只需要调用一次
-    // 应用两次会造成双倍解
-    // TODO@LSL：为单项流添加网格适配
-    std::get<0>(m_solvers)->applySystemSolution( dofManager,
-                                         localSolution,
-                                         scalingFactor,
-                                         dt,
-                                         domain );
+    // Apply solution for both primary and secondary solvers to their respective meshes
+    primarySolver()->applySystemSolution( dofManager, localSolution, scalingFactor, dt, domain );
+    secondarySolver()->applySystemSolution( dofManager, localSolution, scalingFactor, dt, domain );
+  }
+
+  virtual void applyBoundaryConditions( real64 const time_n,
+                                        real64 const dt,
+                                        DomainPartition & domain,
+                                        DofManager const & dofManager,
+                                        CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                                        arrayView1d< real64 > const & localRhs ) override
+  {
+    // Apply boundary conditions through both solvers since they target different meshes
+    // This prevents duplicate boundary condition applications in multi-mesh coupled solvers.
+    // Previously, only the primary solver was called, leading to missing BCs for secondary mesh.
+    // Now, both primary and secondary solvers apply their respective BCs to avoid NaN solutions.
+    primarySolver()->applyBoundaryConditions( time_n, dt, domain, dofManager, localMatrix, localRhs );
+    secondarySolver()->applyBoundaryConditions( time_n, dt, domain, dofManager, localMatrix, localRhs );
   }
 
 protected:
