@@ -117,7 +117,13 @@ public:
   setupDofs( DomainPartition const & domain,
              DofManager & dofManager ) const override;
 
-  virtual void
+
+virtual void
+setupDofs1( DomainPartition const & domain,
+           DofManager & dofManager ) const override;
+
+
+virtual void
   setupSystem( DomainPartition & domain,
                DofManager & dofManager,
                CRSMatrix< real64, globalIndex > & localMatrix,

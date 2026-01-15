@@ -8,7 +8,7 @@
             flowSolverName1="singlePhaseFlowSolver1"
             logLevel="1"
             writeLinearSystem="1"
-            targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
+            targetRegions="{ mesh1/Region1, mesh2/Region2}"
             matrixRegionList="{ Region1 }"
             fractureRegionList="{ Region2 }">
       <LinearSolverParameters
@@ -54,20 +54,20 @@
       xCoords="{ 0, 1, 9, 10 }"
       yCoords="{ 0, 1 }"
       zCoords="{ 0, 1 }"
-      nx="{ 1, 1, 1 }"
+      nx="{ 4, 4, 4 }"
       ny="{ 1 }"
       nz="{ 1 }"
-      cellBlockNames="{ block1 }"/>
+      cellBlockNames="{ block1, block11 ,block111}"/>
     <InternalMesh
             name="mesh2"
             elementTypes="{ C3D8 }"
             xCoords="{ 0, 1, 9, 10 }"
             yCoords="{ 0, 1 }"
             zCoords="{ 0, 1 }"
-            nx="{ 1, 1, 1 }"
+            nx="{ 4, 4, 4 }"
             ny="{ 1 }"
             nz="{ 1 }"
-            cellBlockNames="{ block2 }"/>
+            cellBlockNames="{ block2, block222, block22}"/>
   </Mesh>
 
   <Geometry>
@@ -112,12 +112,12 @@
     <CellElementRegion
       name="Region1"
       meshBody="mesh1"
-      cellBlocks="{ block1 }"
+      cellBlocks="{ block1 , block11, block111}"
       materialList="{ water, rock }"/>
     <CellElementRegion
             name="Region2"
             meshBody="mesh2"
-            cellBlocks="{ block2 }"
+            cellBlocks="{ block2, block222, block22}"
             materialList="{ water, rock_DPDK }"/>
   </ElementRegions>
 

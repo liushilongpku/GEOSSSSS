@@ -966,6 +966,7 @@ bool PhysicsSolverBase::solveNonlinearSystem( real64 const & time_n,
       // zero out matrix/rhs before assembly
       m_localMatrix.zero();
       m_rhs.zero();
+      //printCRSMatrix(m_localMatrix);
 
       arrayView1d< real64 > const localRhs = m_rhs.open();
 
@@ -1179,6 +1180,13 @@ void PhysicsSolverBase::setupDofs( DomainPartition const & GEOS_UNUSED_PARAM( do
 {
   GEOS_ERROR( "PhysicsSolverBase::setupDofs called!. Should be overridden." );
 }
+
+void PhysicsSolverBase::setupDofs1( DomainPartition const & GEOS_UNUSED_PARAM( domain ),
+                                   DofManager & GEOS_UNUSED_PARAM( dofManager ) ) const
+{
+  GEOS_ERROR( "PhysicsSolverBase::setupDofs called!. Should be overridden." );
+}
+
 
 void PhysicsSolverBase::setupSystem( DomainPartition & domain,
                                      DofManager & dofManager,

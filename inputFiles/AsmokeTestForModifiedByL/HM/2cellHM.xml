@@ -1,0 +1,179 @@
+<?xml version="1.0" ?>
+<Problem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../../../src/coreComponents/schema/schema.xsd">
+
+  <Solvers>
+    <!-- 1. 耦合求解器：连接固体和流体求解器 -->
+    <SinglePhasePoromechanics
+      name="singlePhasePoroelasticity"
+      solidSolverName="linearElasticity"
+      flowSolverName="reservoirSystem"
+      logLevel="1"
+      writeLinearSystem="1"
+      targetRegions="{ Region1 }">
+      <LinearSolverParameters
+        directParallel="0"/>
+    </SinglePhasePoromechanics>
+
+    <!-- 2. 固体力学求解器 (FE1 代表一阶有限元) -->
+    <SolidMechanicsLagrangianFEM
+      name="linearElasticity"
+      logLevel="1"
+      discretization="FE1"
+      targetRegions="{ Region1 }"/>
+
+    <!-- 3. 流体求解器 (FVM) -->
+    <SinglePhaseFVM
+            name="reservoirSystem"
+            logLevel="3"
+            writeLinearSystem="0"
+            discretization="singlePhaseTPFA"
+            targetRegions="{ Region1 }">
+      <NonlinearSolverParameters
+              newtonMaxIter="40"/>
+      <LinearSolverParameters
+              directParallel="0"/>
+    </SinglePhaseFVM>
+  </Solvers>
+
+  <Mesh>
+    <InternalMesh
+      name="mesh1"
+      elementTypes="{ C3D8 }"
+      xCoords="{ 0, 3 }"
+      yCoords="{ 0, 1 }"
+      zCoords="{ 0, 1 }"
+      nx="{ 3 }"
+      ny="{ 1 }"
+      nz="{ 1 }"
+      cellBlockNames="{ cb1 }"/>
+  </Mesh>
+
+  <Events
+    maxTime="1e5">
+    <PeriodicEvent
+      name="solverApplications"
+      forceDt="1e4"
+      target="/Solvers/singlePhasePoroelasticity"/> <!-- 修改：调用耦合求解器 -->
+
+    <PeriodicEvent
+      name="outputs"
+      timeFrequency="1e4"
+      target="/Outputs/vtkOutput"/>
+  </Events>
+
+  <NumericalMethods>
+    <FiniteVolume>
+      <TwoPointFluxApproximation name="singlePhaseTPFA"/>
+    </FiniteVolume>
+    <FiniteElements>
+      <FiniteElementSpace
+              order = "1"
+              name="FE1"/>
+    </FiniteElements>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <!-- 使用 CellElementRegion 承载流体属性，并在 Solver 里通过 FE 离散固体 -->
+    <CellElementRegion
+      name="Region1"
+      cellBlocks="{ cb1 }"
+      materialList="{ water, rock }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CompressibleSinglePhaseFluid
+      name="water"
+      defaultDensity="1000"
+      defaultViscosity="0.001"
+      referencePressure="0.0"
+      compressibility="5e-9"/>
+
+    <PorousElasticIsotropic
+      name="rock"
+      solidModelName="rockSolid" 
+      porosityModelName="rockPorosity"
+      permeabilityModelName="rockPerm"
+      /> <!-- 增加 Biot 系数 -->
+
+    <!-- 4. 修改：替换 nullSolid 为真实的弹性模型 -->
+
+
+      <ElasticIsotropic
+              name="rockSolid"
+              defaultDensity="2700"
+              defaultYoungModulus="14.95e9"
+              defaultPoissonRatio="0.15"
+      />
+
+
+
+      <BiotPorosity
+              name="rockPorosity"
+              defaultGrainBulkModulus="7.12e10"
+              defaultReferencePorosity="0.3"
+      />
+
+      <ConstantPermeability
+      name="rockPerm"
+      permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+    <FieldSpecification
+      name="referencePorosity"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="ElementRegions/Region1/cb1"
+      fieldName="rockPorosity_referencePorosity"
+      scale="0.05"/>
+
+    <FieldSpecification
+      name="initialPressure"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="ElementRegions/Region1/cb1"
+      fieldName="pressure"
+      scale="5e6"/>
+      
+    <!-- 5. 增加位移初始条件 -->
+    <FieldSpecification
+      name="initialDisplacement"
+      initialCondition="1"
+      setNames="{ all }"
+      objectPath="nodeManager"
+      fieldName="totalDisplacement"
+      scale="0.0"/>
+  </FieldSpecifications>
+
+  <!-- 6. 增加边界条件：防止由于受压导致的刚体位移 -->
+  <FieldSpecifications>
+    <!-- 固定底面 Z 方向 -->
+    <FieldSpecification
+      name="fixBottom"
+      setNames="{ zneg }"
+      objectPath="nodeManager"
+      fieldName="totalDisplacement"
+      component="2"
+      scale="0.0"/>
+    <!-- 固定四周侧面（根据需要添加） -->
+    <FieldSpecification
+      name="fixSidesX"
+      objectPath="nodeManager"
+      setNames="{ xneg, xpos }"
+      fieldName="totalDisplacement"
+      component="0"
+      scale="0.0"/>
+    <FieldSpecification
+      name="fixSidesY"
+      objectPath="nodeManager"
+      setNames="{ yneg, ypos }"
+      fieldName="totalDisplacement"
+      component="1"
+      scale="0.0"/>
+  </FieldSpecifications>
+
+  <Outputs>
+    <VTK name="vtkOutput"/>
+  </Outputs>
+</Problem>

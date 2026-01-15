@@ -3571,6 +3571,8 @@ See note on referenceReservoirRegion for reservoir condition options-->
 		<xsd:attribute name="flowSolverName" type="groupNameRef" use="required" />
 		<!--flowSolverName1 => Name of the flow solver used by the coupled solver-->
 		<xsd:attribute name="flowSolverName1" type="groupNameRef" use="required" />
+		<!--fractureRegionList => List of fracture regions-->
+		<xsd:attribute name="fractureRegionList" type="string_array" default="{}" />
 		<!--initialDt => Initial time-step value required by the solver to the event manager.-->
 		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
 		<!--logLevel => Sets the level of information to write in the standard output (the console typically).
@@ -3586,6 +3588,8 @@ Information output from lower logLevels is added with the desired log level
 2
  - The summary of declared fields and coupling-->
 		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--matrixRegionList => List of matrix regions-->
+		<xsd:attribute name="matrixRegionList" type="string_array" default="{}" />
 		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
 		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
 		<!--transferCoefficient => Inter-continuum transfer coefficient (per-element scalar, default 0)-->

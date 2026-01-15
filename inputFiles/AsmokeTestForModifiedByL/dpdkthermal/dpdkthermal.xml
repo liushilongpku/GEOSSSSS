@@ -274,7 +274,7 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh2"
-            scale="2e6"
+            scale="1e6"
             setNames="{ source }"/>
 <!--targetMesh is null means that both mesh will be applied -->
 
@@ -283,7 +283,7 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh2"
-            scale="1e6"
+            scale="2e6"
             setNames="{ sink }"/>
     <FieldSpecification
             name="sourceTemperature1"
@@ -304,14 +304,14 @@
             objectPath="ElementRegions"
             fieldName="temperature"
             targetMesh="mesh2"
-            scale="120"
+            scale="80"
             setNames="{ source }"/>
     <FieldSpecification
             name="sinkTemperature2"
             objectPath="ElementRegions"
             fieldName="temperature"
             targetMesh="mesh2"
-            scale="80"
+            scale="120"
             setNames="{ sink }"/>
   </FieldSpecifications>
 

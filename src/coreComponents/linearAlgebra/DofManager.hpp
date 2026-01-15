@@ -211,6 +211,14 @@ public:
   void disableGlobalCouplingForEquations( string const & fieldName,
                                           arrayView1d< integer const > const components );
 
+
+  void addCouplingDualContinuum(const string_array & matrixRegionList,
+                                const string_array & fractureRegionList,
+                                string const & rowFieldName,
+                                string const & colFieldName,
+                                Connector connectivity,
+                                stdVector< FieldSupport > const & regions = {},
+                                bool symmetric = true);
   /**
    * @brief Add coupling between two fields.
    *
@@ -586,6 +594,11 @@ private:
   void countRowLengthsFromStencil( arrayView1d< localIndex > const & rowLengths,
                                    integer fieldIndex ) const;
 
+  void countRowLengthsDualContinuum( const arrayView1d<geos::localIndex> &rowLengths,
+                                     geos::integer rowFieldIndex,
+                                     geos::integer colFieldIndex,
+                                     string matrixRegionList,
+                                     string fractureRegionList) const;
   /**
    * @brief Populate the sparsity pattern for a coupling block between given fields.
    * @param pattern the sparsity to be filled
@@ -597,6 +610,12 @@ private:
   void setSparsityPatternOneBlock( SparsityPatternView< globalIndex > const & pattern,
                                    integer rowFieldIndex,
                                    integer colFieldIndex ) const;
+
+  void setSparsityPatternDualContinuum(SparsityPatternView< globalIndex > const & pattern,
+                                       integer rowFieldIndex,
+                                       integer colFieldIndex,
+                                       string matrixRegionName,
+                                       string fractureRegionName) const;
 
   void setSparsityPatternFromStencil( SparsityPatternView< globalIndex > const & pattern,
                                       integer fieldIndex ) const;
@@ -649,6 +668,11 @@ private:
 
   /// Flag indicating that DOFs have been reordered rank-wise.
   bool m_reordered = false;
+  bool m_isdpdk = false;
+
+  /// Temporary storage for dual-continuum coupling regions
+  string_array m_matrixRegionList;
+  string_array m_fractureRegionList;
 };
 
 } /* namespace geos */

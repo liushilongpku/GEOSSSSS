@@ -16,7 +16,7 @@
 #define GEOS_PHYSICSSOLVERS_FLUIDFLOW_DUALCONTINUUMFVM_HPP_
 
 #include "physicsSolvers/multiphysics/DualContinuumFlowSolver.hpp"
-#include "physicsSolvers/fluidFlow/SinglePhaseDpdkFVM.hpp"
+//#include "physicsSolvers/fluidFlow/SinglePhaseDpdkFVM.hpp"
 
 namespace geos
 {
@@ -43,26 +43,33 @@ public:
 /*
   virtual void setupDofs( DomainPartition const & domain,
                          DofManager & dofManager ) const override;
-*/
+
   virtual void setupCoupling( DomainPartition const & domain,
                               DofManager & dofManager ) const override;
-
+*/
   virtual void setupSystem( DomainPartition & domain,
                             DofManager & dofManager,
                             CRSMatrix< real64, globalIndex > & localMatrix,
                             ParallelVector & rhs,
                             ParallelVector & solution,
                             bool const setSparsity = true ) override;
-
+/*
   virtual void assembleSystem( real64 const time,
                                real64 const dt,
                                DomainPartition & domain,
                                DofManager const & dofManager,
                                CRSMatrixView< real64, globalIndex const > const & localMatrix,
                                arrayView1d< real64 > const & localRhs ) override;
-
+*/
   virtual std::unique_ptr< PreconditionerBase< LAInterface > >
   createPreconditioner( DomainPartition & domain ) const override;
+
+  virtual void assembleCouplingTerms( real64 const time_n,
+                                    real64 const dt,
+                                    DomainPartition const & domain,
+                                    DofManager const & dofManager,
+                                    CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                                    arrayView1d< real64 > const & localRhs ) override;
 
 protected:
 

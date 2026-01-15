@@ -53,7 +53,9 @@ set( fluidFlowSolvers_headers
      kernels/singlePhase/FluidUpdateKernel.hpp
      kernels/singlePhase/FluxComputeKernel.hpp
      kernels/singlePhase/FluxComputeKernelBase.hpp
+        kernels/singlePhase/CrossFlowComputeKernelBase.hpp
      kernels/singlePhase/FluxKernelsHelper.hpp
+     kernels/singlePhase/CrossFlowKernelsHelper.hpp
      kernels/singlePhase/HydrostaticPressureKernel.hpp
      kernels/singlePhase/MobilityKernel.hpp
      kernels/singlePhase/ResidualNormKernel.hpp

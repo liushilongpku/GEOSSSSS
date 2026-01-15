@@ -20,7 +20,10 @@
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBaseDpdk.hpp"
 #include "mesh/DomainPartition.hpp"
+#include "mesh/InterObjectRelation.hpp"
 #include "codingUtilities/Utilities.hpp"
+#include <map>
+#include <tuple>
 
 namespace geos
 {
@@ -75,6 +78,15 @@ public:
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
       setDescription( "Inter-continuum transfer coefficient (per-element scalar, default 0)" );
 
+    // TracAI: Added to store dual continuum region pairs from XML
+    this->registerWrapper( viewKeyStruct::matrixRegionList(), &m_matrixRegionList ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setDescription( "List of matrix regions" );
+
+  
+    this->registerWrapper( viewKeyStruct::fractureRegionList(), &m_fractureRegionList ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setDescription( "List of fracture regions" );
   }
 
   virtual void postInputInitialization() override {
@@ -111,13 +123,288 @@ public:
     this->setupCoupling( domain, dofManager );
   }
 
-  virtual void setupCoupling( DomainPartition const & GEOS_UNUSED_PARAM( domain ),
+  virtual void setupCoupling( DomainPartition const & domain,
                               DofManager & dofManager ) const override
   {
     // ensure element-based coupling (two components per element) has sparsity
-    dofManager.addCoupling( SinglePhaseBaseDpdk::viewKeyStruct::elemDofFieldString(),
-                            SinglePhaseBase::viewKeyStruct::elemDofFieldString(),
-                            DofManager::Connector::Elem );
+    GEOS_LOG(SinglePhaseBase::viewKeyStruct::elemDofFieldString());
+
+    // Get supports from both solvers
+    /*
+    stdVector< DofManager::FieldSupport > supports;
+    auto const & primaryTargets = primarySolver()->getMeshTargets();
+    auto const & secondaryTargets = secondarySolver()->getMeshTargets();
+    for( auto const & p : primaryTargets )
+    {
+      MeshBody const & meshBody = domain.getMeshBody( p.first.first );
+      MeshLevel const & mesh = meshBody.getMeshLevel( p.first.second ).getShallowParent();
+      std::set< string > regionNames( p.second.begin(), p.second.end() );
+      supports.push_back( { meshBody.getName(), mesh.getName(), std::move( regionNames ) } );
+    }
+    for( auto const & p : secondaryTargets )
+    {
+      MeshBody const & meshBody = domain.getMeshBody( p.first.first );
+      MeshLevel const & mesh = meshBody.getMeshLevel( p.first.second ).getShallowParent();
+      std::set< string > regionNames( p.second.begin(), p.second.end() );
+      supports.push_back( { meshBody.getName(), mesh.getName(), std::move( regionNames ) } );
+    }
+    */
+    dofManager.addCouplingDualContinuum( m_matrixRegionList,
+                                         m_fractureRegionList,
+                                         PRIMARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
+                                         SECONDARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
+                                         DofManager::Connector::Elem);
+  }
+
+protected:
+  /**
+   * @brief Register mesh connectivity between matrix and fracture regions
+   * @param domain The domain partition containing both meshes
+   * @note TracAI: Added to support dual continuum flow solver with mesh connectivity
+   */
+  void registerMeshConnectivity( DomainPartition & domain )
+  {
+    // Check if matrix and fracture region lists are defined
+    if( !m_matrixRegionList.empty() && !m_fractureRegionList.empty() )
+    {
+      GEOS_LOG( "Registering mesh connectivity based on matrix and fracture region lists" );
+      
+      // Check if the number of regions in both lists match
+      if( m_matrixRegionList.size() != m_fractureRegionList.size() )
+      {
+        GEOS_ERROR( "Matrix and fracture region lists must have the same number of elements: " << m_matrixRegionList.size() << " matrix regions, " << m_fractureRegionList.size() << " fracture regions provided" );
+        return;
+      }
+      
+      // Get mesh1 (primary) and mesh2 (secondary) if available
+      if( domain.getMeshBodies().numSubGroups() >= 2 )
+      {
+        MeshBody & meshBody1 = domain.getMeshBody( 0 );
+        MeshBody & meshBody2 = domain.getMeshBody( 1 );
+        
+        MeshLevel & mesh1 = meshBody1.getMeshLevels().getGroup< MeshLevel >( 0 );
+        MeshLevel & mesh2 = meshBody2.getMeshLevels().getGroup< MeshLevel >( 0 );
+        
+        ElementRegionManager & elemManager1 = mesh1.getGroup< ElementRegionManager >( "ElementRegions" );
+        ElementRegionManager & elemManager2 = mesh2.getGroup< ElementRegionManager >( "ElementRegions" );
+        
+        // Process each pair of regions (matrix <-> fracture)
+        for( size_t i = 0; i < m_matrixRegionList.size(); ++i )
+        {
+          std::string matrixRegion = m_matrixRegionList[i];
+          std::string fractureRegion = m_fractureRegionList[i];
+          
+          GEOS_LOG( "Processing dual continuum pair: " << matrixRegion << " (matrix) <-> " << fractureRegion << " (fracture)" );
+          
+          // Try to find the matrix region in mesh1
+          ElementRegionBase * matrixRegionPtr = nullptr;
+          elemManager1.forElementRegions( [&]( ElementRegionBase & region )
+          {
+            if( region.getName() == matrixRegion )
+            {
+              matrixRegionPtr = &region;
+            }
+          } );
+          
+          // Try to find the fracture region in mesh2
+          ElementRegionBase * fractureRegionPtr = nullptr;
+          elemManager2.forElementRegions( [&]( ElementRegionBase & region )
+          {
+            if( region.getName() == fractureRegion )
+            {
+              fractureRegionPtr = &region;
+            }
+          } );
+          
+          // Register connectivity between subregions of the found regions
+          if( matrixRegionPtr && fractureRegionPtr )
+          {
+            if( auto * cellMatrixRegion = dynamic_cast< CellElementRegion * >( matrixRegionPtr ) )
+            {
+              if( auto * cellFractureRegion = dynamic_cast< CellElementRegion * >( fractureRegionPtr ) )
+              {
+                // Get subregions from both regions
+                stdVector< ElementSubRegionBase * > matrixSubRegions;
+                cellMatrixRegion->forElementSubRegions( [&]( ElementSubRegionBase & subRegion )
+                {
+                  matrixSubRegions.push_back( &subRegion );
+                } );
+                
+                stdVector< ElementSubRegionBase * > fractureSubRegions;
+                cellFractureRegion->forElementSubRegions( [&]( ElementSubRegionBase & subRegion )
+                {
+                  fractureSubRegions.push_back( &subRegion );
+                } );
+                
+                // Register connectivity based on subregion order
+                size_t numSubRegions = std::min( matrixSubRegions.size(), fractureSubRegions.size() );
+                GEOS_LOG( "Registering connectivity for " << numSubRegions << " subregion pairs between " << matrixRegion << " and " << fractureRegion );
+                GEOS_LOG( "Assuming subregions are paired by their registration order" );
+                
+                for( size_t j = 0; j < numSubRegions; ++j )
+                {
+                  if( auto * matrixSubRegion = dynamic_cast< CellElementSubRegion * >( matrixSubRegions[j] ) )
+                  {
+                    if( auto * fractureSubRegion = dynamic_cast< CellElementSubRegion * >( fractureSubRegions[j] ) )
+                    {
+                      GEOS_LOG( "Pairing subregion " << matrixSubRegion->getName() << " (matrix) with " << fractureSubRegion->getName() << " (fracture)" );
+                      
+                      // Register connectivity from matrix to fracture
+                      localIndex numElements = matrixSubRegion->size();
+                      matrixSubRegion->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() )
+                        .setApplyDefaultValue( false )
+                        .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+                        .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
+                        .setDescription( "Connectivity from matrix elements to fracture elements" )
+                        .setRegisteringObjects( this->getName() );
+                      
+                      auto & matrixToFractureConnectivity = matrixSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() );
+                      matrixToFractureConnectivity.resize( numElements );
+                      for( localIndex k = 0; k < numElements; ++k )
+                      {
+                        matrixToFractureConnectivity[k] = k;
+                      }
+                      
+                      // Register connectivity from fracture to matrix
+                      numElements = fractureSubRegion->size();
+                      fractureSubRegion->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() )
+                        .setApplyDefaultValue( false )
+                        .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+                        .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
+                        .setDescription( "Connectivity from fracture elements to matrix elements" )
+                        .setRegisteringObjects( this->getName() );
+                      
+                      auto & fractureToMatrixConnectivity = fractureSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() );
+                      fractureToMatrixConnectivity.resize( numElements );
+                      for( localIndex k = 0; k < numElements; ++k )
+                      {
+                        fractureToMatrixConnectivity[k] = k;
+                      }
+                    }
+                  }
+                }
+                
+                if( matrixSubRegions.size() != fractureSubRegions.size() )
+                {
+                  GEOS_LOG( "Warning: Number of subregions differs between " << matrixRegion << " (" << matrixSubRegions.size() << ") and " << fractureRegion << " (" << fractureSubRegions.size() << ")" );
+                  GEOS_LOG( "Only the first " << numSubRegions << " subregions will be paired" );
+                }
+              }
+            }
+          }
+          else
+          {
+            GEOS_LOG( "Warning: Could not find both regions for pair " << matrixRegion << " <-> " << fractureRegion );
+            if( !matrixRegionPtr )
+            {
+              GEOS_LOG( "  Matrix region " << matrixRegion << " not found in mesh1" );
+            }
+            if( !fractureRegionPtr )
+            {
+              GEOS_LOG( "  Fracture region " << fractureRegion << " not found in mesh2" );
+            }
+          }
+        }
+        
+        GEOS_LOG( "Registered mesh connectivity for " << m_matrixRegionList.size() << " dual continuum region pairs" );
+      }
+    }
+    else
+    {
+      // Fallback to default behavior if no region pairs are defined
+      GEOS_LOG( "No matrix or fracture region lists defined, using default mesh connectivity" );
+      
+      if( domain.getMeshBodies().numSubGroups() >= 2 )
+      {
+        // Get mesh1 (primary) and mesh2 (secondary)
+        MeshBody & meshBody1 = domain.getMeshBody( 0 );
+        MeshBody & meshBody2 = domain.getMeshBody( 1 );
+        
+        // Get the latest mesh levels using the first available mesh level
+        MeshLevel & mesh1 = meshBody1.getMeshLevels().getGroup< MeshLevel >( 0 );
+        MeshLevel & mesh2 = meshBody2.getMeshLevels().getGroup< MeshLevel >( 0 );
+        
+        // Get element managers for both meshes
+        ElementRegionManager & elemManager1 = mesh1.getGroup< ElementRegionManager >( "ElementRegions" );
+        ElementRegionManager & elemManager2 = mesh2.getGroup< ElementRegionManager >( "ElementRegions" );
+        
+        // Register connectivity for each CellElementSubRegion in mesh1 to corresponding subregions in mesh2
+        // Iterate through all element regions in mesh1
+        elemManager1.forElementRegions( [&]( ElementRegionBase & region1 )
+        {
+          // Check if this is a CellElementRegion
+          if( auto * cellRegion1 = dynamic_cast< CellElementRegion * >( &region1 ) )
+          {
+            // Iterate through all element subregions in this region
+            cellRegion1->forElementSubRegions( [&]( ElementSubRegionBase & subRegion1 )
+            {
+              // Check if this is a CellElementSubRegion
+              if( auto * cellSubRegion1 = dynamic_cast< CellElementSubRegion * >( &subRegion1 ) )
+              {
+                // Register the connectivity field for mesh1 to mesh2
+                // We'll use a simple array1d for the connectivity
+                localIndex numElements = cellSubRegion1->size();
+                
+                // Register the connectivity field
+                cellSubRegion1->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() )
+                  .setApplyDefaultValue( false )
+                  .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+                  .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
+                  .setDescription( "Connectivity from mesh1 elements to mesh2 elements" )
+                  .setRegisteringObjects( this->getName() );
+                
+                // Get the field and fill it with one-to-one mapping
+                auto & connectivity = cellSubRegion1->getReference< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() );
+                connectivity.resize( numElements );
+                for( localIndex i = 0; i < numElements; ++i )
+                {
+                  connectivity[i] = i;
+                }
+              }
+            } );
+          }
+        } );
+        
+        // Register connectivity for each CellElementSubRegion in mesh2 to corresponding subregions in mesh1
+        // Iterate through all element regions in mesh2
+        elemManager2.forElementRegions( [&]( ElementRegionBase & region2 )
+        {
+          // Check if this is a CellElementRegion
+          if( auto * cellRegion2 = dynamic_cast< CellElementRegion * >( &region2 ) )
+          {
+            // Iterate through all element subregions in this region
+            cellRegion2->forElementSubRegions( [&]( ElementSubRegionBase & subRegion2 )
+            {
+              // Check if this is a CellElementSubRegion
+              if( auto * cellSubRegion2 = dynamic_cast< CellElementSubRegion * >( &subRegion2 ) )
+              {
+                // Register the connectivity field for mesh2 to mesh1
+                // We'll use a simple array1d for the connectivity
+                localIndex numElements = cellSubRegion2->size();
+                
+                // Register the connectivity field
+                cellSubRegion2->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() )
+                  .setApplyDefaultValue( false )
+                  .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+                  .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
+                  .setDescription( "Connectivity from mesh2 elements to mesh1 elements" )
+                  .setRegisteringObjects( this->getName() );
+                
+                // Get the field and fill it with one-to-one mapping
+                auto & connectivity = cellSubRegion2->getReference< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() );
+                connectivity.resize( numElements );
+                for( localIndex i = 0; i < numElements; ++i )
+                {
+                  connectivity[i] = i;
+                }
+              }
+            } );
+          }
+        } );
+        
+        GEOS_LOG( "Registered mesh connectivity between " << meshBody1.getName() << " and " << meshBody2.getName() );
+      }
+    }
   }
 
   /// Assemble coupling blocks between the two flow solvers (exchange/transfer terms)
@@ -128,74 +415,7 @@ public:
                                       CRSMatrixView< real64, globalIndex const > const & localMatrix,
                                       arrayView1d< real64 > const & localRhs ) override
   {
-    GEOS_MARK_FUNCTION;
-
-    GEOS_LOG_LEVEL_RANK_0( logInfo::Coupling, GEOS_FMT( "{}: assembling dual-continuum coupling terms", this->getName() ) );
-
-    // NOTE: This is a scaffold implementation. A real dual-continuum model should:
-    // - read transfer coefficients (e.g. inter-continuum transmissibility) from fields/constitutive models
-    // - loop over mesh elements/faces and assemble off-diagonal blocks coupling primary<->secondary pressures
-    // - add contributions to `localMatrix` and `localRhs` following the chosen discretization
-
-    // Minimal implementation: per-element linear transfer
-    //  T * (p_secondary - p_primary) added to equations as
-    //  primary eqn: +T*p_primary - T*p_secondary
-    //  secondary eqn: -T*p_primary + T*p_secondary
-
-    GEOS_UNUSED_VAR( time_n );
-    GEOS_UNUSED_VAR( dt );
-
-    // single element-based DOF field (two components per node: 0=primary,1=secondary)
-    string const dofKey = dofManager.getKey( SinglePhaseBase::viewKeyStruct::elemDofFieldString() );
-    globalIndex const rankOffset = dofManager.rankOffset();
-
-    // local copy of transfer coefficient
-    real64 const T = m_transferCoefficient;
-    if( std::abs( T ) < 1e-18 )
-    {
-      return; // nothing to assemble
-    }
-
-    this->template forDiscretizationOnMeshTargets<>( domain.getMeshBodies(), [&]( string const &,
-                                                                                  MeshLevel const & mesh,
-                                                                                  string_array const & regionNames )
-    {
-      ElementRegionManager const & elemManager = mesh.getElemManager();
-
-      string const localDofKey = dofKey;
-
-      // element dof numbers accessed per subregion below
-      (void) elemManager; // silence unused variable warning in some builds
-
-      elemManager.forElementSubRegions< CellElementSubRegion >( regionNames, [&]( localIndex const,
-                                                                                 CellElementSubRegion const & subRegion )
-      {
-        arrayView1d< integer const > const ghostRank = subRegion.ghostRank();
-        arrayView1d< globalIndex const > const dofNumber = subRegion.getReference< array1d< globalIndex > >( localDofKey );
-
-        // serial host loop for stability of matrix updates
-        forAll< serialPolicy >( subRegion.size(), [=] GEOS_HOST_DEVICE ( localIndex const ei )
-        {
-          if( ghostRank[ei] >= 0 )
-          {
-            return;
-          }
-
-          globalIndex const base = dofNumber[ei];
-          globalIndex const col0 = base + 0;
-          globalIndex const col1 = base + 1;
-          globalIndex const row0 = base - rankOffset + 0;
-          globalIndex const row1 = base - rankOffset + 1;
-
-          globalIndex cols[2] = { col0, col1 };
-          real64 vals0[2] = { T, -T };
-          real64 vals1[2] = { -T, T };
-
-          localMatrix.addToRow< RAJA::seq_atomic >( row0, cols, vals0, 2 );
-          localMatrix.addToRow< RAJA::seq_atomic >( row1, cols, vals1, 2 );
-        } );
-      } );
-    } );
+    GEOS_ERROR("should be override");
   }
 
   virtual void applySystemSolution( DofManager const & dofManager,
@@ -216,15 +436,253 @@ public:
                                         CRSMatrixView< real64, globalIndex const > const & localMatrix,
                                         arrayView1d< real64 > const & localRhs ) override
   {
-    // Apply boundary conditions through both solvers since they target different meshes
-    // This prevents duplicate boundary condition applications in multi-mesh coupled solvers.
-    // Previously, only the primary solver was called, leading to missing BCs for secondary mesh.
-    // Now, both primary and secondary solvers apply their respective BCs to avoid NaN solutions.
     primarySolver()->applyBoundaryConditions( time_n, dt, domain, dofManager, localMatrix, localRhs );
     secondarySolver()->applyBoundaryConditions( time_n, dt, domain, dofManager, localMatrix, localRhs );
   }
 
+  /**
+   * @brief Set up the linear system
+   * @param domain the domain containing the mesh and fields
+   * @param dofManager degree-of-freedom manager associated with the linear system
+   * @param localMatrix the system matrix
+   * @param rhs the system right-hand side vector
+   * @param solution the solution vector
+   * @param setSparsity flag to indicate if the sparsity pattern should be set
+   * @note TracAI: Overridden to register mesh connectivity
+   */
+  virtual void setupSystem(  DomainPartition & domain,
+                           DofManager & dofManager,
+                           CRSMatrix< real64, globalIndex > & localMatrix,
+                           ParallelVector & rhs,
+                           ParallelVector & solution,
+                           bool const setSparsity ) override
+  {
+    // TracAI: Register mesh connectivity on first setup system call
+    static bool connectivityRegistered = false;
+    if( !connectivityRegistered )
+    {
+      //this->registerMeshConnectivity( domain );
+      //TODO: temporarily disable automatic connectivity registration
+      // the fracture and matrix region should be rigorously same
+      connectivityRegistered = true;
+    }
+
+    // TracAI: Print registered connectivity values to terminal
+    if( connectivityRegistered )
+    {
+      printRegisteredConnectivityValues( domain );
+    }
+
+    // Call base class implementation
+    Base::setupSystem( domain, dofManager, localMatrix, rhs, solution, setSparsity );
+  }
+
 protected:
+  /**
+   * @brief Print registered mesh connectivity values to terminal
+   * @param domain the domain containing the mesh and fields
+   * @note TracAI: Added to print registered connectivity values
+   */
+  void printRegisteredConnectivityValues( DomainPartition & domain )
+  {
+    GEOS_LOG( "=== Printing registered mesh connectivity values ===" );
+    
+    // Print matrix and fracture region pairs if defined
+    if( !m_matrixRegionList.empty() && !m_fractureRegionList.empty() )
+    {
+      GEOS_LOG( "Matrix and fracture region pairs defined in input:" );
+      if( m_matrixRegionList.size() == m_fractureRegionList.size() )
+      {
+        for( size_t i = 0; i < m_matrixRegionList.size(); ++i )
+        {
+          std::string matrixRegion = m_matrixRegionList[i];
+          std::string fractureRegion = m_fractureRegionList[i];
+          GEOS_LOG( "  Pair " << (i+1) << ": " << matrixRegion << " (matrix) <-> " << fractureRegion << " (fracture)" );
+        }
+      }
+      else
+      {
+        GEOS_LOG( "  Invalid region lists (must have the same number of elements)" );
+        GEOS_LOG( "  Matrix regions: " << m_matrixRegionList.size() );
+        GEOS_LOG( "  Fracture regions: " << m_fractureRegionList.size() );
+      }
+    }
+    
+    // Iterate through all mesh bodies to check connectivity
+    domain.forMeshBodies( [&]( MeshBody & meshBody )
+    {
+      MeshLevel & mesh = meshBody.getMeshLevels().getGroup< MeshLevel >( 0 );
+      ElementRegionManager & elemManager = mesh.getGroup< ElementRegionManager >( "ElementRegions" );
+      
+      // Iterate through all element regions in the current mesh body
+      elemManager.forElementRegions( [&]( ElementRegionBase & region )
+      {
+        if( auto * cellRegion = dynamic_cast< CellElementRegion * >( &region ) )
+        {
+          // Iterate through all element subregions in this region
+          cellRegion->forElementSubRegions( [&]( ElementSubRegionBase & subRegion )
+          {
+            if( auto * cellSubRegion = dynamic_cast< CellElementSubRegion * >( &subRegion ) )
+            {
+              // Check if the connectivity field exists for mesh1 to mesh2
+              if( cellSubRegion->hasWrapper( viewKeyStruct::mesh1ToMesh2ConnectivityString() ) )
+              {
+                GEOS_LOG( "  " << meshBody.getName() << "/Region: " << cellRegion->getName() << "/SubRegion: " << cellSubRegion->getName() );
+                GEOS_LOG( "  Has connectivity: mesh1ToMesh2Connectivity" );
+                
+                // Get the connectivity field
+                auto const & connectivity = cellSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() );
+                
+                // Print first few values to avoid cluttering the terminal
+                localIndex printCount = std::min( localIndex( 5 ), cellSubRegion->size() );
+                std::string values;
+                for( localIndex i = 0; i < printCount; ++i )
+                {
+                  values += std::to_string( connectivity[i] ) + " ";
+                }
+                if( printCount < cellSubRegion->size() )
+                {
+                  values += "...";
+                }
+                GEOS_LOG( "  Connectivity values: " << values );
+                GEOS_LOG( "  Total elements: " << cellSubRegion->size() );
+              }
+              
+              // Check if the connectivity field exists for mesh2 to mesh1
+              if( cellSubRegion->hasWrapper( viewKeyStruct::mesh2ToMesh1ConnectivityString() ) )
+              {
+                GEOS_LOG( "  " << meshBody.getName() << "/Region: " << cellRegion->getName() << "/SubRegion: " << cellSubRegion->getName() );
+                GEOS_LOG( "  Has connectivity: mesh2ToMesh1Connectivity" );
+                
+                // Get the connectivity field
+                auto const & connectivity = cellSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() );
+                
+                // Print first few values to avoid cluttering the terminal
+                localIndex printCount = std::min( localIndex( 5 ), cellSubRegion->size() );
+                std::string values;
+                for( localIndex i = 0; i < printCount; ++i )
+                {
+                  values += std::to_string( connectivity[i] ) + " ";
+                }
+                if( printCount < cellSubRegion->size() )
+                {
+                  values += "...";
+                }
+                GEOS_LOG( "  Connectivity values: " << values );
+                GEOS_LOG( "  Total elements: " << cellSubRegion->size() );
+              }
+            }
+          } );
+        }
+      } );
+    } );
+    
+    // Analyze whether numbering is reset per-region or per-subregion
+    // We inspect the connectivity arrays registered per subregion. If each subregion's
+    // connectivity starts at zero we conclude that numbering is re-counted per-subregion.
+    // If the first subregion of a region starts at 0 and subsequent subregions start
+    // right after the previous max we conclude numbering is contiguous per-region.
+
+    GEOS_LOG( "--- Analyzing numbering behavior (region vs subregion) ---" );
+
+    // Helper to analyze one connectivity key
+    auto analyzeKey = [&]( char const * key )
+    {
+      // group by mesh body and region
+      std::map< std::pair< std::string, std::string >, std::vector< std::tuple< std::string, localIndex, localIndex > > > groups;
+
+      domain.forMeshBodies( [&]( MeshBody & meshBody )
+      {
+        MeshLevel & mesh = meshBody.getMeshLevels().getGroup< MeshLevel >( 0 );
+        ElementRegionManager & elemManager = mesh.getGroup< ElementRegionManager >( "ElementRegions" );
+
+        elemManager.forElementRegions( [&]( ElementRegionBase & region )
+        {
+          if( auto * cellRegion = dynamic_cast< CellElementRegion * >( &region ) )
+          {
+            cellRegion->forElementSubRegions( [&]( ElementSubRegionBase & subRegion )
+            {
+              if( auto * cellSubRegion = dynamic_cast< CellElementSubRegion * >( &subRegion ) )
+              {
+                if( cellSubRegion->hasWrapper( key ) )
+                {
+                  auto const & connectivity = cellSubRegion->getReference< array1d< localIndex > >( key );
+                  if( connectivity.size() == 0 ) return;
+
+                  localIndex minVal = connectivity[0];
+                  localIndex maxVal = connectivity[ connectivity.size() - 1 ];
+                  // record subregion name, min and max
+                  groups[ { meshBody.getName(), cellRegion->getName() } ].push_back( std::make_tuple( cellSubRegion->getName(), minVal, maxVal ) );
+                }
+              }
+            } );
+          }
+        } );
+      } );
+
+      if( groups.empty() )
+      {
+        GEOS_LOG( "No connectivity arrays found for key: " << key );
+        return;
+      }
+
+      // Analyze each (meshBody,region) group
+      for( auto const & kv : groups )
+      {
+        auto const & meshName = kv.first.first;
+        auto const & regionName = kv.first.second;
+        auto const & infos = kv.second;
+
+        bool allStartAtZero = true;
+        bool contiguousAcross = true;
+
+        // check first at zero and contiguous
+        localIndex prevMax = -1;
+        for( size_t i = 0; i < infos.size(); ++i )
+        {
+          localIndex minVal = std::get<1>( infos[i] );
+          localIndex maxVal = std::get<2>( infos[i] );
+          if( minVal != 0 ) allStartAtZero = false;
+          if( i == 0 )
+          {
+            prevMax = maxVal;
+            if( minVal != 0 ) contiguousAcross = false; // first doesn't start at zero
+          }
+          else
+          {
+            if( minVal != prevMax + 1 ) contiguousAcross = false;
+            prevMax = maxVal;
+          }
+        }
+
+        // Print conclusion
+        if( allStartAtZero )
+        {
+          GEOS_LOG( "Mesh '" << meshName << "' Region '" << regionName << "': 元素编号在每个 subregion 内从 0 重新计数（按 subregion 重置）。" );
+        }
+        else if( contiguousAcross )
+        {
+          GEOS_LOG( "Mesh '" << meshName << "' Region '" << regionName << "': 元素编号在 region 内连续（按 region 连续编号）。" );
+        }
+        else
+        {
+          GEOS_LOG( "Mesh '" << meshName << "' Region '" << regionName << "': 编号行为混合或不一致（既不是严格按 subregion 重置，也不是按 region 连续）。" );
+        }
+
+        // Print a short example for this region
+        for( auto const & info : infos )
+        {
+          GEOS_LOG( "  Subregion '" << std::get<0>( info ) << "' => min: " << std::get<1>( info ) << ", max: " << std::get<2>( info ) );
+        }
+      }
+    };
+
+    // Analyze both directions if present
+    analyzeKey( viewKeyStruct::mesh1ToMesh2ConnectivityString() );
+    analyzeKey( viewKeyStruct::mesh2ToMesh1ConnectivityString() );
+
+    GEOS_LOG( "=== End of connectivity values ===" );
+  }
 
     template< typename TYPE_LIST,
             typename KERNEL_WRAPPER,
@@ -269,11 +727,21 @@ protected:
 
 private:
   real64 m_transferCoefficient;
-
+  
+  // TracAI: Added to store dual continuum region pairs from XML
+  string_array m_matrixRegionList;
+  string_array m_fractureRegionList;
+  
   struct viewKeyStruct : Base::viewKeyStruct
   {
     static constexpr char const * transferCoefficientString() { return "transferCoefficient"; }
-    // Add any DualContinuum-specific keys here if needed in the future
+    // TracAI: Added connectivity field keys
+    static constexpr char const * mesh1ToMesh2ConnectivityString() { return "mesh1ToMesh2Connectivity"; }
+    static constexpr char const * mesh2ToMesh1ConnectivityString() { return "mesh2ToMesh1Connectivity"; }
+    // TracAI: Added key for dual continuum region pairs
+    static constexpr char const * matrixRegionList() { return "matrixRegionList"; }
+    static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
+
   };
 
 }; // class DualContinuumFlowSolver

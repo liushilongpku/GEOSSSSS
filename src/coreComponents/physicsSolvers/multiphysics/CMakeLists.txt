@@ -37,6 +37,8 @@ set( multiPhysicsSolvers_headers
     PoromechanicsFields.hpp
     DualContinuumFlowSolver.hpp
     PoromechanicsInitialization.hpp
+        dualContinuumCrossFlowComputeKernels/CrossFlowComputeKernel.hpp
+        dualContinuumCrossFlowComputeKernels/ThermalCrossFlowComputeKernel.hpp
     poromechanicsKernels/MultiphasePoromechanics.hpp
     poromechanicsKernels/MultiphasePoromechanics_impl.hpp
     poromechanicsKernels/MultiphasePoromechanicsConformingFractures.hpp

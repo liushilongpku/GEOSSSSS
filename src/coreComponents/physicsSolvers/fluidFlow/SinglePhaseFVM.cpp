@@ -86,16 +86,33 @@ template< typename BASE >
 void SinglePhaseFVM< BASE >::setupDofs( DomainPartition const & domain,
                                         DofManager & dofManager ) const
 {
-  dofManager.addField( BASE::viewKeyStruct::elemDofFieldString(),
-                       FieldLocation::Elem,
-                       m_numDofPerCell,
-                       BASE::getMeshTargets() );
+    GEOS_LOG(this->getMeshTargets().begin()->first.first);
+    dofManager.addField( BASE::viewKeyStruct::elemDofFieldString(),
+                        FieldLocation::Elem,
+                        m_numDofPerCell,
+                        BASE::getMeshTargets());
 
-  NumericalMethodsManager const & numericalMethodManager = domain.getNumericalMethodManager();
-  FiniteVolumeManager const & fvManager = numericalMethodManager.getFiniteVolumeManager();
-  FluxApproximationBase const & fluxApprox = fvManager.getFluxApproximation( m_discretizationName );
+    NumericalMethodsManager const &numericalMethodManager = domain.getNumericalMethodManager();
+    FiniteVolumeManager const &fvManager = numericalMethodManager.getFiniteVolumeManager();
+    FluxApproximationBase const &fluxApprox = fvManager.getFluxApproximation(m_discretizationName);
 
-  dofManager.addCoupling( BASE::viewKeyStruct::elemDofFieldString(), fluxApprox );
+    dofManager.addCoupling(BASE::viewKeyStruct::elemDofFieldString(), fluxApprox);
+}
+
+template< typename BASE >
+void SinglePhaseFVM< BASE >::setupDofs1( DomainPartition const & domain,
+                                        DofManager & dofManager ) const
+{
+  dofManager.addField(this->getMeshTargets().begin()->first.first + BASE::viewKeyStruct::elemDofFieldString(),
+                      FieldLocation::Elem,
+                      m_numDofPerCell,
+                      BASE::getMeshTargets());
+
+  NumericalMethodsManager const &numericalMethodManager = domain.getNumericalMethodManager();
+  FiniteVolumeManager const &fvManager = numericalMethodManager.getFiniteVolumeManager();
+  FluxApproximationBase const &fluxApprox = fvManager.getFluxApproximation(m_discretizationName);
+
+  dofManager.addCoupling(this->getMeshTargets().begin()->first.first + BASE::viewKeyStruct::elemDofFieldString(), fluxApprox);
 }
 
 template< typename BASE >
@@ -269,58 +286,47 @@ void SinglePhaseFVM< BASE >::applySystemSolution( DofManager const & dofManager,
                                                   DomainPartition & domain )
 {
   GEOS_UNUSED_VAR( dt );
+  if( m_isThermal )
+  {
+    DofManager::CompMask pressureMask( m_numDofPerCell, 0, 1 );
+    DofManager::CompMask temperatureMask( m_numDofPerCell, 1, 2 );
 
-  string const dofKey = dofManager.getKey( BASE::viewKeyStruct::elemDofFieldString() );
+    dofManager.addVectorToField( localSolution,
+                                 BASE::viewKeyStruct::elemDofFieldString(),
+                                 flow::pressure::key(),
+                                 scalingFactor,
+                                 pressureMask );
+
+    dofManager.addVectorToField( localSolution,
+                                 BASE::viewKeyStruct::elemDofFieldString(),
+                                 flow::temperature::key(),
+                                 scalingFactor,
+                                 temperatureMask );
+  }
+  else
+  {
+    dofManager.addVectorToField( localSolution,
+                                 BASE::viewKeyStruct::elemDofFieldString(),
+                                 flow::pressure::key(),
+                                 scalingFactor );
+  }
 
   this->forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
                                                                       MeshLevel & mesh,
                                                                       string_array const & regionNames )
   {
-    ElementRegionManager & elemManager = mesh.getElemManager();
+      stdVector< string > fields{ flow::pressure::key() };
 
-    for( string const & regionName : regionNames )
-    {
-      ElementRegionBase & region = elemManager.getRegion< ElementRegionBase >( regionName );
-      region.forElementSubRegions< ElementSubRegionBase >( [&]( ElementSubRegionBase & subRegion )
+      if( m_isThermal )
       {
-        arrayView1d< globalIndex const > const & dofIndex = subRegion.getReference< globalIndex_array >( dofKey );
-        arrayView1d< real64 > const & pressure = subRegion.getReference< array1d< real64 > >( flow::pressure::key() );
-        localIndex const numElems = subRegion.size();
+        fields.emplace_back( flow::temperature::key() );
+      }
 
-        if( m_isThermal )
-        {
-          arrayView1d< real64 > const & temperature = subRegion.getReference< array1d< real64 > >( flow::temperature::key() );
+      FieldIdentifiers fieldsToBeSync;
 
-          for( localIndex ei = 0; ei < numElems; ++ei )
-          {
-            globalIndex const elemDofIndex = dofIndex[ei];
-            pressure[ei] += scalingFactor * localSolution[elemDofIndex * m_numDofPerCell + 0];
-            temperature[ei] += scalingFactor * localSolution[elemDofIndex * m_numDofPerCell + 1];
-          }
-        }
-        else
-        {
-          for( localIndex ei = 0; ei < numElems; ++ei )
-          {
-            globalIndex const elemDofIndex = dofIndex[ei];
-            pressure[ei] += scalingFactor * localSolution[elemDofIndex];
-          }
-        }
-      } );
-    }
+      fieldsToBeSync.addElementFields( fields, regionNames );
 
-    stdVector< string > fields{ flow::pressure::key() };
-
-    if( m_isThermal )
-    {
-      fields.emplace_back( flow::temperature::key() );
-    }
-
-    FieldIdentifiers fieldsToBeSync;
-
-    fieldsToBeSync.addElementFields( fields, regionNames );
-
-    CommunicationTools::getInstance().synchronizeFields( fieldsToBeSync, mesh, domain.getNeighbors(), true );
+      CommunicationTools::getInstance().synchronizeFields( fieldsToBeSync, mesh, domain.getNeighbors(), true );
   } );
 }
 

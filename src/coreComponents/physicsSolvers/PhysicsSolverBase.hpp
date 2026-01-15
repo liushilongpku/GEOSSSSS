@@ -382,7 +382,11 @@ public:
   setupDofs( DomainPartition const & domain,
              DofManager & dofManager ) const;
 
-  /**
+  virtual void
+  setupDofs1( DomainPartition const & domain,
+              DofManager & dofManager ) const;
+
+/**
    * @brief Set up the linear system (DOF indices and sparsity patterns)
    * @param domain the domain containing the mesh and fields
    * @param dofManager degree-of-freedom manager associated with the linear system

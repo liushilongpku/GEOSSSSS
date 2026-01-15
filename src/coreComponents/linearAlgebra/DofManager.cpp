@@ -172,6 +172,20 @@ void forMeshSupport( stdVector< DofManager::FieldSupport > const & support,
 
 template< typename FUNC >
 void forMeshSupport( stdVector< DofManager::FieldSupport > const & support,
+                     DomainPartition & domain,
+                     bool dualContinuum_flag,
+                     FUNC && func )
+{
+  for( DofManager::FieldSupport const & regions : support )
+  {
+    MeshBody & meshBody = domain.getMeshBody( regions.meshBodyName );
+    MeshLevel & meshLevel = meshBody.getMeshLevel( regions.meshLevelName );
+    func( meshBody, meshLevel, regions.regionNames );
+  }
+}
+
+template< typename FUNC >
+void forMeshSupport( stdVector< DofManager::FieldSupport > const & support,
                      DomainPartition const & domain,
                      FUNC && func )
 {
@@ -603,6 +617,23 @@ processCouplingRegionList( stdVector< DofManager::FieldSupport > inputList,
 }
 
 } // namespace
+void DofManager::addCouplingDualContinuum(const string_array & matrixRegionList,
+                                          const string_array & fractureRegionList,
+                                          string const & rowFieldName,
+                                          string const & colFieldName,
+                                          Connector const connectivity,
+                                          stdVector< FieldSupport > const & supports,
+                                          bool const symmetric)
+{
+  ///set the basic flag and region lists of the dual continuum
+  m_isdpdk = true;
+  m_matrixRegionList = matrixRegionList;
+  m_fractureRegionList = fractureRegionList;
+
+  addCoupling(rowFieldName, colFieldName, connectivity, supports, symmetric);
+}
+
+
 
 void DofManager::addCoupling( string const & rowFieldName,
                               string const & colFieldName,
@@ -922,6 +953,89 @@ void DofManager::setSparsityPatternFromStencil( SparsityPatternView< globalIndex
   } );
 }
 
+void DofManager::setSparsityPatternDualContinuum(SparsityPatternView< globalIndex > const & pattern,
+                                            integer const rowFieldIndex,
+                                            integer const colFieldIndex,
+                                            string matrixRegionName,
+                                            string fractureRegionName) const
+{
+
+  FieldDescription const & field = m_fields[rowFieldIndex];
+  CouplingDescription const & coupling = m_coupling.at( {rowFieldIndex, rowFieldIndex} );
+  integer const numComp = field.numComponents;
+  globalIndex const rankDofOffset = rankOffset();
+  CompMask const & globallyCoupledComps = field.globallyCoupledComponents;
+
+  forMeshSupport( field.support, *m_domain, [&]( MeshBody const &, MeshLevel const & mesh, auto const & regions )
+  {
+    for( const string & regionName : regions )
+    {
+      if( regionName == matrixRegionName || regionName == fractureRegionName)
+      {
+        string rowRegionName = regionName == matrixRegionName ? matrixRegionName : fractureRegionName;
+        string colRegionName = regionName == matrixRegionName ? fractureRegionName : matrixRegionName;
+
+        MeshLevel const & rowMesh = mesh;
+        //为第二个MeshLevel设置基本信息
+        for(FieldSupport const & colSupport : field.support)
+        {
+          for( auto const & item : colSupport.regionNames)
+          {
+            if( item == colRegionName )//套这些循环是因为colMesh被定义为了局部变量
+            {
+              MeshBody & colMeshBody = m_domain->getMeshBody( colSupport.meshBodyName );
+              MeshLevel const & colMesh = colMeshBody.getMeshLevel( colSupport.meshLevelName );
+
+              stdVector<string> rowRegions = {rowRegionName};
+
+                // 假设 regions 是你根据名字找到的网格区域集合
+              LocationSwitch( field.location, [&]( auto const loc )
+              {
+                // A. 获取编译期常量 LOC (Cell, Node, Face 等)
+                FieldLocation constexpr LOC = decltype(loc)::value;
+
+                // B. 定义 ArrayHelper 类型，专门用于读取 globalIndex (即 DoF 编号)
+                using Helper = ArrayHelper< globalIndex const, LOC >;
+
+                // C. 获取访问器 (Accessor)
+                // 关键点：使用 field.key 从 mesh 中提取数据数组
+                typename Helper::Accessor rowDofAccessor = Helper::get( rowMesh, field.key );
+                typename Helper::Accessor colDofAccessor = Helper::get( colMesh, field.key );
+
+                // D. 遍历 Region 中的每个实体 (locIdx 是单元或节点的局部索引)
+                forMeshLocation< LOC, false, serialPolicy >( mesh, rowRegions, [&]( auto const locIdx )
+                {
+                  // E. 获取该实体的“起始” DoF 编号
+                  globalIndex const rowDofNumber = Helper::value( rowDofAccessor, locIdx );
+                  globalIndex const colDofNumber = Helper::value( colDofAccessor, locIdx );
+
+                  // F. 如果该字段有多个分量 (例如位移有 x,y,z 3个分量)
+                  // 通常 DoF 是连续存储的：base, base+1, base+2
+
+                  array1d< globalIndex > colDofIndices( field.numComponents );
+
+                  for( localIndex c = 0; c < field.numComponents; ++c )
+                  {
+                    GEOS_LOG("flag");
+                    colDofIndices[c] = colDofNumber + c;
+                  }
+
+                  for( localIndex c = 0; c < field.numComponents ; ++c)
+                  {
+                    std::cout  << "rowRegionName is " << rowRegionName << " row: " << rowDofNumber << "col:" << colDofNumber << std::endl;
+                    pattern.insertNonZeros( rowDofNumber - rankDofOffset + c, colDofIndices.begin(), colDofIndices.end() );
+                  }
+                } );
+              } );
+              break;//找到对应的MeshLevel，退出循环
+            }
+          }
+        }
+      }
+    }
+  } );
+}
+
 void DofManager::setSparsityPatternOneBlock( SparsityPatternView< globalIndex > const & pattern,
                                              integer const rowFieldIndex,
                                              integer const colFieldIndex ) const
@@ -1115,6 +1229,50 @@ void DofManager::countRowLengthsFromStencil( arrayView1d< localIndex > const & r
   } );
 }
 
+void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex> &rowLengths,
+                                              geos::integer rowFieldIndex,
+                                              geos::integer colFieldIndex,
+                                              string matrixRegionName,
+                                              string fractureRegionName) const
+{
+  GEOS_ASSERT(rowFieldIndex >= 0);
+  GEOS_ASSERT(colFieldIndex >= 0);
+
+  FieldDescription const &rowFieldDescription = m_fields[rowFieldIndex];
+  FieldDescription const &colFieldDescription = m_fields[colFieldIndex];
+
+  integer const numComp = rowFieldDescription.numComponents;
+  globalIndex const rankDofOffset = rankOffset();
+
+  forMeshSupport(rowFieldDescription.support, *m_domain, [&](MeshBody const &, MeshLevel const &mesh, auto const &regions)
+  {
+    for(const string & regionName : regions)
+    {
+      if (regionName == matrixRegionName|| regionName == fractureRegionName)//the legitimacy has already been checked in DualContinuumFlowSolver
+      {
+        stdVector<string> regionNames = {regionName};
+
+        mesh.getElemManager().forElementSubRegions(regionNames, [&](localIndex const, ElementSubRegionBase const &subRegion)
+        {
+          arrayView1d<integer const> const ghostRank = subRegion.ghostRank();
+          arrayView1d<globalIndex const> const dofNumber = subRegion.getReference<array1d<globalIndex> >(rowFieldDescription.key);
+          forAll<parallelHostPolicy>(subRegion.size(),[&](localIndex const ei)
+          {
+            if (ghostRank[ei] < 0)
+            {
+              localIndex const localDofNumber =dofNumber[ei] - rankDofOffset;
+              for (integer c = 0; c < numComp; ++c)
+              {
+                rowLengths[localDofNumber +c] += numComp;
+              }
+            }
+          });
+        });
+      }
+    }
+  });
+}
+
 void DofManager::countRowLengthsOneBlock( arrayView1d< localIndex > const & rowLengths,
                                           integer const rowFieldIndex,
                                           integer const colFieldIndex ) const
@@ -1254,6 +1412,15 @@ void DofManager::setSparsityPattern( SparsityPattern< globalIndex > & pattern ) 
     for( integer blockCol = 0; blockCol < numFields; ++blockCol )
     {
       countRowLengthsOneBlock( rowSizes, blockRow, blockCol );
+
+      ///设置双重介质稀疏矩阵结构
+      for(size_t RegionIndex=0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
+      {
+        if(m_isdpdk && blockRow == blockCol )//目前对双重介质均使用了相同的场名称
+        {
+          countRowLengthsDualContinuum(rowSizes, blockRow, blockCol, m_matrixRegionList[RegionIndex], m_fractureRegionList[RegionIndex]);
+        }
+      }
     }
   }
 
@@ -1266,6 +1433,15 @@ void DofManager::setSparsityPattern( SparsityPattern< globalIndex > & pattern ) 
     for( integer blockCol = 0; blockCol < numFields; ++blockCol )
     {
       setSparsityPatternOneBlock( pattern.toView(), blockRow, blockCol );
+
+      ///设置双重介质稀疏矩阵结构
+      for(size_t RegionIndex=0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
+      {
+        if(m_isdpdk && blockRow == blockCol )//目前对双重介质均使用了相同的场名称
+        {
+          setSparsityPatternDualContinuum( pattern.toView(), blockRow, blockCol, m_matrixRegionList[RegionIndex], m_fractureRegionList[RegionIndex] );
+        }
+      }
     }
   }
 
