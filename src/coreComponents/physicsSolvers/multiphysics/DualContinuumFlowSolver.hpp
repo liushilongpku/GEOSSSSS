@@ -24,7 +24,7 @@
 #include "codingUtilities/Utilities.hpp"
 #include <map>
 #include <tuple>
-
+#include "dualContinuumCrossFlowComputeKernels/DualContinuumCrossFlow.hpp"
 namespace geos
 {
     namespace stabilization
@@ -63,7 +63,9 @@ public:
   static string coupledSolverAttributePrefix() { return "dualcontinuum"; }
 
   DualContinuumFlowSolver( string const & name, dataRepository::Group * parent )
-    : Base( name, parent )
+    : Base( name, parent ),
+    m_crossFlow( viewKeyStruct::DualContinuumCrossFlow(), this )
+
   {
     // dual-flow has two scalar dofs per node (primary + secondary), set a reasonable default
     LinearSolverParameters & linearSolverParameters = this->m_linearSolverParameters.get();
@@ -83,7 +85,8 @@ public:
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
       setDescription( "List of matrix regions" );
 
-  
+    this->registerGroup( viewKeyStruct::DualContinuumCrossFlow(), &m_crossFlow );
+
     this->registerWrapper( viewKeyStruct::fractureRegionList(), &m_fractureRegionList ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
       setDescription( "List of fracture regions" );
@@ -91,9 +94,43 @@ public:
 
   virtual void postInputInitialization() override {
     Base::postInputInitialization();
+    /*
+     *     this->getMeshTargets();
+
+    std::set< string > targetMeshBodiesSet;
+    for( auto const & pair : primarySolver()->getMeshTargets() )
+    {
+      targetMeshBodiesSet.insert( pair.first.first );
+    }
+
+    std::set< string > targetMeshBodiesSetFracture;
+    for( auto const & pair : secondarySolver()->getMeshTargets() )
+    {
+      targetMeshBodiesSetFracture.insert( pair.first.first );
+    }
+    */
+    //DomainPartition& domain = this->template getGroupByPath< DomainPartition >( "/Problem/domain" );
+    //MeshBody & matrix = domain.getMeshBody("mesh1");
+    //MeshBody & fracture = domain.getMeshBody("mesh2");
+    //MeshLevel & primaryMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
+    //MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
+
+    //m_crossFlow.initialize( primaryMesh, secondaryMesh );
     // add validation of solver types if needed
     GEOS_LOG("some thermal check");
   }
+
+  virtual void initializePostInitialConditionsPreSubGroups() override
+  {
+    Base::initializePostInitialConditionsPreSubGroups();
+
+    DomainPartition& domain = this->template getGroupByPath< DomainPartition >( "/Problem/domain" );
+    MeshBody & matrix = domain.getMeshBody("mesh1");
+    MeshBody & fracture = domain.getMeshBody("mesh2");
+    MeshLevel & primaryMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
+    MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
+    m_crossFlow.initialize( primaryMesh, secondaryMesh );
+  };
 
   /**
    * @brief accessor for the pointer to the primary flow solver
@@ -726,6 +763,8 @@ protected:
     stabilization::StabilizationType m_stabilizationType;
 
 private:
+  //std::shared_ptr< DualContinuumCrossFlow > m_crossFlow;
+  DualContinuumCrossFlow m_crossFlow;
   real64 m_transferCoefficient;
   
   // TracAI: Added to store dual continuum region pairs from XML
@@ -741,7 +780,7 @@ private:
     // TracAI: Added key for dual continuum region pairs
     static constexpr char const * matrixRegionList() { return "matrixRegionList"; }
     static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
-
+    static constexpr char const * DualContinuumCrossFlow() { return "DualContinuumCrossFlow"; }
   };
 
 }; // class DualContinuumFlowSolver

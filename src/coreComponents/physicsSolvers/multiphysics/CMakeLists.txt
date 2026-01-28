@@ -39,6 +39,7 @@ set( multiPhysicsSolvers_headers
     PoromechanicsInitialization.hpp
         dualContinuumCrossFlowComputeKernels/CrossFlowComputeKernel.hpp
         dualContinuumCrossFlowComputeKernels/ThermalCrossFlowComputeKernel.hpp
+     dualContinuumCrossFlowComputeKernels/DualContinuumCrossFlow.hpp
     poromechanicsKernels/MultiphasePoromechanics.hpp
     poromechanicsKernels/MultiphasePoromechanics_impl.hpp
     poromechanicsKernels/MultiphasePoromechanicsConformingFractures.hpp
@@ -80,7 +81,8 @@ set( multiPhysicsSolvers_sources
     SinglePhasePoromechanics.cpp
     SinglePhasePoromechanicsEmbeddedFractures.cpp
     SinglePhasePoromechanicsConformingFractures.cpp
-    SinglePhaseReservoirAndWells.cpp )
+    SinglePhaseReservoirAndWells.cpp
+    dualContinuumCrossFlowComputeKernels/DualContinuumCrossFlow.cpp)
 
 #include(poromechanicsKernels/PoromechanicsKernels.cmake)
 

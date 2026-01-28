@@ -25,6 +25,7 @@ set( finiteVolume_headers
      BoundaryStencil.hpp
      CellElementStencilMPFA.hpp
      CellElementStencilTPFA.hpp
+     DualContinuumStencil.hpp
      SurfaceElementStencil.hpp
      EmbeddedSurfaceToCellStencil.hpp
      FaceElementToCellStencil.hpp
@@ -50,6 +51,7 @@ set( finiteVolume_sources
      BoundaryStencil.cpp
      CellElementStencilMPFA.cpp
      CellElementStencilTPFA.cpp
+     DualContinuumStencil.cpp
      SurfaceElementStencil.cpp
      FaceElementToCellStencil.cpp
      EmbeddedSurfaceToCellStencil.cpp

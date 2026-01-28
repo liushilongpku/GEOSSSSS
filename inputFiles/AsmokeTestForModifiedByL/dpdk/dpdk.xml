@@ -11,6 +11,12 @@
             targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
             matrixRegionList="{ Region1 }"
             fractureRegionList="{ Region2 }">
+      <DualContinuumCrossFlow
+      fractureSpacingLx="10.0"
+      fractureSpacingLy="10.0"
+      fractureSpacingLz="10.0"
+      matrixRegionList="{ Region1 }"
+      fractureRegionList="{ Region2 }"/>
       <LinearSolverParameters
               solverType="direct"
               directParallel="0"
@@ -54,7 +60,7 @@
       xCoords="{ 0, 1, 9, 10 }"
       yCoords="{ 0, 1 }"
       zCoords="{ 0, 1 }"
-      nx="{ 1, 1, 1 }"
+      nx="{ 1, 2, 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
       cellBlockNames="{ block1 }"/>
@@ -64,7 +70,7 @@
             xCoords="{ 0, 1, 9, 10 }"
             yCoords="{ 0, 1 }"
             zCoords="{ 0, 1 }"
-            nx="{ 1, 1, 1 }"
+            nx="{ 1, 2, 1 }"
             ny="{ 1 }"
             nz="{ 1 }"
             cellBlockNames="{ block2 }"/>

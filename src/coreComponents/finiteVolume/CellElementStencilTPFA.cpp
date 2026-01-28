@@ -119,5 +119,4 @@ CellElementStencilTPFAWrapper::
   m_transMultiplier( transMultiplier ),
   m_geometricStabilizationCoef( geometricStabilizationCoef )
 {}
-
 } /* namespace geos */
