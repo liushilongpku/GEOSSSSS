@@ -761,6 +761,7 @@ protected:
     }
 
     stabilization::StabilizationType m_stabilizationType;
+  DualContinuumStencil & getStencil(){return m_crossFlow.getStencil();};
 
 private:
   //std::shared_ptr< DualContinuumCrossFlow > m_crossFlow;

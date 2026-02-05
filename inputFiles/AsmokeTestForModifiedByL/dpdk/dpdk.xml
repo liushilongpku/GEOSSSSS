@@ -12,9 +12,9 @@
             matrixRegionList="{ Region1 }"
             fractureRegionList="{ Region2 }">
       <DualContinuumCrossFlow
-      fractureSpacingLx="10.0"
-      fractureSpacingLy="10.0"
-      fractureSpacingLz="10.0"
+      fractureSpacingLx="1.0"
+      fractureSpacingLy="1.0"
+      fractureSpacingLz="1.0"
       matrixRegionList="{ Region1 }"
       fractureRegionList="{ Region2 }"/>
       <LinearSolverParameters
@@ -60,7 +60,7 @@
       xCoords="{ 0, 1, 9, 10 }"
       yCoords="{ 0, 1 }"
       zCoords="{ 0, 1 }"
-      nx="{ 1, 2, 1 }"
+      nx="{ 1, 8, 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
       cellBlockNames="{ block1 }"/>
@@ -70,7 +70,7 @@
             xCoords="{ 0, 1, 9, 10 }"
             yCoords="{ 0, 1 }"
             zCoords="{ 0, 1 }"
-            nx="{ 1, 2, 1 }"
+            nx="{ 1, 8, 1 }"
             ny="{ 1 }"
             nz="{ 1 }"
             cellBlockNames="{ block2 }"/>
@@ -89,22 +89,18 @@
   </Geometry>
 
   <Events
-    maxTime="1.0">
+    maxTime="1000.0">
     <PeriodicEvent
       name="outputs"
-      timeFrequency="1.0"
+      timeFrequency="10.0"
       target="/Outputs/siloOutput"/>
 
     <PeriodicEvent
       name="solverApplications"
-      forceDt="1.0"
+      forceDt="10.0"
       target="/Solvers/DualContinuumSolver"/>
 
-    <PeriodicEvent
-      name="restarts"
-      timeFrequency="1.0"
-      targetExactTimestep="0"
-      target="/Outputs/restartOutput"/>
+
   </Events>
 
   <NumericalMethods>
@@ -201,7 +197,7 @@
             targetMesh="mesh1"
             objectPath="ElementRegions"
             fieldName="pressure"
-            scale="0.0"/>
+            scale="8e6"/>
     <FieldSpecification
             name="initialPressure2"
             initialCondition="1"
@@ -209,7 +205,7 @@
             targetMesh="mesh2"
             objectPath="ElementRegions"
             fieldName="pressure"
-            scale="0"/>
+            scale="15e6"/>
 
     <FieldSpecification
             name="sourceTerm1"
@@ -223,7 +219,7 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh1"
-            scale="-8e6"
+            scale="8e6"
             setNames="{ sink }"/>
 
 
@@ -234,7 +230,7 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh2"
-            scale="-5e6"
+            scale="15e6"
             setNames="{ source }"/>
 <!--targetMesh is null means that both mesh will be applied -->
 
@@ -243,7 +239,7 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh2"
-            scale="5e6"
+            scale="15e6"
             setNames="{ sink }"/>
     <!--
     <FieldSpecification
@@ -335,7 +331,5 @@
     <VTK
       name="siloOutput"/>
 
-    <Restart
-      name="restartOutput"/>
   </Outputs>
 </Problem>

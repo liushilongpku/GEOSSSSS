@@ -105,8 +105,10 @@ public:
    * @param[inout] localMatrix the local CRS matrix
    * @param[inout] localRhs the local right-hand side vector
    */
-  CrossFlowComputeKernelBase( globalIndex const rankOffset,
-                         DofNumberAccessor const & dofNumberAccessor,
+  CrossFlowComputeKernelBase( globalIndex const rankOffsetM,
+                         globalIndex const rankOffsetF,
+                         DofNumberAccessor const & dofMatrixNumberAccessor,
+                         DofNumberAccessor const & dofFractureNumberAccessor,
                          SinglePhaseFlowAccessors const & singlePhaseFlowAccessors,
                          SinglePhaseFluidAccessors const & singlePhaseFluidAccessors,
                          PermeabilityAccessors const & permeabilityAccessors,
@@ -116,9 +118,11 @@ public:
                          real64 const & dt,
                          CRSMatrixView< real64, globalIndex const > const & localMatrix,
                          arrayView1d< real64 > const & localRhs )
-    : m_rankOffset( rankOffset ),
+    : m_rankOffsetM(rankOffsetM),
+    m_rankOffsetF( rankOffsetF ),
     m_dt( dt ),
-    m_dofNumber( dofNumberAccessor.toNestedViewConst() ),
+    m_dofMatrixNumber( dofMatrixNumberAccessor.toNestedViewConst() ),//????
+    m_dofFractureNumber( dofFractureNumberAccessor.toNestedViewConst()),
     m_permeability( permeabilityAccessors.get( fields::permeability::permeability {} ) ),
     m_dPerm_dPres( permeabilityAccessors.get( fields::permeability::dPerm_dPressure {} ) ),
     m_ghostRank( singlePhaseFlowAccessors.get( fields::ghostRank {} ) ),
@@ -143,14 +147,15 @@ public:
 protected:
 
   /// Offset for my MPI rank
-  globalIndex const m_rankOffset;
-  globalIndex const m_rankOffset_fracture{};
+  globalIndex const m_rankOffsetM;
+  globalIndex const m_rankOffsetF;
 
   /// Time step size
   real64 const m_dt;
 
   /// Views on dof numbers
-  ElementViewConst< arrayView1d< globalIndex const > > const m_dofNumber;
+  ElementViewConst< arrayView1d< globalIndex const > > const m_dofMatrixNumber;
+  ElementViewConst< arrayView1d< globalIndex const > > const m_dofFractureNumber;
 
   /// Views on permeability
   ElementViewConst< arrayView3d< real64 const > > m_permeability;

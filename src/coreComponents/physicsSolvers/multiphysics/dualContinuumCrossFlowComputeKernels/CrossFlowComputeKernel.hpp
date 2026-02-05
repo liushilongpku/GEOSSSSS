@@ -27,19 +27,19 @@ class CrossFlowComputeKernel : public CrossFlowComputeKernelBase
 public:
 
 /// Compute time value for the number of degrees of freedom
-static constexpr integer numDof = NUM_DOF;
+  static constexpr integer numDof = NUM_DOF;
 
 /// Compute time value for the number of equations
-static constexpr integer numEqn = NUM_EQN;
+  static constexpr integer numEqn = NUM_EQN;
 
 /// Maximum number of elements at the face
-static constexpr localIndex maxNumElems = STENCILWRAPPER::maxNumPointsInFlux;
+  static constexpr localIndex maxNumElems = STENCILWRAPPER::maxNumPointsInFlux;
 
 /// Maximum number of connections at the face
-static constexpr localIndex maxNumConns = STENCILWRAPPER::maxNumConnections;
+  static constexpr localIndex maxNumConns = STENCILWRAPPER::maxNumConnections;
 
 /// Maximum number of points in the stencil
-static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
+  static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
 
 /**
  * @brief Constructor for the kernel interface
@@ -53,9 +53,11 @@ static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
  * @param[inout] localMatrix the local CRS matrix
  * @param[inout] localRhs the local right-hand side vector
  */
-  CrossFlowComputeKernel( globalIndex const rankOffset,
+  CrossFlowComputeKernel( globalIndex const rankOffsetM,
+                          globalIndex const rankOffsetF,
                           STENCILWRAPPER const & stencilWrapper,
-                          DofNumberAccessor const & dofNumberAccessor,
+                          DofNumberAccessor const & dofMatrixNumberAccessor,
+                          DofNumberAccessor const & dofFractureNumberAccessor,
                           SinglePhaseFlowAccessors const & singlePhaseFlowAccessors,
                           SinglePhaseFluidAccessors const & singlePhaseFluidAccessors,
                           PermeabilityAccessors const & permeabilityAccessors,
@@ -65,21 +67,23 @@ static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
                           real64 const & dt,
                           CRSMatrixView< real64, globalIndex const > const & localMatrix,
                           arrayView1d< real64 > const & localRhs )
-  : CrossFlowComputeKernelBase( rankOffset,
-                            dofNumberAccessor,
-                            singlePhaseFlowAccessors,
-                            singlePhaseFluidAccessors,
-                            permeabilityAccessors,
-                            singlePhaseFlowAccessors_fracture,
-                            singlePhaseFluidAccessors_fracture,
-                            permeabilityAccessors_fracture,
-                            dt,
-                            localMatrix,
-                            localRhs ),
-  m_stencilWrapper( stencilWrapper ),
-  m_seri( stencilWrapper.getElementRegionIndices() ),
-  m_sesri( stencilWrapper.getElementSubRegionIndices() ),
-  m_sei( stencilWrapper.getElementIndices() )
+    : CrossFlowComputeKernelBase( rankOffsetM,
+                                  rankOffsetF,
+                                  dofMatrixNumberAccessor,
+                                  dofFractureNumberAccessor,
+                                  singlePhaseFlowAccessors,
+                                  singlePhaseFluidAccessors,
+                                  permeabilityAccessors,
+                                  singlePhaseFlowAccessors_fracture,
+                                  singlePhaseFluidAccessors_fracture,
+                                  permeabilityAccessors_fracture,
+                                  dt,
+                                  localMatrix,
+                                  localRhs ),
+      m_stencilWrapper( stencilWrapper ),
+      m_seri( stencilWrapper.getElementRegionIndices() ),
+      m_sesri( stencilWrapper.getElementSubRegionIndices() ),
+      m_sei( stencilWrapper.getElementIndices() )
   {}
 /**
  * @struct StackVariables
@@ -94,88 +98,91 @@ static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
    * @param[in] size size of the stencil for this connection
    * @param[in] numElems number of elements for this connection
    */
-  GEOS_HOST_DEVICE
-  StackVariables( localIndex const size, localIndex numElems )
+    GEOS_HOST_DEVICE
+    StackVariables( localIndex const size, localIndex numElems )
       : stencilSize( size ),
         numFluxElems( numElems ),
         dofColIndices( size * numDof ),
         localFlux( numElems * numEqn ),
         localFluxJacobian( numElems * numEqn, size * numDof )
-  {}
+    {}
 
-  // Stencil information
+    // Stencil information
 
     /// Stencil size for a given connection
-  localIndex const stencilSize;
+    localIndex const stencilSize;
 
     /// Number of elements for a given connection
-  localIndex const numFluxElems;
+    localIndex const numFluxElems;
 
-  // Transmissibility and derivatives
+    // Transmissibility and derivatives
 
     /// Transmissibility
-  real64 transmissibility[maxNumConns][2]{};
+    real64 transmissibility{};
     /// Derivatives of transmissibility with respect to pressure
-  real64 dTrans_dPres[maxNumConns][2]{};
+    real64 dTrans_dPres{} ;
+    //real64 dTrans_dPres[maxNumConns][2]{};
 
-  // Local degrees of freedom and local residual/jacobian
+    // Local degrees of freedom and local residual/jacobian
 
     /// Indices of the matrix rows/columns corresponding to the dofs in this face
-  stackArray1d< globalIndex, maxNumElems * numDof > dofColIndices;
+    stackArray1d< globalIndex, maxNumElems * numDof > dofColIndices;
 
     /// Storage for the face local residual vector (all equations except volume balance)
-  stackArray1d< real64, maxNumElems * numEqn > localFlux;
+    stackArray1d< real64, maxNumElems * numEqn > localFlux;
     /// Storage for the face local Jacobian matrix
-  stackArray2d< real64, maxNumElems * numEqn * maxStencilSize * numDof > localFluxJacobian;
+    stackArray2d< real64, maxNumElems * numEqn * maxStencilSize * numDof > localFluxJacobian;
 
   };
 
-    /**
-   * @brief Getter for the stencil size at this connection
-   * @param[in] iconn the connection index
-   * @return the size of the stencil at this connection
-   */
+  /**
+ * @brief Getter for the stencil size at this connection
+ * @param[in] iconn the connection index
+ * @return the size of the stencil at this connection
+ */
   GEOS_HOST_DEVICE
   localIndex stencilSize( localIndex const iconn ) const
   { return m_sei[iconn].size(); }
 
-    /**
-   * @brief Getter for the number of elements at this connection
-   * @param[in] iconn the connection index
-   * @return the number of elements at this connection
-   */
+  /**
+ * @brief Getter for the number of elements at this connection
+ * @param[in] iconn the connection index
+ * @return the number of elements at this connection
+ */
   GEOS_HOST_DEVICE
   localIndex numPointsInFlux( localIndex const iconn ) const
   { return m_stencilWrapper.numPointsInFlux( iconn ); }
 
-    /**
-   * @brief Performs the setup phase for the kernel.
-   * @param[in] iconn the connection index
-   * @param[in] stack the stack variables
-   */
+  /**
+ * @brief Performs the setup phase for the kernel.
+ * @param[in] iconn the connection index
+ * @param[in] stack the stack variables
+ */
   GEOS_HOST_DEVICE
   void setup( localIndex const iconn,
               StackVariables & stack ) const
   {
     // set degrees of freedom indices for this face
-    for( integer i = 0; i < stack.stencilSize; ++i )
-    {
-      globalIndex const offset = m_dofNumber[m_seri( iconn, i )][m_sesri( iconn, i )][m_sei( iconn, i )];
 
+      globalIndex const offsetM = m_dofMatrixNumber[m_seri( iconn, 0 )][m_sesri( iconn, 0 )][m_sei( iconn, 0 )];
+      globalIndex const offsetF = m_dofFractureNumber[m_seri( iconn, 1 )][m_sesri( iconn, 1 )][m_sei( iconn, 1 )];
+
+      //这里处理
       for( integer jdof = 0; jdof < numDof; ++jdof )
       {
-        stack.dofColIndices[i * numDof + jdof] = offset + jdof;
+        stack.dofColIndices[jdof] = offsetM + jdof;
+        stack.dofColIndices[numDof + jdof] = offsetF + jdof;
       }
-    }
+
   }
 
-    /**
-   * @brief Compute the local flux contributions to the residual and Jacobian
-   * @tparam FUNC the type of the function that can be used to customize the computation of the flux
-   * @param[in] iconn the connection index
-   * @param[inout] stack the stack variables
-   * @param[in] NoOpFunc the function used to customize the computation of the flux
-   */
+  /**
+ * @brief Compute the local flux contributions to the residual and Jacobian
+ * @tparam FUNC the type of the function that can be used to customize the computation of the flux
+ * @param[in] iconn the connection index
+ * @param[inout] stack the stack variables
+ * @param[in] NoOpFunc the function used to customize the computation of the flux
+ */
   template< typename FUNC = NoOpFunc >
   GEOS_HOST_DEVICE
   void computeFlux( localIndex const iconn,
@@ -188,72 +195,64 @@ static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
                                      m_dPerm_dPres,
                                      stack.transmissibility,
                                      stack.dTrans_dPres );
-
     localIndex k[2];
-    localIndex connectionIndex = 0;
+    k[0]=0;
+    k[1]=1;
+    real64 fluxVal = 0.0;
+    real64 dFlux_dTrans = 0.0;
+    real64 alpha = 0.0;
+    real64 mobility = 0.0;
+    real64 potGrad = 0.0;
+    real64 trans =  stack.transmissibility ;//快速修复，实际上应该改为trans也是real64
+    real64 dTrans =  stack.dTrans_dPres;
+    real64 dFlux_dP[2] = {0.0, 0.0};
+    localIndex const regionIndex[2]    = {m_seri( iconn, k[0] ), m_seri( iconn, k[1] )};
+    localIndex const subRegionIndex[2] = {m_sesri( iconn, k[0] ), m_sesri( iconn, k[1] )};
+    localIndex const elementIndex[2]   = {m_sei( iconn, k[0] ), m_sei( iconn, k[1] )};
 
-    for( k[0] = 0; k[0] < stack.numFluxElems; ++k[0] )
+    geos::CrossFlowComputeKernelBase::
+    computeSinglePhaseCrossFlow( regionIndex,
+                                 subRegionIndex,
+                                 elementIndex,
+                                 trans,
+                                 dTrans,
+                                 m_pres,
+                                 m_gravCoef,
+                                 m_dens,
+                                 m_dDens,
+                                 m_mob,
+                                 m_dMob,
+                                 m_pres_fracture,
+                                 m_gravCoef_fracture,
+                                 m_dens_fracture,
+                                 m_dDens_fracture,
+                                 m_mob_fracture,
+                                 m_dMob_fracture,
+                                 alpha,
+                                 mobility,
+                                 potGrad,
+                                 fluxVal,
+                                 dFlux_dP,
+                                 dFlux_dTrans );
+
+    // populate local flux vector and derivatives
+    stack.localFlux[k[0]*numEqn] += m_dt * fluxVal;//matrix 是正值
+    stack.localFlux[k[1]*numEqn] -= m_dt * fluxVal;//fracture 是负值
+
+    for( integer ke = 0; ke < 2; ++ke )
     {
-      for( k[1] = k[0] + 1; k[1] < stack.numFluxElems; ++k[1] )
-      {
-        real64 fluxVal = 0.0;
-        real64 dFlux_dTrans = 0.0;
-        real64 alpha = 0.0;
-        real64 mobility = 0.0;
-        real64 potGrad = 0.0;
-        real64 trans[2] = { stack.transmissibility[connectionIndex][0], stack.transmissibility[connectionIndex][1] };
-        real64 dTrans[2] = { stack.dTrans_dPres[connectionIndex][0], stack.dTrans_dPres[connectionIndex][1] };
-        real64 dFlux_dP[2] = {0.0, 0.0};
-        localIndex const regionIndex[2]    = {m_seri( iconn, k[0] ), m_seri( iconn, k[1] )};
-        localIndex const subRegionIndex[2] = {m_sesri( iconn, k[0] ), m_sesri( iconn, k[1] )};
-        localIndex const elementIndex[2]   = {m_sei( iconn, k[0] ), m_sei( iconn, k[1] )};
-
-        geos::CrossFlowComputeKernelBase::computeSinglePhaseCrossFlow( regionIndex, subRegionIndex, elementIndex,
-                                                              trans,
-                                                              dTrans,
-                                                              m_pres,
-                                                              m_gravCoef,
-                                                              m_dens,
-                                                              m_dDens,
-                                                              m_mob,
-                                                              m_dMob,
-                                                              m_pres_fracture,
-                                                              m_gravCoef_fracture,
-                                                              m_dens_fracture,
-                                                              m_dDens_fracture,
-                                                              m_mob_fracture,
-                                                              m_dMob_fracture,
-                                                              alpha,
-                                                              mobility,
-                                                              potGrad,
-                                                              fluxVal,
-                                                              dFlux_dP,
-                                                              dFlux_dTrans );
-
-        // populate local flux vector and derivatives
-        stack.localFlux[k[0]*numEqn] += m_dt * fluxVal;
-        stack.localFlux[k[1]*numEqn] -= m_dt * fluxVal;
-
-        for( integer ke = 0; ke < 2; ++ke )
-        {
-          localIndex const localDofIndexPres = k[ke] * numDof;
-          stack.localFluxJacobian[k[0]*numEqn][localDofIndexPres] += m_dt * dFlux_dP[ke];
-          stack.localFluxJacobian[k[1]*numEqn][localDofIndexPres] -= m_dt * dFlux_dP[ke];
-        }
-
-        // Customize the kernel with this lambda
-        kernelOp( k, regionIndex, subRegionIndex, elementIndex, connectionIndex, alpha, mobility, potGrad, fluxVal, dFlux_dP );
-
-        connectionIndex++;
-      }
+      localIndex const localDofIndexPres = k[ke] * numDof;
+      stack.localFluxJacobian[k[0]*numEqn][localDofIndexPres] -= m_dt * dFlux_dP[ke];
+      stack.localFluxJacobian[k[1]*numEqn][localDofIndexPres] += m_dt * dFlux_dP[ke];
     }
+
   }
 
-    /**
-   * @brief Performs the complete phase for the kernel.
-   * @param[in] iconn the connection index
-   * @param[inout] stack the stack variables
-   */
+  /**
+ * @brief Performs the complete phase for the kernel.
+ * @param[in] iconn the connection index
+ * @param[inout] stack the stack variables
+ */
   template< typename FUNC = NoOpFunc >
   GEOS_HOST_DEVICE
   void complete( localIndex const iconn,
@@ -263,34 +262,55 @@ static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
     // add contribution to residual and jacobian into:
     // - the mass balance equation
     // note that numDof includes derivatives wrt temperature if this class is derived in ThermalKernels
-    for( integer i = 0; i < stack.numFluxElems; ++i )
-    {
-      if( m_ghostRank[m_seri( iconn, i )][m_sesri( iconn, i )][m_sei( iconn, i )] < 0 )
+
+      if( m_ghostRank[m_seri( iconn, 0 )][m_sesri( iconn, 0 )][m_sei( iconn, 0 )] < 0 )
       {
-        globalIndex const globalRow = m_dofNumber[m_seri( iconn, i )][m_sesri( iconn, i )][m_sei( iconn, i )];
-        localIndex const localRow = LvArray::integerConversion< localIndex >( globalRow - m_rankOffset );
+        globalIndex const globalRow = m_dofMatrixNumber[m_seri( iconn, 0 )][m_sesri( iconn, 0 )][m_sei( iconn, 0 )];
+        localIndex const localRow = LvArray::integerConversion< localIndex >( globalRow - m_rankOffsetM );
         GEOS_ASSERT_GE( localRow, 0 );
         GEOS_ASSERT_GT( m_localMatrix.numRows(), localRow );
-
-        RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[i * numEqn] );
+        GEOS_LOG("matrix ");
+        GEOS_LOG(iconn);
+        GEOS_LOG(localRow);
+        GEOS_LOG(stack.dofColIndices);
+        RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[0 * numEqn] );
         m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
                                                                             stack.dofColIndices.data(),
-                                                                            stack.localFluxJacobian[i * numEqn].dataIfContiguous(),
+                                                                            stack.localFluxJacobian[1 * numEqn].dataIfContiguous(),
                                                                             stack.stencilSize * numDof );
 
         // call the lambda to assemble additional terms, such as thermal terms
-        kernelOp( i, localRow );
+        kernelOp( 0, localRow );
       }
+    if( m_ghostRank[m_seri( iconn, 1 )][m_sesri( iconn, 1 )][m_sei( iconn, 1 )] < 0 )
+    {
+      globalIndex const globalRow = m_dofFractureNumber[m_seri( iconn, 1 )][m_sesri( iconn, 1 )][m_sei( iconn, 1 )];
+      localIndex const localRow = LvArray::integerConversion< localIndex >( globalRow - m_rankOffsetF );
+      GEOS_ASSERT_GE( localRow, 0 );
+      GEOS_ASSERT_GT( m_localMatrix.numRows(), localRow );
+      GEOS_LOG("frac ");
+
+      GEOS_LOG(localRow);
+      GEOS_LOG(stack.dofColIndices);
+      RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[1 * numEqn] );
+      m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
+                                                                          stack.dofColIndices.data(),
+                                                                          stack.localFluxJacobian[0 * numEqn].dataIfContiguous(),
+                                                                          stack.stencilSize * numDof );
+
+      // call the lambda to assemble additional terms, such as thermal terms
+      kernelOp( 1, localRow );
     }
+
   }
 
-    /**
-   * @brief Performs the kernel launch
-   * @tparam POLICY the policy used in the RAJA kernels
-   * @tparam KERNEL_TYPE the kernel type
-   * @param[in] numConnections the number of connections
-   * @param[inout] kernelComponent the kernel component providing access to setup/compute/complete functions and stack variables
-   */
+  /**
+ * @brief Performs the kernel launch
+ * @tparam POLICY the policy used in the RAJA kernels
+ * @tparam KERNEL_TYPE the kernel type
+ * @param[in] numConnections the number of connections
+ * @param[inout] kernelComponent the kernel component providing access to setup/compute/complete functions and stack variables
+ */
   template< typename POLICY, typename KERNEL_TYPE >
   static void
   launch( localIndex const numConnections,
@@ -300,27 +320,27 @@ static constexpr localIndex maxStencilSize = STENCILWRAPPER::maxStencilSize;
 
     forAll< POLICY >( numConnections, [=] GEOS_HOST_DEVICE ( localIndex const iconn )
     {
-    typename KERNEL_TYPE::StackVariables stack( kernelComponent.stencilSize( iconn ),
-                                                kernelComponent.numPointsInFlux( iconn ) );
+      typename KERNEL_TYPE::StackVariables stack( kernelComponent.stencilSize( iconn ),
+                                                  kernelComponent.numPointsInFlux( iconn ) );
 
-    kernelComponent.setup( iconn, stack );
-    kernelComponent.computeFlux( iconn, stack );
-    kernelComponent.complete( iconn, stack );
+      kernelComponent.setup( iconn, stack );
+      kernelComponent.computeFlux( iconn, stack );
+      kernelComponent.complete( iconn, stack );
     } );
   }
 
-  protected:
+protected:
 
   // Stencil information
 
-    /// Reference to the stencil wrapper
+  /// Reference to the stencil wrapper
   STENCILWRAPPER const m_stencilWrapper;
 
-    /// Connection to element maps
+  /// Connection to element maps
   typename STENCILWRAPPER::IndexContainerViewConstType const m_seri;
   typename STENCILWRAPPER::IndexContainerViewConstType const m_sesri;
   typename STENCILWRAPPER::IndexContainerViewConstType const m_sei;
-  };
+};
 
 
 /**
@@ -343,40 +363,46 @@ public:
  * @param[inout] localMatrix the local CRS matrix
  * @param[inout] localRhs the local right-hand side vector
  */
-template< typename POLICY, typename STENCILWRAPPER >
-static void
-createAndLaunch( globalIndex const rankOffset,
-                 string const & dofKey,
-                 string const & solverName,
-                 ElementRegionManager const & matrixElemManager,
-                 ElementRegionManager const & fractureElemManager,
-                 STENCILWRAPPER const & stencilWrapper,
-                 real64 const & dt,
-                 CRSMatrixView< real64, globalIndex const > const & localMatrix,
-                 arrayView1d< real64 > const & localRhs )
-{
+  template< typename POLICY >
+  static void
+  createAndLaunch( globalIndex const rankOffsetM,
+                   globalIndex const rankOffsetF,
+                   string const & dofKey,
+                   string const & solverName,
+                   ElementRegionManager const & matrixElemManager,
+                   ElementRegionManager const & fractureElemManager,
+                   DualContinuumStencilWrapper const & stencilWrapper,
+                   real64 const & dt,
+                   CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                   arrayView1d< real64 > const & localRhs )
+  {
 
-  integer constexpr NUM_EQN = 1;
-  integer constexpr NUM_DOF = 1;
+    integer constexpr NUM_EQN = 1;
+    integer constexpr NUM_DOF = 1;
 
-  ElementRegionManager::ElementViewAccessor< arrayView1d< globalIndex const > > dofNumberAccessor =
+    ElementRegionManager::ElementViewAccessor< arrayView1d< globalIndex const > > dofMatrixNumberAccessor =
       matrixElemManager.constructArrayViewAccessor< globalIndex, 1 >( dofKey );
-  dofNumberAccessor.setName( solverName + "/accessors/" + dofKey );
+    ElementRegionManager::ElementViewAccessor< arrayView1d< globalIndex const > > dofFractureNumberAccessor =
+      fractureElemManager.constructArrayViewAccessor< globalIndex, 1 >( dofKey );
+    dofMatrixNumberAccessor.setName( solverName + "/accessors/" + dofKey );
+    dofFractureNumberAccessor.setName( solverName + "/accessors/" + dofKey );
 
-  using kernelType = CrossFlowComputeKernel< NUM_EQN, NUM_DOF, STENCILWRAPPER >;
-  typename kernelType::SinglePhaseFlowAccessors flowAccessors( matrixElemManager, solverName );
-  typename kernelType::SinglePhaseFluidAccessors fluidAccessors( matrixElemManager, solverName );
-  typename kernelType::PermeabilityAccessors permAccessors( matrixElemManager, solverName );
-  typename kernelType::SinglePhaseFlowAccessors flowAccessors_fracture( fractureElemManager, solverName );
-  typename kernelType::SinglePhaseFluidAccessors fluidAccessors_fracture( fractureElemManager, solverName );
-  typename kernelType::PermeabilityAccessors permAccessors_fracture( fractureElemManager, solverName );
 
-  kernelType kernel( rankOffset, stencilWrapper, dofNumberAccessor,
-                     flowAccessors, fluidAccessors, permAccessors,
-                     flowAccessors_fracture,fluidAccessors_fracture,permAccessors_fracture,
-                     dt, localMatrix, localRhs );
-  kernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
-}
+    using kernelType = CrossFlowComputeKernel< NUM_EQN, NUM_DOF, DualContinuumStencilWrapper >;
+    typename kernelType::SinglePhaseFlowAccessors flowAccessors( matrixElemManager, solverName );
+    typename kernelType::SinglePhaseFluidAccessors fluidAccessors( matrixElemManager, solverName );
+    typename kernelType::PermeabilityAccessors permAccessors( matrixElemManager, solverName );
+    typename kernelType::SinglePhaseFlowAccessors flowAccessors_fracture( fractureElemManager, solverName );
+    typename kernelType::SinglePhaseFluidAccessors fluidAccessors_fracture( fractureElemManager, solverName );
+    typename kernelType::PermeabilityAccessors permAccessors_fracture( fractureElemManager, solverName );
+
+    kernelType kernel( rankOffsetM,rankOffsetF, stencilWrapper, dofMatrixNumberAccessor,
+                       dofFractureNumberAccessor,
+                       flowAccessors, fluidAccessors, permAccessors,
+                       flowAccessors_fracture,fluidAccessors_fracture,permAccessors_fracture,
+                       dt, localMatrix, localRhs );
+    kernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
+  }
 };
 
 } // namespace singlePhaseDualContinuumKernels

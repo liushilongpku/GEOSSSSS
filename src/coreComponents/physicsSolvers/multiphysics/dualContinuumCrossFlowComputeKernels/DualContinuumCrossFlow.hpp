@@ -2,7 +2,7 @@
 #define GEOS_DUALCONTINUUMCROSSFLOW_HPP
 
 #include "dataRepository/Group.hpp"
-#include "finiteVolume/DualContinuumStencil.hpp"
+#include "DualContinuumStencil.hpp"
 
 namespace geos
 {
@@ -53,6 +53,9 @@ public:
     static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
     static constexpr char const * DualContinuumStencilString() {return "DualContinuumStencil";}
   };
+
+  DualContinuumStencil & getStencil(){return m_stencil;};
+
 private:
   // --- Parameters ---
   real64 m_fracSpacingLx;

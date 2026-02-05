@@ -143,8 +143,8 @@ inline
 void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
                                   localIndex const ( &sesri )[2],
                                   localIndex const ( &sei )[2],
-                                  real64 const ( &transmissibility )[2],
-                                  real64 const ( &dTrans_dPres )[2],
+                                  real64 const  &transmissibility ,
+                                  real64 const  &dTrans_dPres ,
                                   ElementViewConst< arrayView1d< real64 const > > const & pres,
                                   ElementViewConst< arrayView1d< real64 const > > const & gravCoef,
                                   ElementViewConst< arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > > const & dens,
@@ -161,7 +161,7 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
                                   real64 & mobility,
                                   real64 & potGrad,
                                   real64 & fluxVal,
-                                  real64 ( & dFlux_dP )[2],
+                                  real64 (& dFlux_dP)[2],
                                   real64 & dFlux_dTrans )
 {
   using DerivOffset = constitutive::singlefluid::DerivativeOffsetC< 0 >;
@@ -187,11 +187,11 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
 
     real64 const pressure = pres[er][esr][ei];
     real64 const gravD = gravCoef[er][esr][ei];
-    real64 const pot = transmissibility[ke] * ( pressure - densMean * gravD );
+    real64 const pot = transmissibility * ( pressure - densMean * gravD );
 
     potGrad += pot;
     dpotGrad_dTrans += ( pressure - densMean * gravD );  // sign +1
-    sumWeightGrav += transmissibility[ke] * gravD;
+    sumWeightGrav += transmissibility * gravD;
 
     potScale = fmax( potScale, fabs( pot ) );
   }
@@ -205,11 +205,11 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
 
     real64 const pressure = pres_fracture[er][esr][ei];
     real64 const gravD = gravCoef_fracture[er][esr][ei];
-    real64 const pot = transmissibility[ke] * ( pressure - densMean * gravD );
+    real64 const pot = transmissibility * ( pressure - densMean * gravD );
 
-    potGrad += pot;
+    potGrad -= pot;
     dpotGrad_dTrans -= ( pressure - densMean * gravD );  // sign -1
-    sumWeightGrav += transmissibility[ke] * gravD;
+    sumWeightGrav += transmissibility * gravD;
 
     potScale = fmax( potScale, fabs( pot ) );
   }
@@ -259,11 +259,11 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
   // Derivatives w.r.t. pressure on each side
 
   // TODO@LSL：需要添加形状因子，调整传导率的计算方式，现在先按原来的方式计算
-  dFlux_dP[0] = mobility * ( transmissibility[0] - dDensMean_dP[0] * sumWeightGrav )
-                + dMobility_dP[0] * potGrad + dFlux_dTrans * dTrans_dPres[0];
+  dFlux_dP[0] = mobility * ( transmissibility - dDensMean_dP[0] * sumWeightGrav )
+                + dMobility_dP[0] * potGrad + dFlux_dTrans * dTrans_dPres;
 
-  dFlux_dP[1] = mobility * ( transmissibility[1] - dDensMean_dP[1] * sumWeightGrav )
-                + dMobility_dP[1] * potGrad + dFlux_dTrans * dTrans_dPres[1];
+  dFlux_dP[1] = mobility * ( transmissibility - dDensMean_dP[1] * sumWeightGrav )
+                + dMobility_dP[1] * potGrad + dFlux_dTrans * dTrans_dPres;
 }
 /*
 template< typename ENERGYFLUX_DERIVATIVE_TYPE >
