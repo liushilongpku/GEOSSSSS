@@ -3,7 +3,7 @@
 //
 
 
-#include "DualContinuumStencil.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlowComputeKernels/DualContinuumStencil.hpp"
 
 
 namespace geos

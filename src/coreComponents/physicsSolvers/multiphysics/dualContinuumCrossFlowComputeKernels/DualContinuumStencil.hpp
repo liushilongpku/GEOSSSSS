@@ -5,7 +5,7 @@
 #ifndef GEOSX_DUALCONTINUUMSTENCIL_HPP
 #define GEOSX_DUALCONTINUUMSTENCIL_HPP
 
-#include "StencilBase.hpp"
+#include "finiteVolume/StencilBase.hpp"
 
 namespace geos
 {
