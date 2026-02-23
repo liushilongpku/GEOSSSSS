@@ -8,7 +8,15 @@
             flowSolverName1="singlePhaseFlowSolver1"
             logLevel="1"
             writeLinearSystem="1"
-            targetRegions="{ mesh1/Region1 ,mesh2/Region2}">
+            targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
+            matrixRegionList="{ Region1 }"
+            fractureRegionList="{ Region2 }">
+      <DualContinuumCrossFlow
+              fractureSpacingLx="1.0"
+              fractureSpacingLy="1.0"
+              fractureSpacingLz="1.0"
+              matrixRegionList="{ Region1 }"
+              fractureRegionList="{ Region2 }"/>
       <LinearSolverParameters
               solverType="direct"
               directParallel="0"
@@ -83,22 +91,17 @@
   </Geometry>
 
   <Events
-    maxTime="1.0">
+    maxTime="10000.0">
     <PeriodicEvent
       name="outputs"
-      timeFrequency="1.0"
+      timeFrequency="100.0"
       target="/Outputs/siloOutput"/>
 
     <PeriodicEvent
       name="solverApplications"
-      forceDt="1.0"
+      forceDt="100.0"
       target="/Solvers/DualContinuumSolver"/>
 
-    <PeriodicEvent
-      name="restarts"
-      timeFrequency="1.0"
-      targetExactTimestep="0"
-      target="/Outputs/restartOutput"/>
   </Events>
 
   <NumericalMethods>
@@ -225,7 +228,7 @@
             targetMesh="mesh1"
             objectPath="ElementRegions"
             fieldName="pressure"
-            scale="0.0"/>
+            scale="1e6"/>
     <FieldSpecification
             name="initialPressure2"
             initialCondition="1"
@@ -233,7 +236,7 @@
             targetMesh="mesh2"
             objectPath="ElementRegions"
             fieldName="pressure"
-            scale="0"/>
+            scale="2e6"/>
     <FieldSpecification
             name="initialTemperature1"
             initialCondition="1"
@@ -241,7 +244,7 @@
             targetMesh="mesh1"
             objectPath="ElementRegions"
             fieldName="temperature"
-            scale="100"/>
+            scale="80"/>
     <FieldSpecification
             name="initialTemperature2"
             initialCondition="1"
@@ -249,14 +252,14 @@
             targetMesh="mesh2"
             objectPath="ElementRegions"
             fieldName="temperature"
-            scale="100"/>
+            scale="120"/>
 
     <FieldSpecification
             name="sourceTerm1"
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh1"
-            scale="2e6"
+            scale="1e6"
             setNames="{ source }"/>
     <FieldSpecification
             name="sinkTerm1"
@@ -274,7 +277,7 @@
             objectPath="ElementRegions"
             fieldName="pressure"
             targetMesh="mesh2"
-            scale="1e6"
+            scale="2e6"
             setNames="{ source }"/>
 <!--targetMesh is null means that both mesh will be applied -->
 
@@ -290,7 +293,7 @@
             objectPath="ElementRegions"
             fieldName="temperature"
             targetMesh="mesh1"
-            scale="120"
+            scale="80"
             setNames="{ source }"/>
     <FieldSpecification
             name="sinkTemperature1"
@@ -304,7 +307,7 @@
             objectPath="ElementRegions"
             fieldName="temperature"
             targetMesh="mesh2"
-            scale="80"
+            scale="120"
             setNames="{ source }"/>
     <FieldSpecification
             name="sinkTemperature2"
@@ -319,7 +322,5 @@
     <VTK
       name="siloOutput"/>
 
-    <Restart
-      name="restartOutput"/>
   </Outputs>
 </Problem>

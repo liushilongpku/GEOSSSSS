@@ -25,7 +25,7 @@
 
 #include "physicsSolvers/multiphysics/dualContinuumCrossFlowComputeKernels/CrossFlowComputeKernel.hpp"
 #include "physicsSolvers/multiphysics/dualContinuumCrossFlowComputeKernels/ThermalCrossFlowComputeKernel.hpp"
-
+#include "physicsSolvers/fluidFlow/kernels/singlePhase/ThermalCrossFlowComputeKernel.hpp"
 namespace geos
 {
   using namespace dataRepository;
@@ -80,12 +80,22 @@ namespace geos
       MeshLevel const * matrixMeshPtr = meshLevelPtrs[0];
       MeshLevel const * fractureMeshPtr = meshLevelPtrs[1];
 
-      DualContinuumStencil::KernelWrapper stencilWrapper = this->getStencil().createKernelWrapper();
+      typename TYPEOFREF( this->getStencil() ) ::KernelWrapper stencilWrapper = this->getStencil().createKernelWrapper();
       GEOS_UNUSED_VAR(stencilWrapper);
       if (Base::primarySolver()->isThermal() && Base::secondarySolver()->isThermal())
       {
-        GEOS_LOG("thermal conduct");
-
+        singlePhaseThermalDualContinuumKernels::
+        CrossFlowComputeKernelFactory::
+        createAndLaunch<parallelDevicePolicy<> >( dofManager.rankOffset(),
+                                                  dofManager.rankOffset(),
+                                                  dofKey,
+                                                  fluxApprox.getName(),
+                                                  matrixMeshPtr->getElemManager(),
+                                                  fractureMeshPtr->getElemManager(),
+                                                  stencilWrapper,
+                                                  dt,
+                                                  localMatrix.toViewConstSizes(),
+                                                  localRhs.toView());
       }
       else if (!(Base::primarySolver()->isThermal()) && !(Base::secondarySolver()->isThermal()))
       {

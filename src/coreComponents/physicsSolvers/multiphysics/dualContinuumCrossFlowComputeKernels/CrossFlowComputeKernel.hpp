@@ -189,6 +189,7 @@ public:
                     StackVariables & stack,
                     FUNC && kernelOp = NoOpFunc{} ) const
   {
+    //TODO@LSL：这里删除了用于多个面的connectionIndex，因为在Flux的计算中需要考虑裂缝面单元和基质单元的关系，双重介质不需要
     // first, compute the transmissibilities at this face
     m_stencilWrapper.computeWeights( iconn,
                                      m_permeability,
@@ -196,7 +197,7 @@ public:
                                      stack.transmissibility,
                                      stack.dTrans_dPres );
     localIndex k[2];
-    k[0]=0;
+    k[0]=0;//同一个连接关系中元素的索引，在此stencil中仅是0与1，所以不循环
     k[1]=1;
     real64 fluxVal = 0.0;
     real64 dFlux_dTrans = 0.0;
@@ -242,9 +243,13 @@ public:
     for( integer ke = 0; ke < 2; ++ke )
     {
       localIndex const localDofIndexPres = k[ke] * numDof;
-      stack.localFluxJacobian[k[0]*numEqn][localDofIndexPres] -= m_dt * dFlux_dP[ke];
-      stack.localFluxJacobian[k[1]*numEqn][localDofIndexPres] += m_dt * dFlux_dP[ke];
+
+      //TODO@LSL check 这里与flux中的符号相反，但是我的传导结果也是对的，不知道哪里反了
+      //现在我改为与flux相同的模式试一下，为什么没有影响 QAQ ？
+      stack.localFluxJacobian[k[0]*numEqn][localDofIndexPres] += m_dt * dFlux_dP[ke];
+      stack.localFluxJacobian[k[1]*numEqn][localDofIndexPres] -= m_dt * dFlux_dP[ke];
     }
+    kernelOp( k, regionIndex, subRegionIndex, elementIndex, alpha, mobility, potGrad, fluxVal, dFlux_dP );
 
   }
 
@@ -263,6 +268,7 @@ public:
     // - the mass balance equation
     // note that numDof includes derivatives wrt temperature if this class is derived in ThermalKernels
 
+    //判断是否为边界的虚拟单元
       if( m_ghostRank[m_seri( iconn, 0 )][m_sesri( iconn, 0 )][m_sei( iconn, 0 )] < 0 )
       {
         globalIndex const globalRow = m_dofMatrixNumber[m_seri( iconn, 0 )][m_sesri( iconn, 0 )][m_sei( iconn, 0 )];
@@ -270,9 +276,10 @@ public:
         GEOS_ASSERT_GE( localRow, 0 );
         GEOS_ASSERT_GT( m_localMatrix.numRows(), localRow );
         GEOS_LOG("matrix ");
-        GEOS_LOG(iconn);
-        GEOS_LOG(localRow);
-        GEOS_LOG(stack.dofColIndices);
+        GEOS_LOG("the connection id is " << iconn);
+        GEOS_LOG("the global row number is " << globalRow);
+        GEOS_LOG("the local row number is " << localRow);
+        GEOS_LOG("the dof column indices are " << stack.dofColIndices);
         RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[0 * numEqn] );
         m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
                                                                             stack.dofColIndices.data(),
@@ -289,9 +296,10 @@ public:
       GEOS_ASSERT_GE( localRow, 0 );
       GEOS_ASSERT_GT( m_localMatrix.numRows(), localRow );
       GEOS_LOG("frac ");
-
-      GEOS_LOG(localRow);
-      GEOS_LOG(stack.dofColIndices);
+      GEOS_LOG("the connection id is " << iconn);
+      GEOS_LOG("the global row number is " << globalRow);
+      GEOS_LOG("the local row number is " << localRow);
+      GEOS_LOG("the dof column indices are " << stack.dofColIndices);
       RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[1 * numEqn] );
       m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
                                                                           stack.dofColIndices.data(),

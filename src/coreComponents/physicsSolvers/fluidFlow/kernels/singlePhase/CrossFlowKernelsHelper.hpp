@@ -143,7 +143,7 @@ inline
 void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
                                   localIndex const ( &sesri )[2],
                                   localIndex const ( &sei )[2],
-                                  real64 const  &transmissibility ,
+                                  real64 const  &transmissibility ,//这里已经是一个iconn中的传导率了，而不是整个数组再去使用iconn索引
                                   real64 const  &dTrans_dPres ,
                                   ElementViewConst< arrayView1d< real64 const > > const & pres,
                                   ElementViewConst< arrayView1d< real64 const > > const & gravCoef,
@@ -207,8 +207,8 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
     real64 const gravD = gravCoef_fracture[er][esr][ei];
     real64 const pot = transmissibility * ( pressure - densMean * gravD );
 
-    potGrad -= pot;
-    dpotGrad_dTrans -= ( pressure - densMean * gravD );  // sign -1
+    potGrad -= pot;//TODO@LSL flux中是+=，或者在原有flux的计算中transmissibility已经暗含了方向。
+    dpotGrad_dTrans -= ( pressure - densMean * gravD );  // sign -1，这里与原来的符号是一致的
     sumWeightGrav += transmissibility * gravD;
 
     potScale = fmax( potScale, fabs( pot ) );
@@ -222,7 +222,7 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
   alpha = ( potGrad + upwAbsTol ) / ( 2 * upwAbsTol );
 
   real64 dMobility_dP[2]{};
-
+  //TODO@LSL 这里alpha的取值与ke取值的关系有待验证
   if( alpha <= 0.0 || alpha >= 1.0 )
   {
     // Single upwind direction
