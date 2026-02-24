@@ -23,9 +23,8 @@
 #include "finiteVolume/FluxApproximationBase.hpp"
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
 
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlowComputeKernels/CrossFlowComputeKernel.hpp"
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlowComputeKernels/ThermalCrossFlowComputeKernel.hpp"
-#include "physicsSolvers/fluidFlow/kernels/singlePhase/ThermalCrossFlowComputeKernel.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/CrossFlowComputeKernel.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/ThermalCrossFlowComputeKernel.hpp"
 namespace geos
 {
   using namespace dataRepository;

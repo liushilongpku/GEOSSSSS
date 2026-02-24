@@ -34,13 +34,19 @@ set( multiPhysicsSolvers_headers
     PhaseFieldFractureSolver.hpp
     PhaseFieldPoromechanicsSolver.hpp
     PoromechanicsInitialization.hpp
-    PoromechanicsFields.hpp
-    DualContinuumFlowSolver.hpp
     PoromechanicsInitialization.hpp
-        dualContinuumCrossFlowComputeKernels/CrossFlowComputeKernel.hpp
-        dualContinuumCrossFlowComputeKernels/ThermalCrossFlowComputeKernel.hpp
-     dualContinuumCrossFlowComputeKernels/DualContinuumCrossFlow.hpp
-     dualContinuumCrossFlowComputeKernels/DualContinuumStencil.hpp
+    PoromechanicsFields.hpp
+     dualContinuumCrossFlow/CompositionalMultiPhaseDualContinuum.hpp
+     dualContinuumCrossFlow/DualContinuumFlowSolver.hpp
+     dualContinuumCrossFlow/DualContinuumCrossFlow.hpp
+     dualContinuumCrossFlow/SinglePhaseDualContinuum.hpp
+     dualContinuumCrossFlow/kernels/CrossFlowComputeKernel.hpp
+     dualContinuumCrossFlow/kernels/DualContinuumStencil.hpp
+     dualContinuumCrossFlow/kernels/CrossFlowComputeKernelBase.hpp
+     dualContinuumCrossFlow/kernels/CrossFlowKernelsHelper.hpp
+     dualContinuumCrossFlow/kernels/ThermalCrossFlowComputeKernel.hpp
+     dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseBaseDpdk.hpp
+     dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseDpdkFVM.hpp
     poromechanicsKernels/MultiphasePoromechanics.hpp
     poromechanicsKernels/MultiphasePoromechanics_impl.hpp
     poromechanicsKernels/MultiphasePoromechanicsConformingFractures.hpp
@@ -83,8 +89,13 @@ set( multiPhysicsSolvers_sources
     SinglePhasePoromechanicsEmbeddedFractures.cpp
     SinglePhasePoromechanicsConformingFractures.cpp
     SinglePhaseReservoirAndWells.cpp
-    dualContinuumCrossFlowComputeKernels/DualContinuumCrossFlow.cpp
-    dualContinuumCrossFlowComputeKernels/DualContinuumStencil.cpp)
+     dualContinuumCrossFlow/CompositionalMultiPhaseDualContinuum.cpp
+     dualContinuumCrossFlow/DualContinuumCrossFlow.cpp
+     dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseDpdkFVM.cpp
+     dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseBaseDpdk.cpp
+     dualContinuumCrossFlow/kernels/DualContinuumStencil.cpp
+     dualContinuumCrossFlow/SinglePhaseDualContinuum.cpp
+)
 
 #include(poromechanicsKernels/PoromechanicsKernels.cmake)
 

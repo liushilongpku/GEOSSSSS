@@ -15,7 +15,7 @@
 #ifndef GEOS_PHYSICSSOLVERS_FLUIDFLOW_DUALCONTINUUMFVM_HPP_
 #define GEOS_PHYSICSSOLVERS_FLUIDFLOW_DUALCONTINUUMFVM_HPP_
 
-#include "physicsSolvers/multiphysics/DualContinuumFlowSolver.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolver.hpp"
 //#include "physicsSolvers/fluidFlow/SinglePhaseDpdkFVM.hpp"
 
 namespace geos

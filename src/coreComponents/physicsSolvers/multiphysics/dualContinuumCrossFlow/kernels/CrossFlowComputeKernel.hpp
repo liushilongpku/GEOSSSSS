@@ -7,7 +7,7 @@
 #ifndef GEOS_PHYSICSSOLVERS_MULTIPHYSICS_SINGLEPHASE_CROSSFLOWCOMPUTEKERNEL_HPP
 #define GEOS_PHYSICSSOLVERS_MULTIPHYSICS_SINGLEPHASE_CROSSFLOWCOMPUTEKERNEL_HPP
 
-#include "physicsSolvers/fluidFlow/kernels/singlePhase/CrossFlowComputeKernelBase.hpp"
+#include "CrossFlowComputeKernelBase.hpp"
 
 namespace geos
 {

@@ -2,7 +2,7 @@
 #define GEOS_DUALCONTINUUMCROSSFLOW_HPP
 
 #include "dataRepository/Group.hpp"
-#include "DualContinuumStencil.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/DualContinuumStencil.hpp"
 
 namespace geos
 {

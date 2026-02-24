@@ -18,13 +18,14 @@
 #include "physicsSolvers/multiphysics/CoupledSolver.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBase.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
-#include "physicsSolvers/fluidFlow/SinglePhaseBaseDpdk.hpp"
+#include "physicsSolvers/fluidFlow/CompositionalMultiphaseBase.hpp"
+//#include "physicsSolvers/fluidFlow/SinglePhaseBaseDpdk.hpp"
 #include "mesh/DomainPartition.hpp"
 #include "mesh/InterObjectRelation.hpp"
 #include "codingUtilities/Utilities.hpp"
 #include <map>
 #include <tuple>
-#include "dualContinuumCrossFlowComputeKernels/DualContinuumCrossFlow.hpp"
+#include "DualContinuumCrossFlow.hpp"
 namespace geos
 {
     namespace stabilization

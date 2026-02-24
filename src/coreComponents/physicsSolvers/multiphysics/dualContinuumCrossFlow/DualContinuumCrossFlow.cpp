@@ -3,7 +3,7 @@
 #include "mesh/ElementRegionManager.hpp"
 #include "mesh/ElementRegionBase.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
-#include "physicsSolvers/multiphysics/DualContinuumFlowSolver.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolver.hpp"
 namespace geos
 {
 
