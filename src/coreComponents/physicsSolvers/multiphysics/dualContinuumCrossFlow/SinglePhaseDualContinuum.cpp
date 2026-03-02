@@ -23,8 +23,8 @@
 #include "finiteVolume/FluxApproximationBase.hpp"
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
 
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/CrossFlowComputeKernel.hpp"
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/ThermalCrossFlowComputeKernel.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/singlePhase/CrossFlowComputeKernel.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/singlePhase/ThermalCrossFlowComputeKernel.hpp"
 namespace geos
 {
   using namespace dataRepository;
@@ -41,7 +41,7 @@ namespace geos
                           arrayView1d<real64> const &localRhs)
   {
     GEOS_LOG("befor the assemble");
-    this->printCRSMatrix(this->m_localMatrix);
+    //this->printCRSMatrix(this->m_localMatrix);
 
     GEOS_MARK_FUNCTION;
     GEOS_UNUSED_VAR(time_n);
@@ -119,7 +119,7 @@ namespace geos
       }
     }
     GEOS_LOG("after the assemble");
-    this->printCRSMatrix(this->m_localMatrix);
+    //this->printCRSMatrix(this->m_localMatrix);
   }
 
   template <typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>

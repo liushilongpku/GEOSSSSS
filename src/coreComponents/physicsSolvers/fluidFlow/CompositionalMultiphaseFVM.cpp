@@ -273,7 +273,22 @@ void CompositionalMultiphaseFVM::assembleFluxTerms( real64 const dt,
       kernelFlags.set( KernelFlags::IHU );
 
     string const & elemDofKey = dofManager.getKey( viewKeyStruct::elemDofFieldString() );
-
+    /*
+     *  ├── 公式类型 (m_formulationType)
+        │   ├── Ov (Overall Composition)
+        │   └── 其他类型
+        │       ├── 热效应 (m_isThermal)
+        │       │   ├── 是：计算非等温对流通量
+        │       │   └── 否：计算等温对流通量
+        │       │       ├── DBC (m_dbcParams.useDBC)
+        │       │       │   ├── 是：带DBC的等温对流通量
+        │       │       │   └── 否：标准等温对流通量
+        │       └── 扩散/弥散 (m_hasDiffusion || m_hasDispersion)
+        │           ├── 是：计算扩散/弥散通量
+        │           │   ├── 热效应 (m_isThermal)
+        │           │   │   ├── 是：非等温扩散/弥散通量
+        │           │   │   └── 否：等温扩散/弥散通量
+     */
     fluxApprox.forAllStencils( mesh, [&] ( auto & stencil )
     {
       typename TYPEOFREF( stencil ) ::KernelWrapper stencilWrapper = stencil.createKernelWrapper();
@@ -283,6 +298,7 @@ void CompositionalMultiphaseFVM::assembleFluxTerms( real64 const dt,
       if( m_formulationType == CompositionalMultiphaseFormulationType::OverallComposition )
       {
         // isothermal only for now
+        // TODO@LSL 这也是为什么做不了多相带热的问题的原因
         isothermalCompositionalMultiphaseFVMKernels::
           FluxComputeZFormulationKernelFactory::
           createAndLaunch< parallelDevicePolicy<> >( m_numComponents,

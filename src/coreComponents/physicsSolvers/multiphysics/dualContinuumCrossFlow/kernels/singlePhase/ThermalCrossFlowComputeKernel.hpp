@@ -20,7 +20,7 @@
 #ifndef GEOS_PHYSICSSOLVERS_FLUIDFLOW_SINGLEPHASE_THERMALFLUXCOMPUTEKERNEL_HPP
 #define GEOS_PHYSICSSOLVERS_FLUIDFLOW_SINGLEPHASE_THERMALFLUXCOMPUTEKERNEL_HPP
 
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/CrossFlowComputeKernel.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/singlePhase/CrossFlowComputeKernel.hpp"
 
 #include "constitutive/thermalConductivity/SinglePhaseThermalConductivityBase.hpp"
 #include "constitutive/thermalConductivity/ThermalConductivityFields.hpp"
@@ -390,7 +390,8 @@ public:
       localIndex const esr = sesri[ke];
       localIndex const ei  = sei[ke];
     }
-    //这里采用+ 的原因可能是因为传导系数thermalTrans已经包含了流动方向的影响
+    //这里采用+ 的原因是因为传导系数thermalTrans已经包含了流动方向的影响
+    //trans中第一个值是正的，而第二个值是负的
     //这里仍然需要保留+=，以包含前面的热对流
     //测试一下第二个裂缝部分的值减小，懵一个
     //TODO@LSL对了，那应该是原来的thermalTrans中含有方向，但是现在我直接抓来的数据没有，后续需要测试一下

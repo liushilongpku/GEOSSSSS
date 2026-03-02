@@ -24,6 +24,11 @@
 #include "math/interpolation/Interpolation.hpp"
 #include "common/Timer.hpp"
 #include "common/Units.hpp"
+#include <fstream>
+#include <cstdlib>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 #if defined(GEOS_USE_PYGEOSX)
 #include "python/PySolverType.hpp"
@@ -1316,6 +1321,50 @@ void PhysicsSolverBase::printCRSMatrix(CRSMatrix< real64, globalIndex > const & 
   decltype(m_matrix) matrixFromCRSMatrix;
   matrixFromCRSMatrix.create(obj.toViewConst(), m_dofManager.numLocalDofs(), MPI_COMM_GEOS);
   GEOS_LOG(matrixFromCRSMatrix);
+}
+
+//  用来将m_localMatrix输出到xlsx中
+void PhysicsSolverBase::exportCRSMatrixToExcel(CRSMatrix< real64, globalIndex > const & obj ) const
+{
+  decltype(m_matrix) matrixFromCRSMatrix;
+  matrixFromCRSMatrix.create(obj.toViewConst(), m_dofManager.numLocalDofs(), MPI_COMM_GEOS);
+  
+  std::string pythonScriptDir = "/home/hello/codes/GEOSSSSS/scripts/";
+  std::string pythonScript = pythonScriptDir + "matToCsv.py";
+  std::string outputDir = "/home/hello/codes/lslHelperProjectCode/matToCsv/";
+  
+  auto now = std::chrono::system_clock::now();
+  auto time_t_now = std::chrono::system_clock::to_time_t(now);
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+  
+  std::stringstream ss;
+  ss << outputDir << "matrix_" 
+     << std::put_time(std::localtime(&time_t_now), "%Y%m%d_%H%M%S") 
+     << "_" << std::setfill('0') << std::setw(3) << ms.count() 
+     << ".xlsx";
+  std::string tempOutputFile = ss.str();
+  
+  std::string tempInputFile = pythonScriptDir + "matrix_input.txt";
+  
+  std::ofstream outFile(tempInputFile);
+  if (outFile.is_open()) {
+    outFile << matrixFromCRSMatrix;
+    outFile.close();
+    
+    std::string pythonExecutable = "/home/hello/anaconda3/bin/python3";
+    std::string command = pythonExecutable + " " + pythonScript + " " + tempInputFile + " " + tempOutputFile;
+    int result = std::system(command.c_str());
+    
+    if (result == 0) {
+      GEOS_LOG_RANK_0( GEOS_FMT( "Matrix successfully exported to {}", tempOutputFile ) );
+    } else {
+      GEOS_LOG_RANK_0( "Failed to export matrix to Excel" );
+    }
+    
+    std::remove(tempInputFile.c_str());
+  } else {
+    GEOS_LOG_RANK_0( "Failed to create temporary file for matrix export" );
+  }
 }
 
 void PhysicsSolverBase::debugOutputSystem( real64 const & time,

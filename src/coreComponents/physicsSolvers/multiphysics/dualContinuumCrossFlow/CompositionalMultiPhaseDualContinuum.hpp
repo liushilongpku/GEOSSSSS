@@ -16,11 +16,11 @@
 #define GEOS_PHYSICSSOLVERS_MULTIPHASE_FLUIDFLOW_DUALCONTINUUMFVM_HPP_
 
 #include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolver.hpp"
-
+#include "physicsSolvers/fluidFlow/CompositionalMultiphaseFVM.hpp"
 namespace geos
 {
 
-template< typename PRIMARY_FLOW_SOLVER = CompositionalMultiphaseBase, typename SECONDARY_FLOW_SOLVER = CompositionalMultiphaseBase >
+template< typename PRIMARY_FLOW_SOLVER = CompositionalMultiphaseFVM, typename SECONDARY_FLOW_SOLVER = CompositionalMultiphaseFVM >
 class CompositionalMultiPhaseDualContinuumFVM : public DualContinuumFlowSolver<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>
 {
 public:

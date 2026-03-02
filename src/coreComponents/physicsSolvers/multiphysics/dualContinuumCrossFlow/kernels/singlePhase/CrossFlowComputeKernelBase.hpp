@@ -33,7 +33,7 @@
 #include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBaseFields.hpp"
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
-#include "CrossFlowKernelsHelper.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/singlePhase/CrossFlowKernelsHelper.hpp"
 
 namespace geos
 {

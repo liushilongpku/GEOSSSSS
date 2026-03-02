@@ -436,6 +436,14 @@ public:
 
   virtual bool checkSequentialSolutionIncrements( DomainPartition & domain ) const override;
 
+  bool ishasCapPressure(){return m_hasCapPressure;};
+
+  bool ishasDiffusion(){return m_hasDiffusion;};
+
+  bool ishasDispersion(){return m_hasDispersion;};
+
+  integer isuseTotalMassEquation(){return m_useTotalMassEquation;};
+
 protected:
 
   virtual void postInputInitialization() override;

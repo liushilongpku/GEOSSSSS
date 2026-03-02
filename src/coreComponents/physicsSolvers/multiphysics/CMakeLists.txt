@@ -40,11 +40,19 @@ set( multiPhysicsSolvers_headers
      dualContinuumCrossFlow/DualContinuumFlowSolver.hpp
      dualContinuumCrossFlow/DualContinuumCrossFlow.hpp
      dualContinuumCrossFlow/SinglePhaseDualContinuum.hpp
-     dualContinuumCrossFlow/kernels/CrossFlowComputeKernel.hpp
+     dualContinuumCrossFlow/kernels/singlePhase/CrossFlowComputeKernel.hpp
      dualContinuumCrossFlow/kernels/DualContinuumStencil.hpp
-     dualContinuumCrossFlow/kernels/CrossFlowComputeKernelBase.hpp
-     dualContinuumCrossFlow/kernels/CrossFlowKernelsHelper.hpp
-     dualContinuumCrossFlow/kernels/ThermalCrossFlowComputeKernel.hpp
+     dualContinuumCrossFlow/kernels/singlePhase/CrossFlowComputeKernelBase.hpp
+     dualContinuumCrossFlow/kernels/singlePhase/CrossFlowKernelsHelper.hpp
+     dualContinuumCrossFlow/kernels/singlePhase/ThermalCrossFlowComputeKernel.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/C1PPUPhaseFlux.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/FluxComputeKernel.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/FluxComputeKernelBase.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/HU2PhaseFlux.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/IHUPhaseFlux.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/PhaseComponentFlux.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/PotGrad.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/PPUPhaseFlux.hpp
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseBaseDpdk.hpp
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseDpdkFVM.hpp
     poromechanicsKernels/MultiphasePoromechanics.hpp
@@ -95,6 +103,7 @@ set( multiPhysicsSolvers_sources
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseBaseDpdk.cpp
      dualContinuumCrossFlow/kernels/DualContinuumStencil.cpp
      dualContinuumCrossFlow/SinglePhaseDualContinuum.cpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/FluxComputeKernelBase.cpp
 )
 
 #include(poromechanicsKernels/PoromechanicsKernels.cmake)

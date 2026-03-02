@@ -12,19 +12,22 @@
 
 #include "CompositionalMultiPhaseDualContinuum.hpp"
 
-// #include "common/TimingMacros.hpp"
+
+#include "kernels/compositionalMultiPhase/FluxComputeKernel.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/compositionalMultiPhase/FluxComputeKernelBase.hpp"
 #include "linearAlgebra/multiscale/MultiscalePreconditioner.hpp"
 #include "physicsSolvers/LogLevelsInfo.hpp"
 #include "physicsSolvers/PhysicsSolverBase.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
-
+#include "physicsSolvers/fluidFlow/CompositionalMultiphaseBase.hpp"
 #include "finiteVolume/BoundaryStencil.hpp"
 #include "finiteVolume/FiniteVolumeManager.hpp"
 #include "finiteVolume/FluxApproximationBase.hpp"
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
+#include "physicsSolvers/fluidFlow/kernels/compositional/C1PPUPhaseFlux.hpp"
 
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/CrossFlowComputeKernel.hpp"
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/ThermalCrossFlowComputeKernel.hpp"
+//#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/compositionalMultiPhase/FluxComputeKernel.hpp"
+//#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/compositionalMultiPhase/Thermal"
 namespace geos
 {
   using namespace dataRepository;
@@ -40,15 +43,184 @@ namespace geos
                           CRSMatrixView<real64, globalIndex const> const &localMatrix,
                           arrayView1d<real64> const &localRhs)
   {
+
+
+     //TODO@LSL 扩散与弥散作用强不强？？
+
+    GEOS_MARK_FUNCTION;
+
+    using namespace isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels;
+
+    BitFlags< KernelFlags > kernelFlags;
+    if( this->secondarySolver()->ishasCapPressure() && this->primarySolver()->ishasCapPressure()  )
+      kernelFlags.set( KernelFlags::CapPressure );
+    if( this->secondarySolver()->ishasDiffusion() && this->primarySolver()->ishasDiffusion()  )
+      kernelFlags.set( KernelFlags::Diffusion );
+    if( this->secondarySolver()->ishasDispersion() && this->primarySolver()->ishasDispersion()  )
+      kernelFlags.set( KernelFlags::Dispersion );
+    if( this->secondarySolver()->isuseTotalMassEquation() && this->primarySolver()->isuseTotalMassEquation()  )
+      kernelFlags.set( KernelFlags::TotalMassEquation );
+    if( this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence && this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence)
+      kernelFlags.set( KernelFlags::CheckPhasePresenceInGravity );
+
+
+//    forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&]( string const &,
+//                                                                 MeshLevel const & mesh,
+//                                                                 string_array const & )
+//    {
+    NumericalMethodsManager const & numericalMethodManager = domain.getNumericalMethodManager();
+    FiniteVolumeManager const & fvManager = numericalMethodManager.getFiniteVolumeManager();
+    FluxApproximationBase const & fluxApprox = fvManager.getFluxApproximation( this->primarySolver()->getDiscretizationName() );
+
+      //寻找不同网格下的MeshLevel指针，后续需要传入kernel
+      std::vector<MeshLevel const*> meshLevelPtrs;
+      forDiscretizationOnMeshTargets(domain.getMeshBodies(),
+                                     [&](string const &,
+                                       MeshLevel const &mesh,
+                                       string_array const &)
+      {
+        meshLevelPtrs.push_back(&mesh);
+      });
+
+      if(meshLevelPtrs.size() < 2)// 先判断vector至少有2个元素，避免越界
+      {
+        GEOS_ERROR("The dual continuum flow solver requires at least two meshes");
+      }
+      else
+      {
+        MeshLevel const * matrixMeshPtr = meshLevelPtrs[0];
+        MeshLevel const * fractureMeshPtr = meshLevelPtrs[1];
+
+        typename TYPEOFREF( this->getStencil() )::KernelWrapper stencilWrapper = this->getStencil().createKernelWrapper();
+        GEOS_UNUSED_VAR( stencilWrapper );
+
+
+        auto const & upwindingParams = fluxApprox.upwindingParams();
+        if( upwindingParams.upwindingScheme == UpwindingScheme::C1PPU &&
+            isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernelUtilities::epsC1PPU > 0 )
+          kernelFlags.set( KernelFlags::C1PPU );
+        else if( upwindingParams.upwindingScheme == UpwindingScheme::IHU )
+          kernelFlags.set( KernelFlags::IHU );
+
+        string const & elemDofKey = dofManager.getKey( CompositionalMultiphaseBase::viewKeyStruct::elemDofFieldString() );
+        /*
+         *  ├── 公式类型 (m_formulationType)
+            │   ├── Ov (Overall Composition)
+            │   └── 其他类型
+            │       ├── 热效应 (m_isThermal)
+            │       │   ├── 是：计算非等温对流通量
+            │       │   └── 否：计算等温对流通量
+            │       │       ├── DBC (m_dbcParams.useDBC)
+            │       │       │   ├── 是：带DBC的等温对流通量
+            │       │       │   └── 否：标准等温对流通量
+            │       └── 扩散/弥散 (m_hasDiffusion || m_hasDispersion)
+            │           ├── 是：计算扩散/弥散通量
+            │           │   ├── 热效应 (m_isThermal)
+            │           │   │   ├── 是：非等温扩散/弥散通量
+            │           │   │   └── 否：等温扩散/弥散通量
+         */
+//        fluxApprox.forAllStencils( mesh, [&]( auto & stencil )
+//        {
+//          typename TYPEOFREF( stencil )::KernelWrapper stencilWrapper = stencil.createKernelWrapper();
+
+          // Convective flux
+
+          if( false )
+          {
+            // isothermal only for now
+            // TODO@LSL 这也是为什么做不了多相带热的问题的原因
+//         isothermalCompositionalMultiphaseFVMKernels::
+//          FluxComputeZFormulationKernelFactory::
+//          createAndLaunch< parallelDevicePolicy<> >( m_numComponents,
+//                                                     m_numPhases,
+//                                                     dofManager.rankOffset(),
+//                                                     elemDofKey,
+//                                                     kernelFlags,
+//                                                     getName(),
+//                                                     mesh.getElemManager(),
+//                                                     stencilWrapper,
+//                                                     dt,
+//                                                     localMatrix.toViewConstSizes(),
+//                                                     localRhs.toView() );
+          }
+          else
+          {
+            if( false )//thermal
+            {
+//            thermalCompositionalMultiphaseFVMKernels::
+//            FluxComputeKernelFactory::
+//            createAndLaunch< parallelDevicePolicy<> >( m_numComponents,
+//                                                       m_numPhases,
+//                                                       dofManager.rankOffset(),
+//                                                       elemDofKey,
+//                                                       kernelFlags,
+//                                                       getName(),
+//                                                       mesh.getElemManager(),
+//                                                       stencilWrapper,
+//                                                       dt,
+//                                                       localMatrix.toViewConstSizes(),
+//                                                       localRhs.toView() );
+            }
+            else
+            {
+              if( false )//DBC
+              {
+//              dissipationCompositionalMultiphaseFVMKernels::
+//              FluxComputeKernelFactory::
+//              createAndLaunch< parallelDevicePolicy<> >( m_numComponents,
+//                                                         m_numPhases,
+//                                                         dofManager.rankOffset(),
+//                                                         elemDofKey,
+//                                                         kernelFlags,
+//                                                         getName(),
+//                                                         mesh.getElemManager(),
+//                                                         stencilWrapper,
+//                                                         dt,
+//                                                         localMatrix.toViewConstSizes(),
+//                                                         localRhs.toView(),
+//                                                         m_dbcParams.omega,
+//                                                         getNonlinearSolverParameters().m_numNewtonIterations,
+//                                                         m_dbcParams.continuation,
+//                                                         m_dbcParams.miscible,
+//                                                         m_dbcParams.kappamin,
+//                                                         m_dbcParams.contMultiplier );
+              }
+              else
+              {
+                isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels::
+                FluxComputeKernelFactory::
+                createAndLaunch< parallelDevicePolicy<> >( this->primarySolver()->numFluidComponents(),
+                                                           this->primarySolver()->numFluidPhases(),
+                                                           dofManager.rankOffset(),
+                                                           dofManager.rankOffset(),//TODO@LSL 裂缝与基质的总偏移量是相同的
+                                                           elemDofKey,
+                                                           kernelFlags,
+                                                           this->primarySolver()->getName(),
+                                                           this->secondarySolver()->getName(),
+                                                           matrixMeshPtr->getElemManager(),
+                                                           fractureMeshPtr->getElemManager(),
+                                                           stencilWrapper,
+                                                           dt,
+                                                           localMatrix.toViewConstSizes(),
+                                                           localRhs.toView() );
+              }
+            }
+          }
+//        } );
+      }
+//    } );
+    //this->printCRSMatrix(this->m_localMatrix);
+
+  }
+
+/*
     GEOS_LOG("befor the assemble");
     this->printCRSMatrix(this->m_localMatrix);
 
     GEOS_MARK_FUNCTION;
     GEOS_UNUSED_VAR(time_n);
     GEOS_UNUSED_VAR(dt);
-    // 注册传导率场
-    // 根据 aperture 计算传导率
-    // 当前使用常数
+
     NumericalMethodsManager const &numericalMethodManager = domain.getNumericalMethodManager();
     FiniteVolumeManager const &fvManager = numericalMethodManager.getFiniteVolumeManager();
     FluxApproximationBase const &fluxApprox = fvManager.getFluxApproximation(Base::primarySolver()->getDiscretizationName());
@@ -86,9 +258,9 @@ namespace geos
         //TODO@LSL 需要针对多相流动的情况更新一个窜流项的kernel
         singlePhaseThermalDualContinuumKernels::
         CrossFlowComputeKernelFactory::
-        createAndLaunch<parallelDevicePolicy<> >( dofManager.rankOffset(),
+        createAndLaunch<parallelDevicePolicy<> >( dofManager.rankOffset(),//TODO@LSL 添加组分数量与相的数量
                                                   dofManager.rankOffset(),
-                                                  dofKey,
+                                                  dofKey,//TODO@LSL 检查与elemdofkey差别
                                                   fluxApprox.getName(),
                                                   matrixMeshPtr->getElemManager(),
                                                   fractureMeshPtr->getElemManager(),
@@ -122,7 +294,8 @@ namespace geos
     }
     GEOS_LOG("after the assemble");
     this->printCRSMatrix(this->m_localMatrix);
-  }
+*/
+
 
   template <typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
   CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>::CompositionalMultiPhaseDualContinuumFVM(const string &name, dataRepository::Group *parent)
@@ -195,11 +368,11 @@ namespace geos
 
 
   // Explicit instantiation for default template
-  template class CompositionalMultiPhaseDualContinuumFVM<CompositionalMultiphaseBase, CompositionalMultiphaseBase>;
+  template class CompositionalMultiPhaseDualContinuumFVM<CompositionalMultiphaseFVM, CompositionalMultiphaseFVM>;
   namespace
   { // Register the solver so it can be used from XML
 
-    typedef CompositionalMultiPhaseDualContinuumFVM<CompositionalMultiphaseBase, CompositionalMultiphaseBase> CompositionalMultiPhaseDualContinuumFVM;
+    typedef CompositionalMultiPhaseDualContinuumFVM<CompositionalMultiphaseFVM, CompositionalMultiphaseFVM> CompositionalMultiPhaseDualContinuumFVM;
     REGISTER_CATALOG_ENTRY(PhysicsSolverBase, CompositionalMultiPhaseDualContinuumFVM, string const &, Group *const)
   }
 

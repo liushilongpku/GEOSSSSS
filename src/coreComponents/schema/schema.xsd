@@ -339,6 +339,10 @@
 					<xsd:selector xpath="AcousticVTISEM" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
+				<xsd:unique name="SolversCompositionalMultiPhaseDualContinuumFVMUniqueName">
+					<xsd:selector xpath="CompositionalMultiPhaseDualContinuumFVM" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
 				<xsd:unique name="SolversCompositionalMultiphaseFVMUniqueName">
 					<xsd:selector xpath="CompositionalMultiphaseFVM" />
 					<xsd:field xpath="@name" />
@@ -2644,6 +2648,7 @@ Information output from lower logLevels is added with the desired log level
 			<xsd:element name="AcousticFirstOrderSEM" type="AcousticFirstOrderSEMType" />
 			<xsd:element name="AcousticSEM" type="AcousticSEMType" />
 			<xsd:element name="AcousticVTISEM" type="AcousticVTISEMType" />
+			<xsd:element name="CompositionalMultiPhaseDualContinuumFVM" type="CompositionalMultiPhaseDualContinuumFVMType" />
 			<xsd:element name="CompositionalMultiphaseFVM" type="CompositionalMultiphaseFVMType" />
 			<xsd:element name="CompositionalMultiphaseHybridFVM" type="CompositionalMultiphaseHybridFVMType" />
 			<xsd:element name="CompositionalMultiphaseReservoir" type="CompositionalMultiphaseReservoirType" />
@@ -3101,6 +3106,52 @@ Information output from lower logLevels is added with the desired log level
 		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
 		<!--useTaper => Flag to apply taper-->
 		<xsd:attribute name="useTaper" type="integer" default="0" />
+		<!--writeLinearSystem => Write matrix, rhs, solution to screen ( = 1) or file ( = 2).-->
+		<xsd:attribute name="writeLinearSystem" type="integer" default="0" />
+		<!--writeStatistics => When set to 1, output iterations information to a csv
+When set to 2 also output convergence information to a csv-->
+		<xsd:attribute name="writeStatistics" type="integer" default="0" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="CompositionalMultiPhaseDualContinuumFVMType">
+		<xsd:choice minOccurs="0" maxOccurs="unbounded">
+			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
+			<xsd:element name="NonlinearSolverParameters" type="NonlinearSolverParametersType" maxOccurs="1" />
+		</xsd:choice>
+		<!--allowNonConvergedLinearSolverSolution => Cut time step if linear solution fail without going until max nonlinear iterations.-->
+		<xsd:attribute name="allowNonConvergedLinearSolverSolution" type="integer" default="1" />
+		<!--cflFactor => Factor to apply to the `CFL condition <http://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`_ when calculating the maximum allowable time step. Values should be in the interval (0,1] -->
+		<xsd:attribute name="cflFactor" type="real64" default="0.5" />
+		<!--flowSolverName => Name of the flow solver used by the coupled solver-->
+		<xsd:attribute name="flowSolverName" type="groupNameRef" use="required" />
+		<!--flowSolverName1 => Name of the flow solver used by the coupled solver-->
+		<xsd:attribute name="flowSolverName1" type="groupNameRef" use="required" />
+		<!--fractureRegionList => List of fracture regions-->
+		<xsd:attribute name="fractureRegionList" type="string_array" default="{}" />
+		<!--initialDt => Initial time-step value required by the solver to the event manager.-->
+		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
+		<!--logLevel => Sets the level of information to write in the standard output (the console typically).
+Information output from lower logLevels is added with the desired log level
+1
+ - Convergence information
+ - Linear solver information
+ - Output residual norm
+ - Solution information (scaling, maximum changes, quality check)
+ - Time step information
+ - Solver timers information
+ - Coupling information
+2
+ - The summary of declared fields and coupling-->
+		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--matrixRegionList => List of matrix regions-->
+		<xsd:attribute name="matrixRegionList" type="string_array" default="{}" />
+		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
+		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
+		<!--transferCoefficient => Inter-continuum transfer coefficient (per-element scalar, default 0)-->
+		<xsd:attribute name="transferCoefficient" type="real64" default="0" />
+		<!--usePhysicsScaling => Enable physics-based scaling of the linear system. Default: true.-->
+		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
 		<!--writeLinearSystem => Write matrix, rhs, solution to screen ( = 1) or file ( = 2).-->
 		<xsd:attribute name="writeLinearSystem" type="integer" default="0" />
 		<!--writeStatistics => When set to 1, output iterations information to a csv

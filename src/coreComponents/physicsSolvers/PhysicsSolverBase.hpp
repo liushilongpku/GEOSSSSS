@@ -491,6 +491,7 @@ public:
 
   void printDataOut(ParallelMatrix const & obj ) const;
   void printCRSMatrix(CRSMatrix< real64, globalIndex > const & obj ) const;
+  void exportCRSMatrixToExcel( CRSMatrix< real64, globalIndex > const & obj ) const;
 
     /**
    * @brief Output the linear system solution for debug purposes.

@@ -200,6 +200,8 @@ public:
     static constexpr char const * gravityDensitySchemeString()    { return "gravityDensityScheme"; }
   };
 
+  GravityDensityScheme & getgravityDensityScheme(){return m_gravityDensityScheme;};
+
 protected:
 
   virtual void postInputInitialization() override;

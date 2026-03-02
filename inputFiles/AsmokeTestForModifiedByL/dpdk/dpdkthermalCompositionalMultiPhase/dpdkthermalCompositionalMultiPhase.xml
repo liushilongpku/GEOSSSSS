@@ -1,326 +1,432 @@
 <?xml version="1.0" ?>
 
 <Problem>
-  <Solvers>
-    <DualContinuumFVM
-            name="DualContinuumSolver"
-            flowSolverName="singlePhaseFlowSolver"
-            flowSolverName1="singlePhaseFlowSolver1"
-            logLevel="1"
-            writeLinearSystem="1"
-            targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
-            matrixRegionList="{ Region1 }"
-            fractureRegionList="{ Region2 }">
-      <DualContinuumCrossFlow
-              fractureSpacingLx="1.0"
-              fractureSpacingLy="1.0"
-              fractureSpacingLz="1.0"
-              matrixRegionList="{ Region1 }"
-              fractureRegionList="{ Region2 }"/>
-      <LinearSolverParameters
-              solverType="direct"
-              directParallel="0"
-              logLevel="0"/>
-      <NonlinearSolverParameters
-              newtonTol="1.0e-4"
-              newtonMaxIter = "40"/>
-    </DualContinuumFVM>
+    <Solvers>
+        <CompositionalMultiPhaseDualContinuumFVM
+                name="DualContinuumSolver"
+                flowSolverName="compflow1"
+                flowSolverName1="compflow2"
+                logLevel="1"
+                writeLinearSystem="1"
+                targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
+                matrixRegionList="{ Region1 }"
+                fractureRegionList="{ Region2 }">
+            <DualContinuumCrossFlow
+                    fractureSpacingLx="1.0"
+                    fractureSpacingLy="1.0"
+                    fractureSpacingLz="1.0"
+                    matrixRegionList="{ Region1 }"
+                    fractureRegionList="{ Region2 }"/>
+            <LinearSolverParameters
+                    solverType="direct"
+                    directParallel="0"
+                    logLevel="0"/>
+            <NonlinearSolverParameters
+                    newtonTol="1.0e-4"
+                    newtonMaxIter = "40"/>
+        </CompositionalMultiPhaseDualContinuumFVM>
 
-    <SinglePhaseFVM
-      name="singlePhaseFlowSolver"
-      discretization="singlePhaseTPFA"
-      targetRegions="{mesh1/Region1 }"
-      writeLinearSystem="1"
-      logLevel="1"
-      isThermal="1">
-      <NonlinearSolverParameters
-        newtonTol="1.0e-5"
-        newtonMaxIter="8"/>
-      <LinearSolverParameters
-        directParallel="0"/>
-    </SinglePhaseFVM>
-
-    <SinglePhaseFVM
-            name="singlePhaseFlowSolver1"
-            discretization="singlePhaseTPFA"
-            targetRegions="{ mesh2/Region2 }"
-            writeLinearSystem="1"
-            logLevel="1"
-            isThermal="1">
-      <NonlinearSolverParameters
-              newtonTol="1.0e-5"
-              newtonMaxIter="8"/>
-      <LinearSolverParameters
-              directParallel="0"/>
-    </SinglePhaseFVM>
-  </Solvers>
-
-  <Mesh>
-    <InternalMesh
-      name="mesh1"
-      elementTypes="{ C3D8 }"
-      xCoords="{ 0, 1, 9, 10 }"
-      yCoords="{ 0, 1 }"
-      zCoords="{ 0, 1 }"
-      nx="{ 1, 1, 1 }"
-      ny="{ 1 }"
-      nz="{ 1 }"
-      cellBlockNames="{ block1 }"/>
-    <InternalMesh
-            name="mesh2"
-            elementTypes="{ C3D8 }"
-            xCoords="{ 0, 1, 9, 10 }"
-            yCoords="{ 0, 1 }"
-            zCoords="{ 0, 1 }"
-            nx="{ 1, 1, 1 }"
-            ny="{ 1 }"
-            nz="{ 1 }"
-            cellBlockNames="{ block2 }"/>
-  </Mesh>
-
-  <Geometry>
-    <Box
-      name="source"
-      xMin="{ -0.01, -0.01, -0.01 }"
-      xMax="{ 1.01, 1.01, 1.01 }"/>
-
-    <Box
-      name="sink"
-      xMin="{ 8.99, -0.01, -0.01 }"
-      xMax="{ 10.01, 1.01, 1.01 }"/>
-  </Geometry>
-
-  <Events
-    maxTime="10000.0">
-    <PeriodicEvent
-      name="outputs"
-      timeFrequency="100.0"
-      target="/Outputs/siloOutput"/>
-
-    <PeriodicEvent
-      name="solverApplications"
-      forceDt="100.0"
-      target="/Solvers/DualContinuumSolver"/>
-
-  </Events>
-
-  <NumericalMethods>
-    <FiniteVolume>
-      <TwoPointFluxApproximation
-        name="singlePhaseTPFA"/>
-    </FiniteVolume>
-  </NumericalMethods>
-
-  <ElementRegions>
-    <CellElementRegion
-      name="Region1"
-      meshBody="mesh1"
-      cellBlocks="{ block1 }"
-      materialList="{ water, rock, thermalCond }"/>
-    <CellElementRegion
-            name="Region2"
-            meshBody="mesh2"
-            cellBlocks="{ block2 }"
-            materialList="{ water, rock, thermalCond }"/>
-  </ElementRegions>
-
-  <Constitutive>
-    <ThermalCompressibleSinglePhaseFluid
-      name="water"
-      defaultDensity="1000"
-      defaultViscosity="0.001"
-      referencePressure="0.0"
-      referenceTemperature="0"
-      compressibility="5e-10"
-      thermalExpansionCoeff="3e-4"
-      viscosibility="0.0"
-      specificHeatCapacity="1"
-      referenceInternalEnergy="0.99"/>
-
-    <CompressibleSolidConstantPermeability
-      name="rock"
-      solidModelName="nullSolid"
-      porosityModelName="rockPorosity"
-      permeabilityModelName="rockPerm"
-      solidInternalEnergyModelName="rockInternalEnergy"/>
-
-    <NullModel
-      name="nullSolid"/>
-
-    <PressurePorosity
-      name="rockPorosity"
-      defaultReferencePorosity="0.05"
-      referencePressure="0.0"
-      compressibility="1e-7"/>
-
-    <ConstantPermeability
-      name="rockPerm"
-      permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
-
-    <SolidInternalEnergy
-      name="rockInternalEnergy"
-      referenceVolumetricHeatCapacity="1.0e6"
-      referenceTemperature="0"
-      referenceInternalEnergy="0"/>
-
-    <SinglePhaseThermalConductivity
-      name="thermalCond"
-      defaultThermalConductivityComponents="{ 1.66, 1.66, 1.66 }"
-      thermalConductivityGradientComponents="{ 0, 0, 0 }"
-      referenceTemperature="0"/>
+        <CompositionalMultiphaseFVM
+                name="compflow1"
+                logLevel="1"
+                discretization="fluidTPFA"
+                temperature="368.15"
+                useMass="1"
+                writeLinearSystem="1"
+                isThermal="1"
+                targetRelativePressureChangeInTimeStep="1"
+                targetRelativeTemperatureChangeInTimeStep="1"
+                targetPhaseVolFractionChangeInTimeStep="1"
+                maxCompFractionChange="0.5"
+                targetRegions="{mesh1/Region1 }">
+            <NonlinearSolverParameters
+                    newtonTol="1.0e-6"
+                    newtonMaxIter="100"
+                    lineSearchAction="None"
+                    maxTimeStepCuts="5"/>
+            <LinearSolverParameters
+                    directParallel="0"/>
+        </CompositionalMultiphaseFVM>
 
 
-    <CompressibleSolidConstantPermeability
-            name="rock_DPDK"
-            solidModelName="nullSolid_DPDK"
-            porosityModelName="rockPorosity_DPDK"
-            permeabilityModelName="rockPerm_DPDK"
-            solidInternalEnergyModelName="rockInternalEnergy_DPDK"/>
+        <CompositionalMultiphaseFVM
+                name="compflow2"
+                logLevel="1"
+                discretization="fluidTPFA"
+                temperature="368.15"
+                useMass="1"
+                writeLinearSystem="1"
+                isThermal="1"
+                targetRelativePressureChangeInTimeStep="1"
+                targetRelativeTemperatureChangeInTimeStep="1"
+                targetPhaseVolFractionChangeInTimeStep="1"
+                maxCompFractionChange="0.5"
+                targetRegions="{mesh2/Region2 }">
+            <NonlinearSolverParameters
+                    newtonTol="1.0e-6"
+                    newtonMaxIter="100"
+                    lineSearchAction="None"
+                    maxTimeStepCuts="5"/>
+            <LinearSolverParameters
+                    directParallel="0"/>
+        </CompositionalMultiphaseFVM>
+    </Solvers>
 
-    <NullModel
-            name="nullSolid_DPDK"/>
+    <Mesh>
+        <InternalMesh
+                name="mesh1"
+                elementTypes="{ C3D8 }"
+                xCoords="{ 0, 1, 9, 10 }"
+                yCoords="{ 0, 1 }"
+                zCoords="{ 0, 1 }"
+                nx="{ 1, 1, 1 }"
+                ny="{ 1 }"
+                nz="{ 1 }"
+                cellBlockNames="{ block1 }"/>
+        <InternalMesh
+                name="mesh2"
+                elementTypes="{ C3D8 }"
+                xCoords="{ 0, 1, 9, 10 }"
+                yCoords="{ 0, 1 }"
+                zCoords="{ 0, 1 }"
+                nx="{ 1, 1, 1 }"
+                ny="{ 1 }"
+                nz="{ 1 }"
+                cellBlockNames="{ block2 }"/>
+    </Mesh>
 
-    <PressurePorosity
-            name="rockPorosity_DPDK"
-            defaultReferencePorosity="0.05"
-            referencePressure="0.0"
-            compressibility="1e-8"/>
+    <Geometry>
+        <Box
+                name="source"
+                xMin="{ -0.01, -0.01, -0.01 }"
+                xMax="{ 1.01, 1.01, 1.01 }"/>
 
-    <ConstantPermeability
-            name="rockPerm_DPDK"
-            permeabilityComponents="{ 2.0e-16, 2.0e-16, 2.0e-16 }"/>
+        <Box
+                name="sink"
+                xMin="{ 8.99, -0.01, -0.01 }"
+                xMax="{ 10.01, 1.01, 1.01 }"/>
+    </Geometry>
 
-    <SolidInternalEnergy
-            name="rockInternalEnergy_DPDK"
-            referenceVolumetricHeatCapacity="1.0e6"
-            referenceTemperature="0"
-            referenceInternalEnergy="0"/>
+    <Events
+            maxTime="10000.0">
+        <PeriodicEvent
+                name="outputs"
+                timeFrequency="100.0"
+                target="/Outputs/siloOutput"/>
 
-    <SinglePhaseThermalConductivity
-            name="thermalCond_DPDK"
-            defaultThermalConductivityComponents="{ 1.66, 1.66, 1.66 }"
-            thermalConductivityGradientComponents="{ 0, 0, 0 }"
-            referenceTemperature="0"/>
-  </Constitutive>
+        <PeriodicEvent
+                name="solverApplications"
+                forceDt="100.0"
+                target="/Solvers/DualContinuumSolver"/>
 
-  <FieldSpecifications>
-    <FieldSpecification
-            name="Porosity"
-            initialCondition="1"
-            targetMesh="mesh1"
-            setNames="{ all }"
-            objectPath="ElementRegions"
-            fieldName="rockPorosity_referencePorosity"
-            scale="0.05"/>
-    <FieldSpecification
-            name="Porosity2"
-            initialCondition="1"
-            targetMesh="mesh2"
-            setNames="{ all }"
-            objectPath="ElementRegions"
-            fieldName="rockPorosity_referencePorosity"
-            scale="0.05"/>
+    </Events>
 
-    <FieldSpecification
-            name="initialPressure1"
-            initialCondition="1"
-            setNames="{ all }"
-            targetMesh="mesh1"
-            objectPath="ElementRegions"
-            fieldName="pressure"
-            scale="1e6"/>
-    <FieldSpecification
-            name="initialPressure2"
-            initialCondition="1"
-            setNames="{ all }"
-            targetMesh="mesh2"
-            objectPath="ElementRegions"
-            fieldName="pressure"
-            scale="2e6"/>
-    <FieldSpecification
-            name="initialTemperature1"
-            initialCondition="1"
-            setNames="{ all }"
-            targetMesh="mesh1"
-            objectPath="ElementRegions"
-            fieldName="temperature"
-            scale="80"/>
-    <FieldSpecification
-            name="initialTemperature2"
-            initialCondition="1"
-            setNames="{ all }"
-            targetMesh="mesh2"
-            objectPath="ElementRegions"
-            fieldName="temperature"
-            scale="120"/>
+    <NumericalMethods>
+        <FiniteVolume>
+            <TwoPointFluxApproximation
+                    name="fluidTPFA"/>
+        </FiniteVolume>
+    </NumericalMethods>
 
-    <FieldSpecification
-            name="sourceTerm1"
-            objectPath="ElementRegions"
-            fieldName="pressure"
-            targetMesh="mesh1"
-            scale="1e6"
-            setNames="{ source }"/>
-    <FieldSpecification
-            name="sinkTerm1"
-            objectPath="ElementRegions"
-            fieldName="pressure"
-            targetMesh="mesh1"
-            scale="1e6"
-            setNames="{ sink }"/>
+    <ElementRegions>
+        <CellElementRegion
+                name="Region1"
+                meshBody="mesh1"
+                cellBlocks="{ block1 }"
+                materialList="{ fluid, rock, relperm, thermalCond, diffusion  }"/>
+        <CellElementRegion
+                name="Region2"
+                meshBody="mesh2"
+                cellBlocks="{ block2 }"
+                materialList="{ fluid, rock, relperm, thermalCond, diffusion  }"/>
+    </ElementRegions>
+
+    <Constitutive>
 
 
+        <CompressibleSolidConstantPermeability
+                name="rock"
+                solidModelName="nullSolid"
+                porosityModelName="rockPorosity"
+                permeabilityModelName="rockPerm"
+                solidInternalEnergyModelName="rockInternalEnergy"/>
+
+        <NullModel
+                name="nullSolid"/>
+
+        <PressurePorosity
+                name="rockPorosity"
+                defaultReferencePorosity="0.2"
+                referencePressure="0.0"
+                compressibility="1.0e-9"/>
+        <SolidInternalEnergy
+                name="rockInternalEnergy"
+                referenceVolumetricHeatCapacity="1.95e6"
+                referenceTemperature="368.15"
+                referenceInternalEnergy="0"/>
+        <ConstantPermeability
+                name="rockPerm"
+                permeabilityComponents="{ 1.0e-13, 1.0e-13, 1.0e-13 }"/>
+
+        <CO2BrinePhillipsThermalFluid
+                name="fluid"
+                logLevel="1"
+                phaseNames="{ gas, water }"
+                componentNames="{ co2, water }"
+                componentMolarWeight="{ 44e-3, 18e-3 }"
+                phasePVTParaFiles="{ pvtgas.txt, pvtliquid.txt }"
+                flashModelParaFile="co2flash.txt"/>
+
+        <BrooksCoreyRelativePermeability
+                name="relperm"
+                phaseNames="{ gas, water }"
+                phaseMinVolumeFraction="{ 0.0, 0.0 }"
+                phaseRelPermExponent="{ 1.5, 1.5 }"
+                phaseRelPermMaxValue="{ 0.9, 0.9 }"/>
+
+        <MultiPhaseConstantThermalConductivity
+                name="thermalCond"
+                phaseNames="{ gas, water }"
+                thermalConductivityComponents="{ 0.6, 0.6, 0.6 }"/>
+
+        <ConstantDiffusion
+                name="diffusion"
+                phaseNames="{ gas, water }"
+                defaultPhaseDiffusivityMultipliers="{ 20, 1 }"
+                diffusivityComponents="{ 1e-9, 1e-9, 1e-9 }"/>
+
+    </Constitutive>
+
+    <FieldSpecifications>
+
+        <!--全域初始饱和度-->
+        <FieldSpecification
+                name="initialComposition_co2_mesh1"
+                initialCondition="1"
+                targetMesh="mesh1"
+                setNames="{ all }"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="0"
+                scale="0.995"/>
+        <FieldSpecification
+                name="initialComposition_water_mesh1"
+                initialCondition="1"
+                targetMesh="mesh1"
+                setNames="{ all }"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="1"
+                scale="0.005"/>
+
+        <FieldSpecification
+                name="initialComposition_co2_mesh2"
+                initialCondition="1"
+                targetMesh="mesh2"
+                setNames="{ all }"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="0"
+                scale="0.995"/>
+        <FieldSpecification
+                name="initialComposition_water_mesh2"
+                initialCondition="1"
+                targetMesh="mesh2"
+                setNames="{ all }"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="1"
+                scale="0.005"/>
 
 
-    <FieldSpecification
-            name="sourceTerm2"
-            objectPath="ElementRegions"
-            fieldName="pressure"
-            targetMesh="mesh2"
-            scale="2e6"
-            setNames="{ source }"/>
-<!--targetMesh is null means that both mesh will be applied -->
+        <!--sink饱和度-->
 
-    <FieldSpecification
-            name="sinkTerm2"
-            objectPath="ElementRegions"
-            fieldName="pressure"
-            targetMesh="mesh2"
-            scale="2e6"
-            setNames="{ sink }"/>
-    <FieldSpecification
-            name="sourceTemperature1"
-            objectPath="ElementRegions"
-            fieldName="temperature"
-            targetMesh="mesh1"
-            scale="80"
-            setNames="{ source }"/>
-    <FieldSpecification
-            name="sinkTemperature1"
-            objectPath="ElementRegions"
-            fieldName="temperature"
-            targetMesh="mesh1"
-            scale="80"
-            setNames="{ sink }"/>
-    <FieldSpecification
-            name="sourceTemperature2"
-            objectPath="ElementRegions"
-            fieldName="temperature"
-            targetMesh="mesh2"
-            scale="120"
-            setNames="{ source }"/>
-    <FieldSpecification
-            name="sinkTemperature2"
-            objectPath="ElementRegions"
-            fieldName="temperature"
-            targetMesh="mesh2"
-            scale="120"
-            setNames="{ sink }"/>
-  </FieldSpecifications>
+        <FieldSpecification
+                name="sinkTermComposition_co2_mesh1"
+                setNames="{ sink }"
+                targetMesh="mesh1"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="0"
+                scale="0.995"/>
+        <FieldSpecification
+                name="sinkTermComposition_water_mesh1"
+                setNames="{ sink }"
+                targetMesh="mesh1"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="1"
+                scale="0.005"/>
 
-  <Outputs>
-    <VTK
-      name="siloOutput"/>
+        <FieldSpecification
+                name="sinkTermComposition_co2_mesh2"
+                setNames="{ sink }"
+                targetMesh="mesh2"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="0"
+                scale="0.995"/>
+        <FieldSpecification
+                name="sinkTermComposition_water_mesh2"
+                setNames="{ sink }"
+                targetMesh="mesh2"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="1"
+                scale="0.005"/>
 
-  </Outputs>
+        <!--source饱和度-->
+
+        <FieldSpecification
+                name="sourceTermComposition_co2_mesh1"
+                setNames="{ source }"
+                targetMesh="mesh1"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="0"
+                scale="0.995"/>
+        <FieldSpecification
+                name="sourceTermComposition_water_mesh1"
+                setNames="{ source }"
+                targetMesh="mesh1"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="1"
+                scale="0.005"/>
+
+        <FieldSpecification
+                name="sourceTermComposition_co2_mesh2"
+                setNames="{ source }"
+                targetMesh="mesh2"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="0"
+                scale="0.995"/>
+        <FieldSpecification
+                name="sourceTermComposition_water_mesh2"
+                setNames="{ source }"
+                targetMesh="mesh2"
+                objectPath="ElementRegions"
+                fieldName="globalCompFraction"
+                component="1"
+                scale="0.005"/>
+
+        <!--其他与其他文件相同-->
+
+        <FieldSpecification
+                name="Porosity"
+                initialCondition="1"
+                targetMesh="mesh1"
+                setNames="{ all }"
+                objectPath="ElementRegions"
+                fieldName="rockPorosity_referencePorosity"
+                scale="0.05"/>
+        <FieldSpecification
+                name="Porosity2"
+                initialCondition="1"
+                targetMesh="mesh2"
+                setNames="{ all }"
+                objectPath="ElementRegions"
+                fieldName="rockPorosity_referencePorosity"
+                scale="0.05"/>
+
+        <FieldSpecification
+                name="initialPressure1"
+                initialCondition="1"
+                setNames="{ all }"
+                targetMesh="mesh1"
+                objectPath="ElementRegions"
+                fieldName="pressure"
+                scale="1e6"/>
+        <FieldSpecification
+                name="initialPressure2"
+                initialCondition="1"
+                setNames="{ all }"
+                targetMesh="mesh2"
+                objectPath="ElementRegions"
+                fieldName="pressure"
+                scale="1e6"/>
+        <FieldSpecification
+                name="initialTemperature1"
+                initialCondition="1"
+                setNames="{ all }"
+                targetMesh="mesh1"
+                objectPath="ElementRegions"
+                fieldName="temperature"
+                scale="368.15"/>
+        <FieldSpecification
+                name="initialTemperature2"
+                initialCondition="1"
+                setNames="{ all }"
+                targetMesh="mesh2"
+                objectPath="ElementRegions"
+                fieldName="temperature"
+                scale="368.15"/>
+
+        <FieldSpecification
+                name="sourceTerm1"
+                objectPath="ElementRegions"
+                fieldName="pressure"
+                targetMesh="mesh1"
+                scale="1e6"
+                setNames="{ source }"/>
+        <FieldSpecification
+                name="sinkTerm1"
+                objectPath="ElementRegions"
+                fieldName="pressure"
+                targetMesh="mesh1"
+                scale="1e6"
+                setNames="{ sink }"/>
+
+        <FieldSpecification
+                name="sourceTerm2"
+                objectPath="ElementRegions"
+                fieldName="pressure"
+                targetMesh="mesh2"
+                scale="1e6"
+                setNames="{ source }"/>
+        <!--targetMesh is null means that both mesh will be applied -->
+
+        <FieldSpecification
+                name="sinkTerm2"
+                objectPath="ElementRegions"
+                fieldName="pressure"
+                targetMesh="mesh2"
+                scale="1e6"
+                setNames="{ sink }"/>
+        <FieldSpecification
+                name="sourceTemperature1"
+                objectPath="ElementRegions"
+                fieldName="temperature"
+                targetMesh="mesh1"
+                scale="368.15"
+                setNames="{ source }"/>
+        <FieldSpecification
+                name="sinkTemperature1"
+                objectPath="ElementRegions"
+                fieldName="temperature"
+                targetMesh="mesh1"
+                scale="368.15"
+                setNames="{ sink }"/>
+        <FieldSpecification
+                name="sourceTemperature2"
+                objectPath="ElementRegions"
+                fieldName="temperature"
+                targetMesh="mesh2"
+                scale="368.15"
+                setNames="{ source }"/>
+        <FieldSpecification
+                name="sinkTemperature2"
+                objectPath="ElementRegions"
+                fieldName="temperature"
+                targetMesh="mesh2"
+                scale="368.15"
+                setNames="{ sink }"/>
+    </FieldSpecifications>
+
+    <Outputs>
+        <VTK
+                name="siloOutput"/>
+
+    </Outputs>
 </Problem>

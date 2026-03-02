@@ -191,6 +191,9 @@ public:
   {
     //TODO@LSL：这里删除了用于多个面的connectionIndex，因为在Flux的计算中需要考虑裂缝面单元和基质单元的关系，双重介质不需要
     // first, compute the transmissibilities at this face
+    // 事实上这里应该也需要修改 传进去的不应该只有m_permeability和m_dPerm_dPres
+    // m_permeability_fracture和m_dPerm_dPres_fracture也应该参与计算
+    // 现在看应该不用修改，因为只需要计算基质的传导率而裂缝的传导率在窜流项的计算中几乎不起作用。
     m_stencilWrapper.computeWeights( iconn,
                                      m_permeability,
                                      m_dPerm_dPres,
