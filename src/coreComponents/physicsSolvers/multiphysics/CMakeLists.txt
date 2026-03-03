@@ -53,6 +53,7 @@ set( multiPhysicsSolvers_headers
      dualContinuumCrossFlow/kernels/compositionalMultiPhase/PhaseComponentFlux.hpp
      dualContinuumCrossFlow/kernels/compositionalMultiPhase/PotGrad.hpp
      dualContinuumCrossFlow/kernels/compositionalMultiPhase/PPUPhaseFlux.hpp
+     dualContinuumCrossFlow/kernels/compositionalMultiPhase/ThermalFluxComputeKernel.hpp
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseBaseDpdk.hpp
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseDpdkFVM.hpp
     poromechanicsKernels/MultiphasePoromechanics.hpp

@@ -33,10 +33,7 @@
                 temperature="368.15"
                 useMass="1"
                 writeLinearSystem="0"
-                isThermal="1"
-                targetRelativePressureChangeInTimeStep="1"
-                targetRelativeTemperatureChangeInTimeStep="1"
-                targetPhaseVolFractionChangeInTimeStep="1"
+
                 maxCompFractionChange="0.5"
                 targetRegions="{mesh1/Region1 }">
             <NonlinearSolverParameters
@@ -56,10 +53,6 @@
                 temperature="368.15"
                 useMass="1"
                 writeLinearSystem="0"
-                isThermal="1"
-                targetRelativePressureChangeInTimeStep="1"
-                targetRelativeTemperatureChangeInTimeStep="1"
-                targetPhaseVolFractionChangeInTimeStep="1"
                 maxCompFractionChange="0.5"
                 targetRegions="{mesh2/Region2 }">
             <NonlinearSolverParameters
@@ -71,7 +64,9 @@
                     directParallel="0"/>
         </CompositionalMultiphaseFVM>
     </Solvers>
-
+<!--    targetRelativePressureChangeInTimeStep="1"-->
+<!--    targetRelativeTemperatureChangeInTimeStep="1"-->
+<!--    targetPhaseVolFractionChangeInTimeStep="1"-->
     <Mesh>
         <InternalMesh
                 name="mesh1"
@@ -108,15 +103,15 @@
     </Geometry>
 
     <Events
-            maxTime="10000.0">
+            maxTime="1000000.0">
         <PeriodicEvent
                 name="outputs"
-                timeFrequency="100.0"
+                timeFrequency="10000.0"
                 target="/Outputs/siloOutput"/>
 
         <PeriodicEvent
                 name="solverApplications"
-                forceDt="100.0"
+                forceDt="1000.0"
                 target="/Solvers/DualContinuumSolver"/>
 
     </Events>
@@ -133,12 +128,12 @@
                 name="Region1"
                 meshBody="mesh1"
                 cellBlocks="{ block1 }"
-                materialList="{ fluid, rock, relperm, thermalCond, diffusion  }"/>
+                materialList="{ fluid, rock, relperm, diffusion  }"/>
         <CellElementRegion
                 name="Region2"
                 meshBody="mesh2"
                 cellBlocks="{ block2 }"
-                materialList="{ fluid, rock, relperm, thermalCond, diffusion  }"/>
+                materialList="{ fluid, rock, relperm, diffusion  }"/>
     </ElementRegions>
 
     <Constitutive>
@@ -149,7 +144,7 @@
                 solidModelName="nullSolid"
                 porosityModelName="rockPorosity"
                 permeabilityModelName="rockPerm"
-                solidInternalEnergyModelName="rockInternalEnergy"/>
+                />
 
         <NullModel
                 name="nullSolid"/>
@@ -168,7 +163,7 @@
                 name="rockPerm"
                 permeabilityComponents="{ 1.0e-13, 1.0e-13, 1.0e-13 }"/>
 
-        <CO2BrinePhillipsThermalFluid
+        <CO2BrinePhillipsFluid
                 name="fluid"
                 logLevel="1"
                 phaseNames="{ gas, water }"
@@ -183,18 +178,24 @@
                 phaseMinVolumeFraction="{ 0.0, 0.0 }"
                 phaseRelPermExponent="{ 1.5, 1.5 }"
                 phaseRelPermMaxValue="{ 0.9, 0.9 }"/>
-
+<!--
         <MultiPhaseConstantThermalConductivity
                 name="thermalCond"
                 phaseNames="{ gas, water }"
                 thermalConductivityComponents="{ 0.6, 0.6, 0.6 }"/>
-
+-->
         <ConstantDiffusion
                 name="diffusion"
                 phaseNames="{ gas, water }"
                 defaultPhaseDiffusivityMultipliers="{ 20, 1 }"
                 diffusivityComponents="{ 1e-9, 1e-9, 1e-9 }"/>
 
+        <JFunctionCapillaryPressure
+                name="cappres"
+                phaseNames="{ gas, water }"
+                wettingNonWettingJFunctionTableName="jFunctionTable"
+                wettingNonWettingSurfaceTension="23.86955676433857e-3"
+                permeabilityDirection="XY"/>
     </Constitutive>
 
     <FieldSpecifications>
@@ -346,6 +347,7 @@
                 objectPath="ElementRegions"
                 fieldName="pressure"
                 scale="2e6"/>
+<!--
         <FieldSpecification
                 name="initialTemperature1"
                 initialCondition="1"
@@ -361,8 +363,8 @@
                 targetMesh="mesh2"
                 objectPath="ElementRegions"
                 fieldName="temperature"
-                scale="400"/>
-
+                scale="368.15"/>
+-->
         <FieldSpecification
                 name="sourceTerm1"
                 objectPath="ElementRegions"
@@ -394,7 +396,7 @@
                 targetMesh="mesh2"
                 scale="2e6"
                 setNames="{ sink }"/>
-        <FieldSpecification
+<!--        <FieldSpecification
                 name="sourceTemperature1"
                 objectPath="ElementRegions"
                 fieldName="temperature"
@@ -413,18 +415,26 @@
                 objectPath="ElementRegions"
                 fieldName="temperature"
                 targetMesh="mesh2"
-                scale="400"
+                scale="368.15"
                 setNames="{ source }"/>
         <FieldSpecification
                 name="sinkTemperature2"
                 objectPath="ElementRegions"
                 fieldName="temperature"
                 targetMesh="mesh2"
-                scale="400"
+                scale="368.15"
                 setNames="{ sink }"/>
+                -->
     </FieldSpecifications>
+    <Functions>
 
-    <Outputs>
+    <TableFunction
+            name="jFunctionTable"
+            coordinateFiles="{ phaseVolFraction_water.txt }"
+            voxelFile="jFunction.txt"/>
+    </Functions>
+
+<Outputs>
         <VTK
                 name="siloOutput"/>
 

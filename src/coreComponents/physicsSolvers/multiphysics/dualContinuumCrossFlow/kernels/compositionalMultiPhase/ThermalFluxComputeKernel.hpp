@@ -29,7 +29,7 @@
 namespace geos
 {
 
-namespace thermalCompositionalMultiphaseFVMKernels
+namespace thermalDualContinuumCompositionalMultiPhaseCrossFlowKernels
 {
 
 
@@ -63,14 +63,22 @@ public:
 
   using AbstractBase::m_dt;
   using AbstractBase::m_numPhases;
-  using AbstractBase::m_rankOffset;
-  using AbstractBase::m_dofNumber;
-  using AbstractBase::m_gravCoef;
-  using AbstractBase::m_phaseVolFrac;
-  using AbstractBase::m_dPhaseVolFrac;
-  using AbstractBase::m_phaseCompFrac;
-  using AbstractBase::m_dPhaseCompFrac;
-  using AbstractBase::m_dCompFrac_dCompDens;
+  using AbstractBase::m_rankOffset_m;
+  using AbstractBase::m_rankOffset_f;
+  using AbstractBase::m_dofNumber_m;
+  using AbstractBase::m_dofNumber_f;
+  using AbstractBase::m_gravCoef_m;
+  using AbstractBase::m_gravCoef_f;
+  using AbstractBase::m_phaseVolFrac_m;
+  using AbstractBase::m_phaseVolFrac_f;
+  using AbstractBase::m_dPhaseVolFrac_m;
+  using AbstractBase::m_dPhaseVolFrac_f;
+  using AbstractBase::m_phaseCompFrac_m;
+  using AbstractBase::m_phaseCompFrac_f;
+  using AbstractBase::m_dPhaseCompFrac_m;
+  using AbstractBase::m_dPhaseCompFrac_f;
+  using AbstractBase::m_dCompFrac_dCompDens_m;
+  using AbstractBase::m_dCompFrac_dCompDens_f;
 
   using Base = isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels::FluxComputeKernel< NUM_COMP, NUM_DOF, STENCILWRAPPER >;
   using Base::numComp;
@@ -80,10 +88,14 @@ public:
   using Base::maxNumConns;
   using Base::maxStencilSize;
   using Base::numFluxSupportPoints;
-  using Base::m_phaseMob;
-  using Base::m_dPhaseMob;
-  using Base::m_dPhaseMassDens;
-  using Base::m_dPhaseCapPressure_dPhaseVolFrac;
+  using Base::m_phaseMob_m;
+  using Base::m_dPhaseMob_m;
+  using Base::m_phaseMob_f;
+  using Base::m_dPhaseMob_f;
+  using Base::m_dPhaseMassDens_m;
+  using Base::m_dPhaseMassDens_f;
+  using Base::m_dPhaseCapPressure_dPhaseVolFrac_m;
+  using Base::m_dPhaseCapPressure_dPhaseVolFrac_f;
   using Base::m_stencilWrapper;
   using Base::m_seri;
   using Base::m_sesri;
@@ -105,52 +117,80 @@ public:
   /**
    * @brief Constructor for the kernel interface
    * @param[in] numPhases the number of fluid phases
-   * @param[in] rankOffset the offset of my MPI rank
+   * @param[in] rankOffset_m the offset of my MPI rank for matrix
+   * @param[in] rankOffset_f the offset of my MPI rank for fracture
    * @param[in] stencilWrapper reference to the stencil wrapper
-   * @param[in] dofNumberAccessor accessor for the dofs numbers
-   * @param[in] compFlowAccessor accessor for wrappers registered by the solver
-   * @param[in] thermalCompFlowAccessors accessor for *thermal* wrappers registered by the solver
-   * @param[in] multiFluidAccessor accessor for wrappers registered by the multifluid model
-   * @param[in] thermalMultiFluidAccessors accessor for *thermal* wrappers registered by the multifluid model
-   * @param[in] capPressureAccessors accessor for wrappers registered by the cap pressure model
-   * @param[in] permeabilityAccessors accessor for wrappers registered by the permeability model
-   * @param[in] thermalConductivityAccessors accessor for wrappers registered by the thermal conductivity model
+   * @param[in] dofNumberAccessor_m accessor for the dofs numbers of matrix
+   * @param[in] compFlowAccessors_m accessor for wrappers registered by the solver for matrix
+   * @param[in] thermalCompFlowAccessors_m accessor for *thermal* wrappers registered by the solver for matrix
+   * @param[in] multiFluidAccessors_m accessor for wrappers registered by the multifluid model for matrix
+   * @param[in] thermalMultiFluidAccessors_m accessor for *thermal* wrappers registered by the multifluid model for matrix
+   * @param[in] dofNumberAccessor_f accessor for the dofs numbers of fracture
+   * @param[in] compFlowAccessors_f accessor for wrappers registered by the solver for fracture
+   * @param[in] thermalCompFlowAccessors_f accessor for *thermal* wrappers registered by the solver for fracture
+   * @param[in] multiFluidAccessors_f accessor for wrappers registered by the multifluid model for fracture
+   * @param[in] thermalMultiFluidAccessors_f accessor for *thermal* wrappers registered by the multifluid model for fracture
+   * @param[in] capPressureAccessors_m accessor for wrappers registered by the cap pressure model for matrix
+   * @param[in] capPressureAccessors_f accessor for wrappers registered by the cap pressure model for fracture
+   * @param[in] permeabilityAccessors_m accessor for wrappers registered by the permeability model for matrix
+   * @param[in] permeabilityAccessors_f accessor for wrappers registered by the permeability model for fracture
+   * @param[in] thermalConductivityAccessors_m accessor for wrappers registered by the thermal conductivity model for matrix
+   * @param[in] thermalConductivityAccessors_f accessor for wrappers registered by the thermal conductivity model for fracture
    * @param[in] dt time step size
    * @param[inout] localMatrix the local CRS matrix
    * @param[inout] localRhs the local right-hand side vector
    * @param[in] kernelFlags flags packed all together
    */
   FluxComputeKernel( integer const numPhases,
-                     globalIndex const rankOffset,
+                     globalIndex const rankOffset_m,
+                     globalIndex const rankOffset_f,
                      STENCILWRAPPER const & stencilWrapper,
-                     DofNumberAccessor const & dofNumberAccessor,
-                     CompFlowAccessors const & compFlowAccessors,
-                     ThermalCompFlowAccessors const & thermalCompFlowAccessors,
-                     MultiFluidAccessors const & multiFluidAccessors,
-                     ThermalMultiFluidAccessors const & thermalMultiFluidAccessors,
-                     CapPressureAccessors const & capPressureAccessors,
-                     PermeabilityAccessors const & permeabilityAccessors,
-                     ThermalConductivityAccessors const & thermalConductivityAccessors,
+                     DofNumberAccessor const & dofNumberAccessor_m,
+                     CompFlowAccessors const & compFlowAccessors_m,
+                     ThermalCompFlowAccessors const & thermalCompFlowAccessors_m,
+                     MultiFluidAccessors const & multiFluidAccessors_m,
+                     ThermalMultiFluidAccessors const & thermalMultiFluidAccessors_m,
+                     DofNumberAccessor const & dofNumberAccessor_f,
+                     CompFlowAccessors const & compFlowAccessors_f,
+                     ThermalCompFlowAccessors const & thermalCompFlowAccessors_f,
+                     MultiFluidAccessors const & multiFluidAccessors_f,
+                     ThermalMultiFluidAccessors const & thermalMultiFluidAccessors_f,
+                     CapPressureAccessors const & capPressureAccessors_m,
+                     CapPressureAccessors const & capPressureAccessors_f,
+                     PermeabilityAccessors const & permeabilityAccessors_m,
+                     PermeabilityAccessors const & permeabilityAccessors_f,
+                     ThermalConductivityAccessors const & thermalConductivityAccessors_m,
+                     ThermalConductivityAccessors const & thermalConductivityAccessors_f,
                      real64 const dt,
                      CRSMatrixView< real64, globalIndex const > const & localMatrix,
                      arrayView1d< real64 > const & localRhs,
                      BitFlags< isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels::KernelFlags > kernelFlags )
     : Base( numPhases,
-            rankOffset,
+            rankOffset_m,
+            rankOffset_f,
             stencilWrapper,
-            dofNumberAccessor,
-            compFlowAccessors,
-            multiFluidAccessors,
-            capPressureAccessors,
-            permeabilityAccessors,
+            dofNumberAccessor_m,
+            compFlowAccessors_m,
+            multiFluidAccessors_m,
+            dofNumberAccessor_f,
+            compFlowAccessors_f,
+            multiFluidAccessors_f,
+            capPressureAccessors_m,
+            capPressureAccessors_f,
+            permeabilityAccessors_m,
+            permeabilityAccessors_f,
             dt,
             localMatrix,
             localRhs,
             kernelFlags ),
-    m_temp( thermalCompFlowAccessors.get( fields::flow::temperature {} ) ),
-    m_phaseEnthalpy( thermalMultiFluidAccessors.get( fields::multifluid::phaseEnthalpy {} ) ),
-    m_dPhaseEnthalpy( thermalMultiFluidAccessors.get( fields::multifluid::dPhaseEnthalpy {} ) ),
-    m_thermalConductivity( thermalConductivityAccessors.get( fields::thermalconductivity::effectiveConductivity {} ) )
+    m_temp_m( thermalCompFlowAccessors_m.get( fields::flow::temperature {} ) ),
+    m_temp_f( thermalCompFlowAccessors_f.get( fields::flow::temperature {} ) ),
+    m_phaseEnthalpy_m( thermalMultiFluidAccessors_m.get( fields::multifluid::phaseEnthalpy {} ) ),
+    m_dPhaseEnthalpy_m( thermalMultiFluidAccessors_m.get( fields::multifluid::dPhaseEnthalpy {} ) ),
+    m_phaseEnthalpy_f( thermalMultiFluidAccessors_f.get( fields::multifluid::phaseEnthalpy {} ) ),
+    m_dPhaseEnthalpy_f( thermalMultiFluidAccessors_f.get( fields::multifluid::dPhaseEnthalpy {} ) ),
+    m_thermalConductivity_m( thermalConductivityAccessors_m.get( fields::thermalconductivity::effectiveConductivity {} ) ),
+    m_thermalConductivity_f( thermalConductivityAccessors_f.get( fields::thermalconductivity::effectiveConductivity {} ) )
   {}
 
   struct StackVariables : public Base::StackVariables
@@ -172,7 +212,7 @@ public:
 
     // Thermal transmissibility (for now, no derivatives)
 
-    real64 thermalTransmissibility[maxNumConns][2]{};
+    real64 thermalTransmissibility{};
   };
 
   /**
@@ -217,8 +257,8 @@ public:
 
       real64 dDensMean_dT[numFluxSupportPoints]{};
 
-      real64 const trans[numFluxSupportPoints] = { stack.transmissibility[connectionIndex][0],
-                                                   stack.transmissibility[connectionIndex][1] };
+      real64 const trans[numFluxSupportPoints] = { stack.transmissibility,
+                                                   stack.transmissibility };
 
       real64 convectiveEnergyFlux = 0.0;
       real64 dConvectiveEnergyFlux_dP[numFluxSupportPoints]{};
@@ -233,13 +273,17 @@ public:
         localIndex const esr = sesri[i];
         localIndex const ei  = sei[i];
 
-        bool const phaseExists = (m_phaseVolFrac[er_up][esr_up][ei_up][ip] > 0);
+        bool const phaseExists = (i == 0)
+                                 ? (m_phaseVolFrac_m[er_up][esr_up][ei_up][ip] > 0)
+                                 : (m_phaseVolFrac_f[er_up][esr_up][ei_up][ip] > 0);
         if( checkPhasePresenceInGravity && !phaseExists )
         {
           continue;
         }
 
-        dDensMean_dT[i] = m_dPhaseMassDens[er][esr][ei][0][ip][Deriv::dT];
+        dDensMean_dT[i] = (i == 0)
+                          ? m_dPhaseMassDens_m[er][esr][ei][0][ip][Deriv::dT]
+                          : m_dPhaseMassDens_f[er][esr][ei][0][ip][Deriv::dT];
         denom++;
       }
       if( denom > 1 )
@@ -269,14 +313,19 @@ public:
         {
           for( integer jp = 0; jp < m_numPhases; ++jp )
           {
-            real64 const dCapPressure_dS = m_dPhaseCapPressure_dPhaseVolFrac[er][esr][ei][0][ip][jp];
-            dCapPressure_dT += dCapPressure_dS * m_dPhaseVolFrac[er][esr][ei][jp][Deriv::dT];
+            real64 const dCapPressure_dS = (i == 0)
+                                           ? m_dPhaseCapPressure_dPhaseVolFrac_m[er][esr][ei][0][ip][jp]
+                                           : m_dPhaseCapPressure_dPhaseVolFrac_f[er][esr][ei][0][ip][jp];
+            real64 const dPhaseVolFrac_dT = (i == 0)
+                                            ? m_dPhaseVolFrac_m[er][esr][ei][jp][Deriv::dT]
+                                            : m_dPhaseVolFrac_f[er][esr][ei][jp][Deriv::dT];
+            dCapPressure_dT += dCapPressure_dS * dPhaseVolFrac_dT;
           }
         }
 
         // Step 2.2: compute derivative of phase pressure difference wrt temperature
         dPresGrad_dT[i] -= trans[i] * dCapPressure_dT;
-        real64 const gravD = trans[i] * m_gravCoef[er][esr][ei];
+        real64 const gravD = trans[i] * ((i == 0) ? m_gravCoef_m[er][esr][ei] : m_gravCoef_f[er][esr][ei]);
 
         // Step 2.3: compute derivative of gravity potential difference wrt temperature
         for( integer j = 0; j < numFluxSupportPoints; ++j )
@@ -304,17 +353,27 @@ public:
       }
       for( integer ke = 0; ke < numFluxSupportPoints; ++ke )
       {
-        dPhaseFlux_dT[ke] *= m_phaseMob[er_up][esr_up][ei_up][ip];
+        real64 const phaseMob = (k_up == 0)
+                                ? m_phaseMob_m[er_up][esr_up][ei_up][ip]
+                                : m_phaseMob_f[er_up][esr_up][ei_up][ip];
+        dPhaseFlux_dT[ke] *= phaseMob;
       }
-      dPhaseFlux_dT[k_up] += m_dPhaseMob[er_up][esr_up][ei_up][ip][Deriv::dT] * potGrad;
+      real64 const dPhaseMob_dT = (k_up == 0)
+                                  ? m_dPhaseMob_m[er_up][esr_up][ei_up][ip][Deriv::dT]
+                                  : m_dPhaseMob_f[er_up][esr_up][ei_up][ip][Deriv::dT];
+      dPhaseFlux_dT[k_up] += dPhaseMob_dT * potGrad;
 
       // Step 3.2: compute the derivative of component flux wrt temperature
 
       // slice some constitutive arrays to avoid too much indexing in component loop
       arraySlice1d< real64 const, constitutive::multifluid::USD_PHASE_COMP - 3 > phaseCompFracSub =
-        m_phaseCompFrac[er_up][esr_up][ei_up][0][ip];
+        (k_up == 0)
+        ? m_phaseCompFrac_m[er_up][esr_up][ei_up][0][ip]
+        : m_phaseCompFrac_f[er_up][esr_up][ei_up][0][ip];
       arraySlice2d< real64 const, constitutive::multifluid::USD_PHASE_COMP_DC - 3 > dPhaseCompFracSub =
-        m_dPhaseCompFrac[er_up][esr_up][ei_up][0][ip];
+        (k_up == 0)
+        ? m_dPhaseCompFrac_m[er_up][esr_up][ei_up][0][ip]
+        : m_dPhaseCompFrac_f[er_up][esr_up][ei_up][0][ip];
 
       for( integer ic = 0; ic < numComp; ++ic )
       {
@@ -340,7 +399,9 @@ public:
       }
 
       // Step 5: compute the enthalpy flux
-      real64 const enthalpy = m_phaseEnthalpy[er_up][esr_up][ei_up][0][ip];
+      real64 const enthalpy = (k_up == 0)
+                              ? m_phaseEnthalpy_m[er_up][esr_up][ei_up][0][ip]
+                              : m_phaseEnthalpy_f[er_up][esr_up][ei_up][0][ip];
       convectiveEnergyFlux += phaseFlux * enthalpy;
 
       for( integer ke = 0; ke < numFluxSupportPoints; ++ke )
@@ -354,13 +415,25 @@ public:
         }
       }
 
-      dConvectiveEnergyFlux_dP[k_up] += phaseFlux * m_dPhaseEnthalpy[er_up][esr_up][ei_up][0][ip][Deriv::dP];
-      dConvectiveEnergyFlux_dT[k_up] += phaseFlux * m_dPhaseEnthalpy[er_up][esr_up][ei_up][0][ip][Deriv::dT];
+      real64 const dPhaseEnthalpy_dP = (k_up == 0)
+                                       ? m_dPhaseEnthalpy_m[er_up][esr_up][ei_up][0][ip][Deriv::dP]
+                                       : m_dPhaseEnthalpy_f[er_up][esr_up][ei_up][0][ip][Deriv::dP];
+      real64 const dPhaseEnthalpy_dT = (k_up == 0)
+                                       ? m_dPhaseEnthalpy_m[er_up][esr_up][ei_up][0][ip][Deriv::dT]
+                                       : m_dPhaseEnthalpy_f[er_up][esr_up][ei_up][0][ip][Deriv::dT];
+      dConvectiveEnergyFlux_dP[k_up] += phaseFlux * dPhaseEnthalpy_dP;
+      dConvectiveEnergyFlux_dT[k_up] += phaseFlux * dPhaseEnthalpy_dT;
 
       real64 dProp_dC[numComp]{};
+      auto const & dCompFrac_dCompDens = (k_up == 0)
+                                         ? m_dCompFrac_dCompDens_m[er_up][esr_up][ei_up]
+                                         : m_dCompFrac_dCompDens_f[er_up][esr_up][ei_up];
+      auto const & dPhaseEnthalpy = (k_up == 0)
+                                    ? m_dPhaseEnthalpy_m[er_up][esr_up][ei_up][0][ip]
+                                    : m_dPhaseEnthalpy_f[er_up][esr_up][ei_up][0][ip];
       applyChainRule( numComp,
-                      m_dCompFrac_dCompDens[er_up][esr_up][ei_up],
-                      m_dPhaseEnthalpy[er_up][esr_up][ei_up][0][ip],
+                      dCompFrac_dCompDens,
+                      dPhaseEnthalpy,
                       dProp_dC,
                       Deriv::dC );
       for( integer jc = 0; jc < numComp; ++jc )
@@ -399,11 +472,11 @@ public:
 
     // Step 1: compute the thermal transmissibilities at this face
     // Below, the thermal conductivity used to compute (explicitly) the thermal conducivity
-    // To avoid modifying the signature of the "computeWeights" function for now, we pass m_thermalConductivity twice
+    // To avoid modifying the signature of the "computeWeights" function for now, we pass m_thermalConductivity_m and m_thermalConductivity_f
     // TODO: modify computeWeights to accomodate explicit coefficients
     m_stencilWrapper.computeWeights( iconn,
-                                     m_thermalConductivity,
-                                     m_thermalConductivity, // we have to pass something here, so we just use thermal conductivity
+                                     m_thermalConductivity_m,
+                                     m_thermalConductivity_f,
                                      stack.thermalTransmissibility,
                                      stack.dTrans_dPres ); // again, we have to pass something here, but this is unused for now
 
@@ -416,7 +489,8 @@ public:
     {
       for( k[1] = k[0] + 1; k[1] < stack.numConnectedElems; ++k[1] )
       {
-        real64 const thermalTrans[2] = { stack.thermalTransmissibility[connectionIndex][0], stack.thermalTransmissibility[connectionIndex][1] };
+        //TODO@LSL 检查原始文件中传导系数的组装方法，尽量避免拆离式组装
+        real64 const thermalTrans[2] = { stack.thermalTransmissibility, stack.thermalTransmissibility };
         localIndex const seri[2]  = {m_seri( iconn, k[0] ), m_seri( iconn, k[1] )};
         localIndex const sesri[2] = {m_sesri( iconn, k[0] ), m_sesri( iconn, k[1] )};
         localIndex const sei[2]   = {m_sei( iconn, k[0] ), m_sei( iconn, k[1] )};
@@ -431,8 +505,9 @@ public:
           localIndex const esr = sesri[ke];
           localIndex const ei  = sei[ke];
 
-          conductiveEnergyFlux += thermalTrans[ke] * m_temp[er][esr][ei];
-          dConductiveEnergyFlux_dT[ke] += thermalTrans[ke];
+          real64 const temp = (ke == 0) ? m_temp_m[er][esr][ei] : m_temp_f[er][esr][ei];
+          conductiveEnergyFlux += ( (ke == 0) ? thermalTrans[ke] :-thermalTrans[ke]) * temp;
+          dConductiveEnergyFlux_dT[ke] += ( (ke == 0) ? thermalTrans[ke] :-thermalTrans[ke]);
         }
 
         // Step 3: add conductiveFlux and its derivatives to localFlux and localFluxJacobian
@@ -480,14 +555,18 @@ public:
 protected:
 
   /// Views on temperature
-  ElementViewConst< arrayView1d< real64 const > > const m_temp;
+  ElementViewConst< arrayView1d< real64 const > > const m_temp_m;
+  ElementViewConst< arrayView1d< real64 const > > const m_temp_f;
 
   /// Views on phase enthalpies
-  ElementViewConst< arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > > const m_phaseEnthalpy;
-  ElementViewConst< arrayView4d< real64 const, constitutive::multifluid::USD_PHASE_DC > > const m_dPhaseEnthalpy;
+  ElementViewConst< arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > > const m_phaseEnthalpy_m;
+  ElementViewConst< arrayView4d< real64 const, constitutive::multifluid::USD_PHASE_DC > > const m_dPhaseEnthalpy_m;
+  ElementViewConst< arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > > const m_phaseEnthalpy_f;
+  ElementViewConst< arrayView4d< real64 const, constitutive::multifluid::USD_PHASE_DC > > const m_dPhaseEnthalpy_f;
 
   /// View on thermal conductivity
-  ElementViewConst< arrayView3d< real64 const > > const m_thermalConductivity;
+  ElementViewConst< arrayView3d< real64 const > > const m_thermalConductivity_m;
+  ElementViewConst< arrayView3d< real64 const > > const m_thermalConductivity_f;
   // for now, we treat thermal conductivity explicitly
 
 };
@@ -505,11 +584,14 @@ public:
    * @tparam STENCILWRAPPER the type of the stencil wrapper
    * @param[in] numComps the number of fluid components
    * @param[in] numPhases the number of fluid phases
-   * @param[in] rankOffset the offset of my MPI rank
+   * @param[in] rankOffset_m the offset of my MPI rank for matrix
+   * @param[in] rankOffset_f the offset of my MPI rank for fracture
    * @param[in] dofKey string to get the element degrees of freedom numbers
-   * @param[in] hasCapPressure flag specifying whether capillary pressure is used or not
-   * @param[in] solverName name of the solver (to name accessors)
-   * @param[in] elemManager reference to the element region manager
+   * @param[in] kernelFlags flags packed all together
+   * @param[in] primarySolverName name of the primary solver (matrix, to name accessors)
+   * @param[in] secondarySolverName name of the secondary solver (fracture, to name accessors)
+   * @param[in] matrixElemManager reference to the matrix element region manager
+   * @param[in] fractureElemManager reference to the fracture element region manager
    * @param[in] stencilWrapper reference to the stencil wrapper
    * @param[in] dt time step size
    * @param[inout] localMatrix the local CRS matrix
@@ -519,11 +601,14 @@ public:
   static void
   createAndLaunch( integer const numComps,
                    integer const numPhases,
-                   globalIndex const rankOffset,
+                   globalIndex const rankOffset_m,
+                   globalIndex const rankOffset_f,
                    string const & dofKey,
                    BitFlags< isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels::KernelFlags > kernelFlags,
-                   string const & solverName,
-                   ElementRegionManager const & elemManager,
+                   string const & primarySolverName,
+                   string const & secondarySolverName,
+                   ElementRegionManager const & matrixElemManager,
+                   ElementRegionManager const & fractureElemManager,
                    STENCILWRAPPER const & stencilWrapper,
                    real64 const dt,
                    CRSMatrixView< real64, globalIndex const > const & localMatrix,
@@ -535,29 +620,45 @@ public:
       integer constexpr NUM_COMP = NC();
       integer constexpr NUM_DOF = NC() + 2;
 
-      ElementRegionManager::ElementViewAccessor< arrayView1d< globalIndex const > > dofNumberAccessor =
-        elemManager.constructArrayViewAccessor< globalIndex, 1 >( dofKey );
-      dofNumberAccessor.setName( solverName + "/accessors/" + dofKey );
+      ElementRegionManager::ElementViewAccessor< arrayView1d< globalIndex const > > dofNumberAccessor_m =
+        matrixElemManager.constructArrayViewAccessor< globalIndex, 1 >( dofKey );
+      dofNumberAccessor_m.setName( primarySolverName + "/accessors/" + dofKey + "_m" );
+
+      ElementRegionManager::ElementViewAccessor< arrayView1d< globalIndex const > > dofNumberAccessor_f =
+        fractureElemManager.constructArrayViewAccessor< globalIndex, 1 >( dofKey );
+      dofNumberAccessor_f.setName( secondarySolverName + "/accessors/" + dofKey + "_f" );
 
       using KernelType = FluxComputeKernel< NUM_COMP, NUM_DOF, STENCILWRAPPER >;
-      typename KernelType::CompFlowAccessors compFlowAccessors( elemManager, solverName );
-      typename KernelType::ThermalCompFlowAccessors thermalCompFlowAccessors( elemManager, solverName );
-      typename KernelType::MultiFluidAccessors multiFluidAccessors( elemManager, solverName );
-      typename KernelType::ThermalMultiFluidAccessors thermalMultiFluidAccessors( elemManager, solverName );
-      typename KernelType::CapPressureAccessors capPressureAccessors( elemManager, solverName );
-      typename KernelType::PermeabilityAccessors permeabilityAccessors( elemManager, solverName );
-      typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors( elemManager, solverName );
+      typename KernelType::CompFlowAccessors compFlowAccessors_m( matrixElemManager, primarySolverName );
+      typename KernelType::ThermalCompFlowAccessors thermalCompFlowAccessors_m( matrixElemManager, primarySolverName );
+      typename KernelType::MultiFluidAccessors multiFluidAccessors_m( matrixElemManager, primarySolverName );
+      typename KernelType::ThermalMultiFluidAccessors thermalMultiFluidAccessors_m( matrixElemManager, primarySolverName );
+      typename KernelType::CompFlowAccessors compFlowAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::ThermalCompFlowAccessors thermalCompFlowAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::MultiFluidAccessors multiFluidAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::ThermalMultiFluidAccessors thermalMultiFluidAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::CapPressureAccessors capPressureAccessors_m( matrixElemManager, primarySolverName );
+      typename KernelType::CapPressureAccessors capPressureAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::PermeabilityAccessors permeabilityAccessors_m( matrixElemManager, primarySolverName );
+      typename KernelType::PermeabilityAccessors permeabilityAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors_m( matrixElemManager, primarySolverName );
+      typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors_f( fractureElemManager, secondarySolverName );
 
-      KernelType kernel( numPhases, rankOffset, stencilWrapper, dofNumberAccessor,
-                         compFlowAccessors, thermalCompFlowAccessors, multiFluidAccessors, thermalMultiFluidAccessors,
-                         capPressureAccessors, permeabilityAccessors, thermalConductivityAccessors,
+      KernelType kernel( numPhases, rankOffset_m, rankOffset_f, stencilWrapper,
+                         dofNumberAccessor_m, compFlowAccessors_m, thermalCompFlowAccessors_m,
+                         multiFluidAccessors_m, thermalMultiFluidAccessors_m,
+                         dofNumberAccessor_f, compFlowAccessors_f, thermalCompFlowAccessors_f,
+                         multiFluidAccessors_f, thermalMultiFluidAccessors_f,
+                         capPressureAccessors_m, capPressureAccessors_f,
+                         permeabilityAccessors_m, permeabilityAccessors_f,
+                         thermalConductivityAccessors_m, thermalConductivityAccessors_f,
                          dt, localMatrix, localRhs, kernelFlags );
       KernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
     } );
   }
 };
 
-} // namespace thermalCompositionalMultiphaseFVMKernels
+} // namespace thermalDualContinuumCompositionalMultiPhaseCrossFlowKernels
 
 } // namespace geos
 

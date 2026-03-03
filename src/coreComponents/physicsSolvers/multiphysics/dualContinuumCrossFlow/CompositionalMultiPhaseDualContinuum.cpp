@@ -25,6 +25,7 @@
 #include "finiteVolume/FluxApproximationBase.hpp"
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
 #include "physicsSolvers/fluidFlow/kernels/compositional/C1PPUPhaseFlux.hpp"
+#include "kernels/compositionalMultiPhase/ThermalFluxComputeKernel.hpp"
 
 //#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/compositionalMultiPhase/FluxComputeKernel.hpp"
 //#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/compositionalMultiPhase/Thermal"
@@ -128,64 +129,37 @@ namespace geos
           if( false )
           {
             // isothermal only for now
+            // Overall Composition
             // TODO@LSL 这也是为什么做不了多相带热的问题的原因
-//         isothermalCompositionalMultiphaseFVMKernels::
-//          FluxComputeZFormulationKernelFactory::
-//          createAndLaunch< parallelDevicePolicy<> >( m_numComponents,
-//                                                     m_numPhases,
-//                                                     dofManager.rankOffset(),
-//                                                     elemDofKey,
-//                                                     kernelFlags,
-//                                                     getName(),
-//                                                     mesh.getElemManager(),
-//                                                     stencilWrapper,
-//                                                     dt,
-//                                                     localMatrix.toViewConstSizes(),
-//                                                     localRhs.toView() );
           }
           else
           {
-            if( false )//thermal
+            if( this->primarySolver()->isThermal() && this->secondarySolver()->isThermal() )//thermal
             {
-//            thermalCompositionalMultiphaseFVMKernels::
-//            FluxComputeKernelFactory::
-//            createAndLaunch< parallelDevicePolicy<> >( m_numComponents,
-//                                                       m_numPhases,
-//                                                       dofManager.rankOffset(),
-//                                                       elemDofKey,
-//                                                       kernelFlags,
-//                                                       getName(),
-//                                                       mesh.getElemManager(),
-//                                                       stencilWrapper,
-//                                                       dt,
-//                                                       localMatrix.toViewConstSizes(),
-//                                                       localRhs.toView() );
+              thermalDualContinuumCompositionalMultiPhaseCrossFlowKernels::
+              FluxComputeKernelFactory::
+              createAndLaunch< parallelDevicePolicy<> >( this->primarySolver()->numFluidComponents(),
+                                                         this->primarySolver()->numFluidPhases(),
+                                                         dofManager.rankOffset(),
+                                                         dofManager.rankOffset(),
+                                                         elemDofKey,
+                                                         kernelFlags,
+                                                         this->primarySolver()->getName(),
+                                                         this->secondarySolver()->getName(),
+                                                         matrixMeshPtr->getElemManager(),
+                                                         fractureMeshPtr->getElemManager(),
+                                                         stencilWrapper,
+                                                         dt,
+                                                         localMatrix.toViewConstSizes(),
+                                                         localRhs.toView() );
             }
             else
             {
-              if( false )//DBC
+              if( false )
               {
-//              dissipationCompositionalMultiphaseFVMKernels::
-//              FluxComputeKernelFactory::
-//              createAndLaunch< parallelDevicePolicy<> >( m_numComponents,
-//                                                         m_numPhases,
-//                                                         dofManager.rankOffset(),
-//                                                         elemDofKey,
-//                                                         kernelFlags,
-//                                                         getName(),
-//                                                         mesh.getElemManager(),
-//                                                         stencilWrapper,
-//                                                         dt,
-//                                                         localMatrix.toViewConstSizes(),
-//                                                         localRhs.toView(),
-//                                                         m_dbcParams.omega,
-//                                                         getNonlinearSolverParameters().m_numNewtonIterations,
-//                                                         m_dbcParams.continuation,
-//                                                         m_dbcParams.miscible,
-//                                                         m_dbcParams.kappamin,
-//                                                         m_dbcParams.contMultiplier );
+                //DBC
               }
-              else
+              else if( ! this->primarySolver()->isThermal() &&  ! this->secondarySolver()->isThermal())
               {
                 isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels::
                 FluxComputeKernelFactory::
@@ -203,6 +177,10 @@ namespace geos
                                                            dt,
                                                            localMatrix.toViewConstSizes(),
                                                            localRhs.toView() );
+              }
+              else
+              {
+                GEOS_ERROR("primiarySolver and the secondary Solver should have the same thermal");
               }
             }
           }
