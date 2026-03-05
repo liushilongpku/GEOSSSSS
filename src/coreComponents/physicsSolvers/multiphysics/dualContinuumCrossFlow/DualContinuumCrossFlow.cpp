@@ -13,6 +13,9 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
                                                 Group * const parent )
   : Group( name, parent )
 {
+
+  setInputFlags( InputFlags::OPTIONAL );
+  
   // Register parameters to be read from XML
   registerWrapper( viewKeyStruct::fractureSpacingLxString(), &m_fracSpacingLx ).
                                                                                  setInputFlag( InputFlags::REQUIRED ).

@@ -1,0 +1,282 @@
+<?xml version="1.0" ?>
+
+<Problem>
+  <Solvers>
+    <CompositionalMultiPhaseDualContinuumFVM
+            name="DualContinuumSolver"
+            flowSolverName="compflow1"
+            flowSolverName1="compflow2"
+            logLevel="1"
+            writeLinearSystem="0"
+            targetRegions="{ mesh1/matrix_region ,mesh2/fracture_region}"
+            matrixRegionList="{ matrix_region }"
+            fractureRegionList="{ fracture_region }">
+      <DualContinuumCrossFlow
+              fractureSpacingLx="1.0"
+              fractureSpacingLy="1.0"
+              fractureSpacingLz="1.0"
+              matrixRegionList="{ matrix_region }"
+              fractureRegionList="{ fracture_region }"/>
+      <LinearSolverParameters
+              solverType="direct"
+              directParallel="0"
+              logLevel="0"/>
+      <NonlinearSolverParameters
+              newtonTol="1.0e-4"
+              newtonMaxIter = "40"/>
+    </CompositionalMultiPhaseDualContinuumFVM>
+
+    <CompositionalMultiphaseFVM
+            name="compflow1"
+            logLevel="1"
+            discretization="fluidTPFA"
+            temperature="368.15"
+            useMass="1"
+            writeLinearSystem="0"
+
+            maxCompFractionChange="0.5"
+            targetRegions="{mesh1/matrix_region }">
+      <NonlinearSolverParameters
+              newtonTol="1.0e-6"
+              newtonMaxIter="100"
+              lineSearchAction="None"
+              maxTimeStepCuts="5"/>
+      <LinearSolverParameters
+              directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+
+
+    <CompositionalMultiphaseFVM
+            name="compflow2"
+            logLevel="1"
+            discretization="fluidTPFA"
+            temperature="368.15"
+            useMass="1"
+            writeLinearSystem="0"
+            maxCompFractionChange="0.5"
+            targetRegions="{mesh2/fracture_region }">
+      <NonlinearSolverParameters
+              newtonTol="1.0e-6"
+              newtonMaxIter="100"
+              lineSearchAction="None"
+              maxTimeStepCuts="5"/>
+      <LinearSolverParameters
+              directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+  </Solvers>
+
+  <Mesh>
+    <InternalMesh
+      name="mesh1"
+      elementTypes="{ C3D8 }"
+      xCoords="{ 0, 3.05 }"
+      yCoords="{ 0, 3.05 }"
+      zCoords="{ 0, 3.05 }"
+      nx="{ 1 }"
+      ny="{ 1 }"
+      nz="{ 1 }"
+      cellBlockNames="{ bc_m }"/>
+    <InternalMesh
+    name="mesh2"
+    elementTypes="{ C3D8 }"
+    xCoords="{ 0, 3.05 }"
+    yCoords="{ 0, 3.05 }"
+    zCoords="{ -3.05, 0 }"
+    nx="{ 1 }"
+    ny="{ 1 }"
+    nz="{ 1 }"
+    cellBlockNames="{ bc_f }"/>
+  </Mesh>
+
+  <Geometry>
+
+
+  </Geometry>
+
+  <Events
+    maxTime="1.5768e8">
+    <PeriodicEvent
+      name="outputs"
+      timeFrequency="7.884e6"
+      target="/Outputs/vtkOutput"/>
+
+    <PeriodicEvent
+      name="solverApplications"
+      maxEventDt="7.884e6"
+      target="/Solvers/DualContinuumSolver"/>
+
+<!--    <PeriodicEvent-->
+<!--      name="statistics"-->
+<!--      timeFrequency="2e7"-->
+<!--      target="/Tasks/compflowStatistics"/>-->
+
+
+  </Events>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="matrix_region"
+      meshBody="mesh1"
+      cellBlocks="{ bc_m }"
+      materialList="{ fluid, rock, relperm,cappres}"/>
+
+    <CellElementRegion
+      name="fracture_region"
+      meshBody="mesh2"
+      cellBlocks="{ bc_f }"
+      materialList="{ fluid, rock, relperm }"/>
+  </ElementRegions>
+<!-- 需要添加毛管力 -->
+  <NumericalMethods>
+    <FiniteVolume>
+      <TwoPointFluxApproximation
+        name="fluidTPFA"/>
+    </FiniteVolume>
+  </NumericalMethods>
+
+  <Constitutive>
+    <DeadOilFluid
+      name="fluid"
+      phaseNames="{ water, gas }"
+      surfaceDensities="{ 1022.0, 0.9907 }"
+      componentMolarWeight="{ 18e-3, 16e-3 }"
+      tableFiles="{ pvtw.txt, pvdg.txt }"/>
+
+    <CompressibleSolidConstantPermeability
+      name="rock"
+      solidModelName="nullSolid"
+      porosityModelName="rockPorosity"
+      permeabilityModelName="rockPerm"/>
+    <NullModel
+      name="nullSolid"/>
+
+    <!--渗透率与孔隙度需要重新确定一下-->
+
+    <PressurePorosity
+      name="rockPorosity"
+      defaultReferencePorosity="0.29"
+      referencePressure="31e6"
+      compressibility="1.0e-9"/>
+    <ConstantPermeability
+      name="rockPerm"
+      permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
+
+
+    <TableRelativePermeabilityHysteresis
+      name="relperm"
+      phaseNames="{ water, gas }"
+      drainageWettingNonWettingRelPermTableNames="{ drainageWaterRelativePermeabilityTable,
+                                                    drainageGasRelativePermeabilityTable }"
+      imbibitionNonWettingRelPermTableName="imbibitionGasRelativePermeabilityTable"      
+      imbibitionWettingRelPermTableName="imbibitionWaterRelativePermeabilityTable"/>
+
+   <JFunctionCapillaryPressure
+           name="cappres"
+           phaseNames="{  water,gas }"
+           wettingNonWettingJFunctionTableName="jFunctionTable"
+           wettingNonWettingSurfaceTension="23.86955676433857e-3"
+           permeabilityDirection="XY"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+    <!-- Initial pressure: ~5 bar -->
+    <FieldSpecification
+      name="InitialPressure_m"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh1"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="31e6"/>
+    <FieldSpecification
+            name="InitialPressure_f"
+            initialCondition="1"
+            setNames="{ all }"
+            targetMesh="mesh2"
+            objectPath="ElementRegions"
+            fieldName="pressure"
+            scale="31e6"/>
+
+    
+    <!-- Initial composition -->
+    <FieldSpecification
+      name="InitialComposition_water_m"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh1"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="0"
+      scale="1"/>
+    <FieldSpecification
+      name="InitialComposition_gas_m"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh1"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="1"
+      scale="0"/>
+    
+    <FieldSpecification
+      name="InitialComposition_water_f"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh2"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="0"
+      scale="0"/>
+    <FieldSpecification
+      name="bottomInitialComposition_gas_f"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh2"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="1"
+      scale="1"/>
+  </FieldSpecifications>
+
+  <Outputs>
+    <VTK
+      name="vtkOutput"
+      plotFileRoot="deadoil_2ph_staircase_gravity_segregation_3d"/>
+    <Restart
+      name="restartOutput"/>
+  </Outputs>
+
+<!--  <Tasks>-->
+<!--    <CompositionalMultiphaseStatistics-->
+<!--      name="compflowStatistics"-->
+<!--      flowSolverName="compflow"-->
+<!--      logLevel="1"-->
+<!--      computeCFLNumbers="1"-->
+<!--      computeRegionStatistics="1"/>-->
+<!--  </Tasks>-->
+  
+  <Functions>
+    <TableFunction
+      name="drainageWaterRelativePermeabilityTable"
+      coordinateFiles="{ drainagePhaseVolFraction_water.txt }"
+      voxelFile="drainageRelPerm_water.txt"/>
+    <TableFunction
+      name="drainageGasRelativePermeabilityTable"
+      coordinateFiles="{ drainagePhaseVolFraction_gas.txt }"
+      voxelFile="drainageRelPerm_gas.txt"/>
+    <TableFunction
+      name="imbibitionWaterRelativePermeabilityTable"
+      coordinateFiles="{ imbibitionPhaseVolFraction_water.txt }"
+      voxelFile="imbibitionRelPerm_water.txt"/>
+    <TableFunction
+      name="imbibitionGasRelativePermeabilityTable"
+      coordinateFiles="{ imbibitionPhaseVolFraction_gas.txt }"
+      voxelFile="imbibitionRelPerm_gas.txt"/>
+    <TableFunction
+            name="jFunctionTable"
+            coordinateFiles="{ phaseVolFraction_water.txt }"
+            voxelFile="jFunction.txt"/>
+
+  </Functions>
+  
+</Problem>

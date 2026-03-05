@@ -794,7 +794,7 @@
 	</xsd:complexType>
 	<xsd:complexType name="CompositionalMultiPhaseDualContinuumFVMType">
 		<xsd:choice minOccurs="0" maxOccurs="unbounded">
-			<xsd:element name="DualContinuumCrossFlow" type="DualContinuumCrossFlowType" />
+			<xsd:element name="DualContinuumCrossFlow" type="DualContinuumCrossFlowType" maxOccurs="1" />
 			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
 			<xsd:element name="NonlinearSolverParameters" type="NonlinearSolverParametersType" maxOccurs="1" />
 			<xsd:element name="SolverStatistics" type="SolverStatisticsType" />
@@ -871,7 +871,7 @@
 	</xsd:simpleType>
 	<xsd:complexType name="DualContinuumFVMType">
 		<xsd:choice minOccurs="0" maxOccurs="unbounded">
-			<xsd:element name="DualContinuumCrossFlow" type="DualContinuumCrossFlowType" />
+			<xsd:element name="DualContinuumCrossFlow" type="DualContinuumCrossFlowType" maxOccurs="1" />
 			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
 			<xsd:element name="NonlinearSolverParameters" type="NonlinearSolverParametersType" maxOccurs="1" />
 			<xsd:element name="SolverStatistics" type="SolverStatisticsType" />

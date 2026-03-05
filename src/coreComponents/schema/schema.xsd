@@ -3116,6 +3116,7 @@ When set to 2 also output convergence information to a csv-->
 	</xsd:complexType>
 	<xsd:complexType name="CompositionalMultiPhaseDualContinuumFVMType">
 		<xsd:choice minOccurs="0" maxOccurs="unbounded">
+			<xsd:element name="DualContinuumCrossFlow" type="DualContinuumCrossFlowType" maxOccurs="1" />
 			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
 			<xsd:element name="NonlinearSolverParameters" type="NonlinearSolverParametersType" maxOccurs="1" />
 		</xsd:choice>
@@ -3159,6 +3160,18 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="writeStatistics" type="integer" default="0" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="DualContinuumCrossFlowType">
+		<!--fractureRegionList => List of fracture regions-->
+		<xsd:attribute name="fractureRegionList" type="string_array" use="required" />
+		<!--fractureSpacingLx => Fracture spacing in X direction-->
+		<xsd:attribute name="fractureSpacingLx" type="real64" use="required" />
+		<!--fractureSpacingLy => Fracture spacing in Y direction-->
+		<xsd:attribute name="fractureSpacingLy" type="real64" use="required" />
+		<!--fractureSpacingLz => Fracture spacing in Z direction-->
+		<xsd:attribute name="fractureSpacingLz" type="real64" use="required" />
+		<!--matrixRegionList => List of matrix regions-->
+		<xsd:attribute name="matrixRegionList" type="string_array" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="CompositionalMultiphaseFVMType">
 		<xsd:choice minOccurs="0" maxOccurs="unbounded">
@@ -3611,6 +3624,7 @@ See note on referenceReservoirRegion for reservoir condition options-->
 	</xsd:simpleType>
 	<xsd:complexType name="DualContinuumFVMType">
 		<xsd:choice minOccurs="0" maxOccurs="unbounded">
+			<xsd:element name="DualContinuumCrossFlow" type="DualContinuumCrossFlowType" maxOccurs="1" />
 			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
 			<xsd:element name="NonlinearSolverParameters" type="NonlinearSolverParametersType" maxOccurs="1" />
 		</xsd:choice>
