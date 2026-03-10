@@ -53,13 +53,22 @@ namespace geos
     using namespace isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels;
 
     BitFlags< KernelFlags > kernelFlags;
-    if( this->secondarySolver()->ishasCapPressure() && this->primarySolver()->ishasCapPressure()  )
+    bool hasPrimaryCapPressure = this->primarySolver()->ishasCapPressure();
+    bool hasSecondaryCapPressure = this->secondarySolver()->ishasCapPressure();
+    if( hasPrimaryCapPressure || hasSecondaryCapPressure )
+    {
+      if( !hasPrimaryCapPressure || !hasSecondaryCapPressure )
+      {
+        GEOS_ERROR("Both primary and secondary solvers must have capillary pressure models if either one has it. "
+                   "If you only want capillary pressure in one solver, set the capillary pressure values to zero in the other solver.");
+      }
       kernelFlags.set( KernelFlags::CapPressure );
-    if( this->secondarySolver()->ishasDiffusion() && this->primarySolver()->ishasDiffusion()  )
+    }
+    if( this->primarySolver()->ishasDiffusion()  )
       kernelFlags.set( KernelFlags::Diffusion );
-    if( this->secondarySolver()->ishasDispersion() && this->primarySolver()->ishasDispersion()  )
+    if( this->primarySolver()->ishasDispersion()  )
       kernelFlags.set( KernelFlags::Dispersion );
-    if( this->secondarySolver()->isuseTotalMassEquation() && this->primarySolver()->isuseTotalMassEquation()  )
+    if( this->primarySolver()->isuseTotalMassEquation()  )
       kernelFlags.set( KernelFlags::TotalMassEquation );
     if( this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence && this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence)
       kernelFlags.set( KernelFlags::CheckPhasePresenceInGravity );

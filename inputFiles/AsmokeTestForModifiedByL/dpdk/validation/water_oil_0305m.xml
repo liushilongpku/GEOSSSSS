@@ -1,0 +1,381 @@
+<?xml version="1.0" ?>
+
+<Problem>
+  <Solvers>
+
+    <CompositionalMultiPhaseDualContinuumFVM
+      name="DualContinuumSolver"
+      flowSolverName="compflow1"
+      flowSolverName1="compflow2"
+      logLevel="1"
+      writeLinearSystem="0"
+      targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
+      matrixRegionList="{ Region1 }"
+      fractureRegionList="{ Region2 }">
+      <DualContinuumCrossFlow
+        fractureSpacingLx="0.305"
+        fractureSpacingLy="0.3050"
+        fractureSpacingLz="0.305"
+        matrixRegionList="{ Region1 }"
+        fractureRegionList="{ Region2 }"/>
+      <LinearSolverParameters
+        solverType="direct"
+        directParallel="0"
+        logLevel="0"/>
+      <NonlinearSolverParameters
+        newtonTol="1.0e-4"
+        newtonMaxIter="40"/>
+    </CompositionalMultiPhaseDualContinuumFVM>
+
+    <CompositionalMultiphaseFVM
+      name="compflow1"
+      logLevel="1"
+      discretization="fluidTPFA"
+      temperature="297.15"
+      useMass="1"
+      writeLinearSystem="0"
+      maxCompFractionChange="0.5"
+      targetRegions="{mesh1/Region1 }">
+      <NonlinearSolverParameters
+        newtonTol="1.0e-6"
+        newtonMaxIter="100"
+        lineSearchAction="None"
+        maxTimeStepCuts="5"/>
+      <LinearSolverParameters
+        directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+
+    <CompositionalMultiphaseFVM
+      name="compflow2"
+      logLevel="1"
+      discretization="fluidTPFA"
+      temperature="297.15"
+      useMass="1"
+      writeLinearSystem="0"
+      maxCompFractionChange="0.5"
+      targetRegions="{mesh2/Region2 }">
+      <NonlinearSolverParameters
+        newtonTol="1.0e-6"
+        newtonMaxIter="100"
+        lineSearchAction="None"
+        maxTimeStepCuts="5"/>
+      <LinearSolverParameters
+        directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+  </Solvers>
+
+  <Mesh>
+    <InternalMesh
+            name="mesh1"
+            elementTypes="{ C3D8 }"
+            xCoords="{ 0, 0.305 }"
+            yCoords="{ 0, 0.305  }"
+            zCoords="{ 0, 0.305  }"
+            nx="{ 1 }"
+            ny="{ 1 }"
+            nz="{ 1 }"
+            cellBlockNames="{ block1 }"/>
+    <InternalMesh
+            name="mesh2"
+            elementTypes="{ C3D8 }"
+            xCoords="{ 0, 0.305  }"
+            yCoords="{ 0, 0.305  }"
+            zCoords="{ 0, 0.305  }"
+            nx="{ 1 }"
+            ny="{ 1 }"
+            nz="{ 1 }"
+            cellBlockNames="{ block2 }"/>
+  </Mesh>
+
+  <Events
+    maxTime="157680000">
+    <PeriodicEvent
+      name="outputs"
+      timeFrequency="3153600"
+      targetExactTimestep="1"
+      target="/Outputs/water_oil_0305"/>
+
+    <PeriodicEvent
+      name="outputTimeHistory_mesh1"
+      timeFrequency="3153600"
+      target="/Outputs/timeHistoryOutput_mesh1"/>
+
+    <PeriodicEvent
+      name="outputTimeHistory_mesh2"
+      timeFrequency="3153600"
+      target="/Outputs/timeHistoryOutput_mesh2"/>
+
+    <PeriodicEvent
+      name="solverApplications"
+      maxEventDt="3153600"
+      target="/Solvers/DualContinuumSolver"/>
+
+    <PeriodicEvent
+      name="statistics"
+      timeFrequency="3153600"
+      target="/Tasks/compositionalMultiphaseFlowStatistics"/>
+  </Events>
+
+  <NumericalMethods>
+    <FiniteVolume>
+      <TwoPointFluxApproximation
+        name="fluidTPFA"/>
+    </FiniteVolume>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="Region1"
+      meshBody="mesh1"
+      cellBlocks="{ block1 }"
+      materialList="{ fluid, rock, relperm, cappres }"/>
+    <CellElementRegion
+      name="Region2"
+      meshBody="mesh2"
+      cellBlocks="{ block2 }"
+      materialList="{ fluid, rock, relperm, fractureCappres }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <BlackOilFluid
+      name="fluid"
+      phaseNames="{ oil, gas, water }"
+      surfaceDensities="{ 800.907131537, 0.856234902739, 1020.3440 }"
+      componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
+      tableFiles="{ pvto_bo_orig.txt, pvtg_norv_bo.txt, pvtw_bo.txt }"/>
+
+    <CompressibleSolidConstantPermeability
+      name="rock"
+      solidModelName="nullSolid"
+      porosityModelName="rockPorosity"
+      permeabilityModelName="rockPerm"/>
+
+    <NullModel
+      name="nullSolid"/>
+
+    <PressurePorosity
+      name="rockPorosity"
+      defaultReferencePorosity="0.2"
+      referencePressure="43e6"
+      compressibility="1.0e-9"/>
+
+    <TableRelativePermeability
+      name="relperm"
+      phaseNames="{ oil, gas, water }"
+      wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
+      nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
+      threePhaseInterpolator="STONEII"/>
+
+    <TableCapillaryPressure
+      name="cappres"
+      phaseNames="{ oil, gas, water }"
+      wettingIntermediateCapPressureTableName="waterCapPresTable"
+      nonWettingIntermediateCapPressureTableName="gasCapPresTable"/>
+
+    <TableCapillaryPressure
+      name="fractureCappres"
+      phaseNames="{ oil, gas, water }"
+      wettingIntermediateCapPressureTableName="fractureWaterCapPresTable"
+      nonWettingIntermediateCapPressureTableName="fractureGasCapPresTable"/>
+
+    <ConstantPermeability
+      name="rockPerm"
+      permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+
+    <FieldSpecification
+      name="initialPressure_mesh1"
+      initialCondition="1"
+      targetMesh="mesh1"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="43.0e+6"/>
+    <FieldSpecification
+      name="initialPressure_mesh2"
+      initialCondition="1"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="43.0e+6"/>
+
+    <FieldSpecification
+      name="initialComposition_oil_mesh1"
+      initialCondition="1"
+      targetMesh="mesh1"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="0"
+      scale="1"/>
+    <FieldSpecification
+      name="initialComposition_oil_mesh2"
+      initialCondition="1"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="0"
+      scale="0.0001"/>
+
+    <FieldSpecification
+      name="initialComposition_gas_mesh1"
+      initialCondition="1"
+      targetMesh="mesh1"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="1"
+      scale="0.0"/>
+    <FieldSpecification
+      name="initialComposition_gas_mesh2"
+      initialCondition="1"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="1"
+      scale="0.0"/>
+
+    <FieldSpecification
+      name="initialComposition_water_mesh1"
+      initialCondition="1"
+      targetMesh="mesh1"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="2"
+      scale="0"/>
+    <FieldSpecification
+      name="initialComposition_water_mesh2"
+      initialCondition="1"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="2"
+      scale="0.9999"/>
+
+    <!-- Constant pressure boundary conditions to maintain 43MPa -->
+    <!-- <FieldSpecification
+      name="constantPressure_mesh1"
+      targetMesh="mesh1"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="43.0e+6"/>-->
+    <FieldSpecification
+      name="constantPressure_mesh2"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="43.0e+6"/> 
+
+    <FieldSpecification
+      name="constantWaterComposition_mesh2_o"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="0"
+      scale="0.0001"/>
+    <FieldSpecification
+      name="constantWaterComposition_mesh2_g"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="1"
+      scale="0"/>
+    <FieldSpecification
+      name="constantWaterComposition_mesh2_w"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="2"
+      scale="0.9999"/>
+  </FieldSpecifications>
+
+  <Functions>
+
+    <TableFunction
+      name="waterRelPermTable"
+      coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
+      values="{ 0.0, 0.005, 0.010, 0.020, 0.030, 0.045, 0.060, 0.110, 0.180, 0.230 }"/>
+    <TableFunction
+      name="oilRelPermTableForOW"
+      coordinates="{ 0.25, 0.30, 0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80 }"
+      values="{ 0.0, 0.042, 0.154, 0.304, 0.392, 0.492, 0.600, 0.723, 0.860, 1.000 }"/>
+    <TableFunction
+      name="gasRelPermTable"
+      coordinates="{ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55 }"
+      values="{ 0.0, 0.015, 0.050, 0.103, 0.190, 0.310, 0.420 }"/>
+    <TableFunction
+      name="oilRelPermTableForOG"
+      coordinates="{ 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 }"
+      values="{ 0.0, 0.028, 0.11, 0.25, 0.45, 0.70, 1.00 }"/>
+
+    <TableFunction
+      name="waterCapPresTable"
+      coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
+      values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }"/>
+    <TableFunction
+      name="gasCapPresTable"
+      coordinates="{ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55 }"
+   values="{ 517.11, 586.06, 654.99, 792.90, 999.74, 1758.16, 2661.38 }"/>
+
+      <!-- values="{ -4585.010395,-1689.209906,241.304563,2240.799031,4309.223499,6929.227968,11417.721758}"/> -->
+
+
+    <TableFunction
+      name="fractureWaterCapPresTable"
+      coordinates="{ 0.0, 0.2, 0.4, 0.6, 0.8, 1.0 }"
+      values="{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }"/>
+    <TableFunction
+      name="fractureGasCapPresTable"
+      coordinates="{ 0.0, 0.2, 0.4, 0.6, 0.8, 1.0 }"
+      values="{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 }"/>
+  </Functions>
+
+  <Tasks>
+    <CompositionalMultiphaseStatistics
+      name="compositionalMultiphaseFlowStatistics"
+      flowSolverName="compflow1"
+      logLevel="1"
+      computeCFLNumbers="1"
+      computeRegionStatistics="1"/>
+
+    <PackCollection
+      name="globalCompFractionCollection_mesh1"
+      objectPath="mesh1/Level0/ElementRegions/Region1/block1"
+      fieldName="globalCompFraction"/>
+    <PackCollection
+      name="globalCompFractionCollection_mesh2"
+      objectPath="mesh2/Level0/ElementRegions/Region2/block2"
+      fieldName="globalCompFraction"/>
+  </Tasks>
+
+  <Outputs>
+    <VTK
+      name="water_oil_0305"/>
+
+    <TimeHistory
+      name="timeHistoryOutput_mesh1"
+      sources="{ /Tasks/globalCompFractionCollection_mesh1 }"
+      filename="globalCompFractionHistory_mesh1"/>
+
+    <TimeHistory
+      name="timeHistoryOutput_mesh2"
+      sources="{ /Tasks/globalCompFractionCollection_mesh2 }"
+      filename="globalCompFractionHistory_mesh2"/>
+
+    <Restart
+      name="restartOutput"/>
+  </Outputs>
+
+</Problem>

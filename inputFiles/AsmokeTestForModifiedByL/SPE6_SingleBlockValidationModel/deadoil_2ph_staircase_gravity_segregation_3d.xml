@@ -81,7 +81,7 @@
     elementTypes="{ C3D8 }"
     xCoords="{ 0, 3.05 }"
     yCoords="{ 0, 3.05 }"
-    zCoords="{ -3.05, 0 }"
+    zCoords="{ 0, 3.05 }"
     nx="{ 1 }"
     ny="{ 1 }"
     nz="{ 1 }"
@@ -95,20 +95,21 @@
 
   <Events
     maxTime="1.5768e8">
-    <PeriodicEvent
-      name="outputs"
-      timeFrequency="7.884e6"
-      target="/Outputs/vtkOutput"/>
 
     <PeriodicEvent
       name="solverApplications"
-      maxEventDt="7.884e6"
+      maxEventDt="1.5788e6"
       target="/Solvers/DualContinuumSolver"/>
 
+    <PeriodicEvent
+            name="outputs"
+            timeFrequency="3.153e6"
+            target="/Outputs/vtkOutput"/>
+
 <!--    <PeriodicEvent-->
-<!--      name="statistics"-->
-<!--      timeFrequency="2e7"-->
-<!--      target="/Tasks/compflowStatistics"/>-->
+<!--      name="compfractionStatistics"-->
+<!--      timeFrequency="3.153e6"-->
+<!--      target="/Tasks/compfractionCollection"/>-->
 
 
   </Events>
@@ -124,7 +125,7 @@
       name="fracture_region"
       meshBody="mesh2"
       cellBlocks="{ bc_f }"
-      materialList="{ fluid, rock, relperm }"/>
+      materialList="{ fluid, rock, relperm,cappres }"/>
   </ElementRegions>
 <!-- 需要添加毛管力 -->
   <NumericalMethods>
@@ -135,12 +136,26 @@
   </NumericalMethods>
 
   <Constitutive>
-    <DeadOilFluid
-      name="fluid"
-      phaseNames="{ water, gas }"
-      surfaceDensities="{ 1022.0, 0.9907 }"
-      componentMolarWeight="{ 18e-3, 16e-3 }"
-      tableFiles="{ pvtw.txt, pvdg.txt }"/>
+<!--    <DeadOilFluid-->
+<!--      name="fluid"-->
+<!--      phaseNames="{ water, gas }"-->
+<!--      surfaceDensities="{ 1022.0, 0.9907 }"-->
+<!--      componentMolarWeight="{ 18e-3, 16e-3 }"-->
+<!--      tableFiles="{ pvtw.txt, pvdg.txt }"/>-->
+
+<!--    <BlackOilFluid-->
+<!--            name="fluid"-->
+<!--            phaseNames="{ gas, oil }"-->
+<!--            surfaceDensities="{ 100.0, 1000.0 }"-->
+<!--            componentMolarWeight="{ 16e-3, 114e-3 }"-->
+<!--            tableFiles="{ pvdg_m.txt, pvdo_m.txt}"/>-->
+
+    <BlackOilFluid
+            name="fluid"
+            phaseNames="{ oil, gas, water }"
+            surfaceDensities="{ 800.0, 0.9907, 1022.0 }"
+            componentMolarWeight="{ 114e-3, 16e-3, 18e-3 }"
+            tableFiles="{ pvto_m.txt, pvtg_m.txt, pvtw_m.txt }"/>
 
     <CompressibleSolidConstantPermeability
       name="rock"
@@ -154,7 +169,7 @@
 
     <PressurePorosity
       name="rockPorosity"
-      defaultReferencePorosity="0.29"
+      defaultReferencePorosity="0.19"
       referencePressure="31e6"
       compressibility="1.0e-9"/>
     <ConstantPermeability
@@ -162,19 +177,25 @@
       permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
 
 
-    <TableRelativePermeabilityHysteresis
-      name="relperm"
-      phaseNames="{ water, gas }"
-      drainageWettingNonWettingRelPermTableNames="{ drainageWaterRelativePermeabilityTable,
-                                                    drainageGasRelativePermeabilityTable }"
-      imbibitionNonWettingRelPermTableName="imbibitionGasRelativePermeabilityTable"      
-      imbibitionWettingRelPermTableName="imbibitionWaterRelativePermeabilityTable"/>
-
+<!--    <TableRelativePermeabilityHysteresis-->
+<!--      name="relperm"-->
+<!--      phaseNames="{ water, gas }"-->
+<!--      drainageWettingNonWettingRelPermTableNames="{ drainageWaterRelativePermeabilityTable,-->
+<!--                                                    drainageGasRelativePermeabilityTable }"-->
+<!--      imbibitionNonWettingRelPermTableName="imbibitionGasRelativePermeabilityTable"      -->
+<!--      imbibitionWettingRelPermTableName="imbibitionWaterRelativePermeabilityTable"/>-->
+    <TableRelativePermeability
+            name="relperm"
+            phaseNames="{ oil, gas, water }"
+            wettingIntermediateRelPermTableNames="{ waterRelativePermeabilityTable, oilRelativePermeabilityTableForWO }"
+            nonWettingIntermediateRelPermTableNames="{ gasRelativePermeabilityTable, oilRelativePermeabilityTableForGO }"/>
    <JFunctionCapillaryPressure
            name="cappres"
-           phaseNames="{  water,gas }"
-           wettingNonWettingJFunctionTableName="jFunctionTable"
-           wettingNonWettingSurfaceTension="23.86955676433857e-3"
+           phaseNames="{ oil, gas, water }"
+           wettingIntermediateJFunctionTableName="waterJFunctionTable"
+           wettingIntermediateSurfaceTension="23.86955676433857e-3"
+           nonWettingIntermediateJFunctionTableName="gasJFunctionTable"
+           nonWettingIntermediateSurfaceTension="23.86955676433857e-3"
            permeabilityDirection="XY"/>
   </Constitutive>
 
@@ -195,19 +216,19 @@
             targetMesh="mesh2"
             objectPath="ElementRegions"
             fieldName="pressure"
-            scale="31e6"/>
+            scale="30e6"/>
 
     
-    <!-- Initial composition -->
+    <!-- Initial composition: matrix has oil and water (connate water), small amount of gas -->
     <FieldSpecification
-      name="InitialComposition_water_m"
+      name="InitialComposition_oil_m"
       initialCondition="1"
       setNames="{ all }"
       targetMesh="mesh1"
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="0"
-      scale="1"/>
+      scale="0.94999"/>
     <FieldSpecification
       name="InitialComposition_gas_m"
       initialCondition="1"
@@ -216,8 +237,36 @@
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="1"
-      scale="0"/>
+      scale="0.00001"/>
+    <FieldSpecification
+      name="InitialComposition_water_m"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh1"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="2"
+      scale="0.05"/>
     
+    <!-- Initial composition: fracture has mostly gas, small amounts of oil and water -->
+    <FieldSpecification
+      name="InitialComposition_oil_f"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh2"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="0"
+      scale="0.00001"/>
+    <FieldSpecification
+      name="InitialComposition_gas_f"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh2"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="1"
+      scale="0.99998"/>
     <FieldSpecification
       name="InitialComposition_water_f"
       initialCondition="1"
@@ -225,17 +274,8 @@
       targetMesh="mesh2"
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
-      component="0"
-      scale="0"/>
-    <FieldSpecification
-      name="bottomInitialComposition_gas_f"
-      initialCondition="1"
-      setNames="{ all }"
-      targetMesh="mesh2"
-      objectPath="ElementRegions"
-      fieldName="globalCompFraction"
-      component="1"
-      scale="1"/>
+      component="2"
+      scale="0.00001"/>
   </FieldSpecifications>
 
   <Outputs>
@@ -244,6 +284,10 @@
       plotFileRoot="deadoil_2ph_staircase_gravity_segregation_3d"/>
     <Restart
       name="restartOutput"/>
+<!--    <TimeHistory-->
+<!--            name="compFractionOutput"-->
+<!--            sources="{ /Tasks/compfractionCollection }"-->
+<!--            filename="compFraction"/>-->
   </Outputs>
 
 <!--  <Tasks>-->
@@ -256,27 +300,53 @@
 <!--  </Tasks>-->
   
   <Functions>
+<!--    <TableFunction-->
+<!--      name="drainageWaterRelativePermeabilityTable"-->
+<!--      coordinateFiles="{ drainagePhaseVolFraction_water.txt }"-->
+<!--      voxelFile="drainageRelPerm_water.txt"/>-->
+<!--    <TableFunction-->
+<!--      name="drainageGasRelativePermeabilityTable"-->
+<!--      coordinateFiles="{ drainagePhaseVolFraction_gas.txt }"-->
+<!--      voxelFile="drainageRelPerm_gas.txt"/>-->
+<!--    <TableFunction-->
+<!--      name="imbibitionWaterRelativePermeabilityTable"-->
+<!--      coordinateFiles="{ imbibitionPhaseVolFraction_water.txt }"-->
+<!--      voxelFile="imbibitionRelPerm_water.txt"/>-->
+<!--    <TableFunction-->
+<!--      name="imbibitionGasRelativePermeabilityTable"-->
+<!--      coordinateFiles="{ imbibitionPhaseVolFraction_gas.txt }"-->
+<!--      voxelFile="imbibitionRelPerm_gas.txt"/>-->
+
     <TableFunction
-      name="drainageWaterRelativePermeabilityTable"
-      coordinateFiles="{ drainagePhaseVolFraction_water.txt }"
-      voxelFile="drainageRelPerm_water.txt"/>
+            name="waterRelativePermeabilityTable"
+            coordinateFiles="{ waterSaturation.txt }"
+            voxelFile="waterRelperm.txt"/>
     <TableFunction
-      name="drainageGasRelativePermeabilityTable"
-      coordinateFiles="{ drainagePhaseVolFraction_gas.txt }"
-      voxelFile="drainageRelPerm_gas.txt"/>
+            name="oilRelativePermeabilityTableForWO"
+            coordinateFiles="{ waterSaturation.txt }"
+            voxelFile="oilRelpermForWO.txt"/>
     <TableFunction
-      name="imbibitionWaterRelativePermeabilityTable"
-      coordinateFiles="{ imbibitionPhaseVolFraction_water.txt }"
-      voxelFile="imbibitionRelPerm_water.txt"/>
+            name="gasRelativePermeabilityTable"
+            coordinateFiles="{ gasSaturation.txt }"
+            voxelFile="gasRelperm.txt"/>
     <TableFunction
-      name="imbibitionGasRelativePermeabilityTable"
-      coordinateFiles="{ imbibitionPhaseVolFraction_gas.txt }"
-      voxelFile="imbibitionRelPerm_gas.txt"/>
+            name="oilRelativePermeabilityTableForGO"
+            coordinateFiles="{ gasSaturation.txt }"
+            voxelFile="oilRelpermForGO.txt"/>
     <TableFunction
-            name="jFunctionTable"
-            coordinateFiles="{ phaseVolFraction_water.txt }"
-            voxelFile="jFunction.txt"/>
+            name="waterJFunctionTable"
+            coordinateFiles="{ waterSaturation.txt }"
+            voxelFile="waterJFunction.txt"/>
+    <TableFunction
+            name="gasJFunctionTable"
+            coordinateFiles="{ gasSaturationForJFunc.txt }"
+            voxelFile="gasJFunction.txt"/>
 
   </Functions>
-  
+<!--  <Tasks>-->
+<!--  <PackCollection-->
+<!--          name="compfractionCollection"-->
+<!--          objectPath="ElementRegions"-->
+<!--          fieldName="globalCompFraction"/>-->
+<!--  </Tasks>-->
 </Problem>

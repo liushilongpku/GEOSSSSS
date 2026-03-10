@@ -114,7 +114,7 @@ struct PotGrad
       {
         if( i == 0 )
         {
-          capPressure = phaseCapPressure_m[er][esr][ei][0][ip];
+          capPressure = phaseCapPressure_m[er][esr][ei][0][ip];//TODO@LSL 裂缝的 capillary pressure与基质不同
 
           for( integer jp = 0; jp < numPhase; ++jp )
           {
@@ -146,7 +146,11 @@ struct PotGrad
 
       if( i==0 ) //判断是应该使用那种物质中的场
       {
-        real64 const dP = pres_m[er][esr][ei] - capPressure;
+        //TODO@LSL 这里需要添加一个网格内部的重力项？与SPE6的案例设置对上，kazemi模型dP+dP_cap+dP_gravity
+        std::cout << "phase " << ip << " in block "<< i << " has pressure of " << pres_m[er][esr][ei]<< " and the cappres is :"<< capPressure<< std::endl;
+
+        real64 const dP = (false) ? pres_m[er][esr][ei] - capPressure +  3.05/2 * 9.8 * 800 :  pres_m[er][esr][ei] - capPressure ;
+        //real64 const dP =  pres_m[er][esr][ei] - capPressure ;
         presGrad += trans[i] * dP;
         dPresGrad_dTrans += dP;
         dPresGrad_dP[i] += trans[i] * ( 1 - dCapPressure_dP ) + dTrans_dPres[i] * dP;
@@ -176,8 +180,9 @@ struct PotGrad
           }
         }
       }
-      else if(i == 1)
+      else if(i == 1)//TODO@LSL 当裂缝网格与基质网格的网格中心不同时，会产生由重力带来的差异，需要检查这种差异
       {
+        std::cout << "phase " << ip << " in block "<< i << " has pressure of " << pres_m[er][esr][ei]<< " and the cappres is :"<< capPressure<< std::endl;
         real64 const dP = pres_f[er][esr][ei] - capPressure;
         presGrad += -trans[i] * dP;
         dPresGrad_dTrans += dP;

@@ -148,16 +148,25 @@ void DualContinuumCrossFlow::initialize( MeshLevel & meshMatrix,
         localIndex elementIndices[2] = { i, i }; // 1-to-1 mapping
 
         // Compute Geometric Weights [Wx, Wy, Wz]
+        //薄板形状的形状因子，乘体积是因为算这个网格的交换而不是每单位体积的交换
         // W = 4 * V / L^2
+
+        //长方形的是
+        // W = 6(1/a²+1/b²+1/c²)
         // 修正：从数组中获取第 i 个单元的体积
         real64 const Volume = cellVolumeArrayViewMatrix[i];
-        real64 weights[3];
-        weights[0] = 4.0 * Volume * invLx2;
-        weights[1] = 4.0 * Volume * invLy2;
-        weights[2] = 4.0 * Volume * invLz2;
-
+        real64 shapeFactory[3];
+//        shapeFactory[0] = 6.0 * Volume * invLx2;
+//        shapeFactory[1] = 6.0 * Volume * invLy2;
+//        shapeFactory[2] = 6.0 * Volume * invLz2;
+        shapeFactory[0] = 2.69*Volume;
+        shapeFactory[1] = 2.69*Volume;
+        shapeFactory[2] = 2.69*Volume;
+//        shapeFactory[0] = 25*Volume;
+//        shapeFactory[1] = 25*Volume;
+//        shapeFactory[2] = 25*Volume;
         // Add to Stencil
-        m_stencil.add( 2, regionIndices, subRegionIndices, elementIndices, weights, ConnIdx );
+        m_stencil.add( 2, regionIndices, subRegionIndices, elementIndices, shapeFactory, ConnIdx );
         ConnIdx++;
       }
       subRegionIdx++;
