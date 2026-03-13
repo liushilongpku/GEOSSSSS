@@ -62,7 +62,7 @@ void PorosityBase::allocateConstitutiveData( Group & parent, localIndex const nu
 
 void PorosityBase::postInputInitialization()
 {
-  getField< fields::porosity::referencePorosity >().
+    getField< fields::porosity::referencePorosity >().
     setApplyDefaultValue( m_defaultReferencePorosity );
 }
 

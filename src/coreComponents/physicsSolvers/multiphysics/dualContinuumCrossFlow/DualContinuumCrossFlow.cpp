@@ -1,13 +1,18 @@
 #include "DualContinuumCrossFlow.hpp"
+#include "mesh/DomainPartition.hpp"
 #include "mesh/MeshLevel.hpp"
 #include "mesh/ElementRegionManager.hpp"
 #include "mesh/ElementRegionBase.hpp"
+#include "mesh/CellElementRegion.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
 #include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolver.hpp"
+#include "constitutive/gravityDrainagePressure/SimpleGravityDrainagePressure.hpp"
+
 namespace geos
 {
 
 using namespace dataRepository;
+using namespace constitutive;
 
 DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
                                                 Group * const parent )
@@ -41,7 +46,10 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
 
   registerWrapper( viewKeyStruct::DualContinuumStencilString(), &m_stencil ).
                           setRestartFlags( RestartFlags::NO_WRITE );
-
+  this->registerWrapper( viewKeyStruct::gravityDrainageFlag(), &m_gravityDrainageFlag ).
+    setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+    setDefaultValue(0).
+    setDescription( "flag of gravity drainage" );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )
@@ -70,22 +78,45 @@ localIndex DualContinuumCrossFlow::findRegionIndexInRegionManager( ElementRegion
   return idx;
 }
 
-void DualContinuumCrossFlow::initialize( MeshLevel & meshMatrix,
-                                         MeshLevel & meshFracture )
+void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
+                                             MeshLevel & meshMatrix,
+                                             MeshLevel & meshFracture )
 {
+
+  
   if( m_matrixRegionList.size() == 0 || m_fractureRegionList.size() == 0 )
   {
     GEOS_ERROR( "Matrix region list or fracture region list is empty." );
     return;
   }
-  // 1. 分别获取两个网格的 Region 管理器
+
+  // 0.1 分别获取两个网格的 Region 管理器
   ElementRegionManager const & elemManagerMatrix = meshMatrix.getElemManager();
   ElementRegionManager const & elemManagerFracture = meshFracture.getElemManager();
 
   string meshMatrixBodyName = meshMatrix.getParent().getParent().getName();
   string meshFractureBodyName = meshFracture.getParent().getParent().getName();
 
-  // 2. 预估 Stencil 大小 (Calculate total size)
+  // 重力排驱压力初始化
+  // 1.1 初始化重力排驱压力
+  if(m_gravityDrainageFlag)
+  {
+    elemManagerMatrix.forElementRegions( [&]( ElementRegionBase const & elemRegionMatrix )
+    {
+      elemRegionMatrix.forElementSubRegions( [&]( ElementSubRegionBase const & elementSubRegionMatrix )
+      {
+        dataRepository::Group const & constitutiveModels = elementSubRegionMatrix.getConstitutiveModels();
+        constitutiveModels.forSubGroups< GravityDrainagePressureBase >( [&]( GravityDrainagePressureBase const & gdModel )
+        {
+          gdModel.setupGravityDrainagePressure();
+        } );
+      });
+    });
+  }
+
+
+  // 2 构建窜流项stencil
+  // 2.1 预估 Stencil 大小 (Calculate total size)
   localIndex totalConnections = 0;
   for( auto const & regionName: m_matrixRegionList )
   {
@@ -116,7 +147,7 @@ void DualContinuumCrossFlow::initialize( MeshLevel & meshMatrix,
 
   localIndex ConnIdx = 0;
 
-  // 3.循环所有 Region，构建 Stencil
+  // 2.2 循环所有 Region，构建 Stencil
   localIndex regionMatrixIdx = 0;
   elemManagerMatrix.forElementRegions( [&]( ElementRegionBase const & elemRegionMatrix ){
 
@@ -151,20 +182,23 @@ void DualContinuumCrossFlow::initialize( MeshLevel & meshMatrix,
         //薄板形状的形状因子，乘体积是因为算这个网格的交换而不是每单位体积的交换
         // W = 4 * V / L^2
 
-        //长方形的是
-        // W = 6(1/a²+1/b²+1/c²)
+        //长方形的是 kazemi
+        // W = 4(1/a²+1/b²+1/c²)
         // 修正：从数组中获取第 i 个单元的体积
         real64 const Volume = cellVolumeArrayViewMatrix[i];
         real64 shapeFactory[3];
-//        shapeFactory[0] = 6.0 * Volume * invLx2;
-//        shapeFactory[1] = 6.0 * Volume * invLy2;
-//        shapeFactory[2] = 6.0 * Volume * invLz2;
-        shapeFactory[0] = 2.69*Volume;
-        shapeFactory[1] = 2.69*Volume;
-        shapeFactory[2] = 2.69*Volume;
+        shapeFactory[0] = 4.0 * Volume * invLx2;
+        shapeFactory[1] = 4.0 * Volume * invLy2;
+        shapeFactory[2] = 4.0 * Volume * invLz2;
+//        shapeFactory[0] = 2.69*Volume;
+//        shapeFactory[1] = 2.69*Volume;
+//        shapeFactory[2] = 2.69*Volume;
 //        shapeFactory[0] = 25*Volume;
 //        shapeFactory[1] = 25*Volume;
 //        shapeFactory[2] = 25*Volume;
+//        shapeFactory[0] = 30*Volume;
+//        shapeFactory[1] = 30*Volume;
+//        shapeFactory[2] = 30*Volume;
         // Add to Stencil
         m_stencil.add( 2, regionIndices, subRegionIndices, elementIndices, shapeFactory, ConnIdx );
         ConnIdx++;

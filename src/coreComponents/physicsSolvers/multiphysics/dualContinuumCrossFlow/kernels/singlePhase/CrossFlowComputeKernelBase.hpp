@@ -29,6 +29,8 @@
 #include "constitutive/fluid/singlefluid/SlurryFluidFields.hpp"
 #include "constitutive/permeability/PermeabilityBase.hpp"
 #include "constitutive/permeability/PermeabilityFields.hpp"
+#include "constitutive/gravityDrainagePressure/GravityDrainagePressureBase.hpp"
+#include "constitutive/gravityDrainagePressure/GravityDrainagePressureFields.hpp"
 #include "linearAlgebra/interfaces/InterfaceTypes.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBaseFields.hpp"
@@ -87,6 +89,10 @@ public:
                               fields::permeability::permeability,
                               fields::permeability::dPerm_dPressure >;
 
+  using GravityDrainagePressureAccessors =
+    StencilMaterialAccessors< constitutive::GravityDrainagePressureBase,
+                              fields::gravdrainage::gravityDrainagePressure >;
+
   using ProppantPermeabilityAccessors =
     StencilMaterialAccessors< constitutive::PermeabilityBase,
                               fields::permeability::permeability,
@@ -101,6 +107,7 @@ public:
    * @param[in] singleFlowAccessors accessor for wrappers registered by the solver
    * @param[in] singlePhaseFluidAccessors accessor for wrappers registered by the singlefluid model
    * @param[in] permeabilityAccessors accessor for wrappers registered by the permeability model
+   * @param[in] gravityDrainagePressureAccessors accessor for gravity drainage pressure
    * @param[in] dt time step size
    * @param[inout] localMatrix the local CRS matrix
    * @param[inout] localRhs the local right-hand side vector
@@ -115,6 +122,7 @@ public:
                          SinglePhaseFlowAccessors const & singlePhaseFlowAccessors_fracture,
                          SinglePhaseFluidAccessors const & singlePhaseFluidAccessors_fracture,
                          PermeabilityAccessors const & permeabilityAccessors_fracture,
+                         GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors,
                          real64 const & dt,
                          CRSMatrixView< real64, globalIndex const > const & localMatrix,
                          arrayView1d< real64 > const & localRhs )
@@ -140,6 +148,7 @@ public:
     m_dMob_fracture( singlePhaseFlowAccessors_fracture.get( fields::flow::dMobility {} ) ),
     m_dens_fracture( singlePhaseFluidAccessors_fracture.get( fields::singlefluid::density {} ) ),
     m_dDens_fracture( singlePhaseFluidAccessors_fracture.get( fields::singlefluid::dDensity {} ) ),
+    m_gravityDrainagePressure( gravityDrainagePressureAccessors.get( fields::gravdrainage::gravityDrainagePressure {} ) ),
     m_localMatrix( localMatrix ),
     m_localRhs( localRhs )
   {}
@@ -199,6 +208,9 @@ protected:
     /// Views on fluid density
   ElementViewConst< arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > > const m_dens_fracture;
   ElementViewConst< arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > > const m_dDens_fracture;
+
+  /// Views on gravity drainage pressure
+  ElementViewConst< arrayView1d< real64 const > > const m_gravityDrainagePressure;
 
   // Residual and jacobian
 

@@ -8,6 +8,7 @@ namespace geos
 {
 // Forward declarations
 class MeshLevel;
+class DomainPartition;
 class DofManager;
 
 /**
@@ -26,9 +27,10 @@ public:
   // Find region index in the ElementRegionManager
   localIndex findRegionIndexInRegionManager(ElementRegionManager const & elemManager,
                                             string const & regionName );
-  // Initialize: Read params and build stencil
-  void initialize( MeshLevel & meshMatrix,
-                   MeshLevel & meshFracture );
+  // Setup: Read params and build stencil
+  void setupCrossFlow( DomainPartition & domain,
+                       MeshLevel & meshMatrix,
+                       MeshLevel & meshFracture );
 
   // Launch the kernel to add transfer terms to residual
   // (Template to support different solver traits if needed)
@@ -41,6 +43,9 @@ public:
   // Accessor for the stencil wrapper
   auto createKernelWrapper() const { return m_stencil.createKernelWrapper(); }
 
+  // Accessor for fracture spacing
+  real64 getFracSpacingLz() const { return m_fracSpacingLz; }
+
   static string catalogName() { return "DualContinuumCrossFlow"; }
 
   struct viewKeyStruct : public dataRepository::Group::viewKeyStruct
@@ -52,9 +57,12 @@ public:
     static constexpr char const * matrixRegionList() { return "matrixRegionList"; }
     static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
     static constexpr char const * DualContinuumStencilString() {return "DualContinuumStencil";}
+    static constexpr char const * gravityDrainageFlag() { return "gravityDrainageFlag"; }
+
   };
 
   DualContinuumStencil & getStencil(){return m_stencil;};
+  int m_gravityDrainageFlag;
 
 private:
   // --- Parameters ---

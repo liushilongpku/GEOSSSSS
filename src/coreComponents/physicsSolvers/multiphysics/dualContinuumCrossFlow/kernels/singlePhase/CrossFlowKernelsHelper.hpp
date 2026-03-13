@@ -157,6 +157,7 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
                                   ElementViewConst< arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > > const & dDens_fracture,
                                   ElementViewConst< arrayView1d< real64 const > > const & mob_fracture,
                                   ElementViewConst< arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > > const & dMob_fracture,
+                                  ElementViewConst< arrayView1d< real64 const > > const & gravityDrainagePressure,
                                   real64 & alpha,
                                   real64 & mobility,
                                   real64 & potGrad,
@@ -257,6 +258,9 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
   dFlux_dTrans = mobility * dpotGrad_dTrans;
 
   // Derivatives w.r.t. pressure on each side
+  // Add gravity drainage pressure effect (after capillary pressure effect)
+  // Note: gravityDrainagePressure is accessed if available
+  // Currently reserved for future use in potGrad or dFlux_dP calculations
 
   // TODO@LSL：需要添加形状因子，调整传导率的计算方式，现在先按原来的方式计算
   dFlux_dP[0] = mobility * ( transmissibility - dDensMean_dP[0] * sumWeightGrav )

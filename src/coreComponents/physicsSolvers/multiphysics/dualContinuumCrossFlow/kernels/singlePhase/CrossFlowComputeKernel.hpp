@@ -49,6 +49,7 @@ public:
  * @param[in] singlePhaseFlowAccessors
  * @param[in] singlePhaseFluidAccessors
  * @param[in] permeabilityAccessors
+ * @param[in] gravityDrainagePressureAccessors
  * @param[in] dt time step size
  * @param[inout] localMatrix the local CRS matrix
  * @param[inout] localRhs the local right-hand side vector
@@ -64,6 +65,7 @@ public:
                           SinglePhaseFlowAccessors const & singlePhaseFlowAccessors_fracture,
                           SinglePhaseFluidAccessors const & singlePhaseFluidAccessors_fracture,
                           PermeabilityAccessors const & permeabilityAccessors_fracture,
+                          GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors,
                           real64 const & dt,
                           CRSMatrixView< real64, globalIndex const > const & localMatrix,
                           arrayView1d< real64 > const & localRhs )
@@ -77,6 +79,7 @@ public:
                                   singlePhaseFlowAccessors_fracture,
                                   singlePhaseFluidAccessors_fracture,
                                   permeabilityAccessors_fracture,
+                                  gravityDrainagePressureAccessors,
                                   dt,
                                   localMatrix,
                                   localRhs ),
@@ -232,6 +235,7 @@ public:
                                  m_dDens_fracture,
                                  m_mob_fracture,
                                  m_dMob_fracture,
+                                 m_gravityDrainagePressure,
                                  alpha,
                                  mobility,
                                  potGrad,
@@ -406,11 +410,13 @@ public:
     typename kernelType::SinglePhaseFlowAccessors flowAccessors_fracture( fractureElemManager, solverName );
     typename kernelType::SinglePhaseFluidAccessors fluidAccessors_fracture( fractureElemManager, solverName );
     typename kernelType::PermeabilityAccessors permAccessors_fracture( fractureElemManager, solverName );
+    typename kernelType::GravityDrainagePressureAccessors gravDrainAccessors( matrixElemManager, solverName );
 
     kernelType kernel( rankOffsetM,rankOffsetF, stencilWrapper, dofMatrixNumberAccessor,
                        dofFractureNumberAccessor,
                        flowAccessors, fluidAccessors, permAccessors,
                        flowAccessors_fracture,fluidAccessors_fracture,permAccessors_fracture,
+                       gravDrainAccessors,
                        dt, localMatrix, localRhs );
     kernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
   }

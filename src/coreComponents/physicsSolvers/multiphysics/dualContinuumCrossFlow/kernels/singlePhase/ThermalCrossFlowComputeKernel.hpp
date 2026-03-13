@@ -57,6 +57,10 @@ public:
   using SinglePhaseFlowAccessors = AbstractBase::SinglePhaseFlowAccessors;
   using SinglePhaseFluidAccessors = AbstractBase::SinglePhaseFluidAccessors;
   using PermeabilityAccessors = AbstractBase::PermeabilityAccessors;
+  
+  using GravityDrainagePressureAccessors =
+    StencilMaterialAccessors< constitutive::GravityDrainagePressureBase,
+                              fields::gravdrainage::gravityDrainagePressure >;
 
   using AbstractBase::m_dt;
 
@@ -136,6 +140,7 @@ public:
                           ThermalSinglePhaseFluidAccessors const & thermalSinglePhaseFluidAccessors_fracture,
                           PermeabilityAccessors const & permeabilityAccessors_fracture,
                           ThermalConductivityAccessors const & thermalConductivityAccessors_fracture,
+                          GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors,
                           real64 const & dt,
                      CRSMatrixView< real64, globalIndex const > const & localMatrix,
                      arrayView1d< real64 > const & localRhs )
@@ -150,6 +155,7 @@ public:
             singlePhaseFlowAccessors_fracture,
             singlePhaseFluidAccessors_fracture,
             permeabilityAccessors_fracture,
+            gravityDrainagePressureAccessors,
             dt,
             localMatrix,
             localRhs ),
@@ -527,11 +533,14 @@ public:
     typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors( matrixElemManager, solverName );
     typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors_fracture( fractureElemManager, solverName );
 
+    typename KernelType::GravityDrainagePressureAccessors gravDrainAccessors( matrixElemManager, solverName );
+
     KernelType kernel( rankOffsetM,rankOffsetF, stencilWrapper, dofNumberAccessor,dofNumberAccessor_fracture,
                        flowAccessors, thermalFlowAccessors, fluidAccessors, thermalFluidAccessors,
                        permAccessors, thermalConductivityAccessors,
                        flowAccessors_fracture, thermalFlowAccessors_fracture, fluidAccessors_fracture, thermalFluidAccessors_fracture,
                        permAccessors_fracture,thermalConductivityAccessors_fracture,
+                       gravDrainAccessors,
                        dt, localMatrix, localRhs );
     KernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
   }

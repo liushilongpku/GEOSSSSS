@@ -91,6 +91,7 @@ public:
     this->registerWrapper( viewKeyStruct::fractureRegionList(), &m_fractureRegionList ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
       setDescription( "List of fracture regions" );
+
   }
 
   virtual void postInputInitialization() override {
@@ -130,7 +131,7 @@ public:
     MeshBody & fracture = domain.getMeshBody("mesh2");
     MeshLevel & primaryMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
     MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
-    m_crossFlow.initialize( primaryMesh, secondaryMesh );
+    m_crossFlow.setupCrossFlow( domain, primaryMesh, secondaryMesh );//TODO@LSL 这块需要对多region进行支持，可能会报错
   };
 
   /**
@@ -192,6 +193,15 @@ public:
                                          PRIMARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
                                          SECONDARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
                                          DofManager::Connector::Elem);
+  }
+
+  /**
+   * @brief Get the fracture spacing Lz
+   * @return The fracture spacing in z-direction
+   */
+  real64 getFracSpacingLz() const
+  {
+    return m_crossFlow.getFracSpacingLz();
   }
 
 protected:
@@ -764,6 +774,10 @@ protected:
     stabilization::StabilizationType m_stabilizationType;
   DualContinuumStencil & getStencil(){return m_crossFlow.getStencil();};
 
+  // Accessor for gravity drainage flag
+  int getGravityDrainageFlag() const { return m_crossFlow.m_gravityDrainageFlag; }
+
+  // Added flag to indicate if gravity draiange should be applied
 private:
   //std::shared_ptr< DualContinuumCrossFlow > m_crossFlow;
   DualContinuumCrossFlow m_crossFlow;
@@ -783,6 +797,7 @@ private:
     static constexpr char const * matrixRegionList() { return "matrixRegionList"; }
     static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
     static constexpr char const * DualContinuumCrossFlow() { return "DualContinuumCrossFlow"; }
+
   };
 
 }; // class DualContinuumFlowSolver

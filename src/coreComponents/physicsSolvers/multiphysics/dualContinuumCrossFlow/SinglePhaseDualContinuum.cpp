@@ -25,6 +25,7 @@
 
 #include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/singlePhase/CrossFlowComputeKernel.hpp"
 #include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/singlePhase/ThermalCrossFlowComputeKernel.hpp"
+#include "constitutive/gravityDrainagePressure/GravityDrainagePressureBase.hpp"
 namespace geos
 {
   using namespace dataRepository;
@@ -283,6 +284,52 @@ namespace geos
     }
   }
   */
+  template <typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
+  void DualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>::updateState( geos::DomainPartition & domain )
+  {
+    Base::updateState(domain);
+    if( this->getGravityDrainageFlag() )
+    {
+      // Update gravity drainage pressure for dual continuum flow
+      GEOS_LOG("Updating gravity drainage pressure for dual continuum flow");
+      
+      // Get primary and secondary solvers
+      PRIMARY_FLOW_SOLVER const * primarySolver = this->primarySolver();
+      
+      // Get meshes for matrix and fracture
+      std::vector<MeshLevel const*> meshLevelPtrs;
+      this->forDiscretizationOnMeshTargets(
+        domain.getMeshBodies(),
+        [&]( string const &,
+             MeshLevel const & mesh,
+             string_array const & )
+        {
+          meshLevelPtrs.push_back( &mesh );
+        }
+      );
+      
+      if( meshLevelPtrs.size() >= 2 )
+      {
+        MeshLevel const * matrixMeshPtr = meshLevelPtrs[0];
+        MeshLevel const * fractureMeshPtr = meshLevelPtrs[1];
+        
+        ElementRegionManager const & matrixElemManager = matrixMeshPtr->getElemManager();
+        ElementRegionManager const & fractureElemManager = fractureMeshPtr->getElemManager();
+        
+        // Get gravity coefficient from primary solver
+        real64 gravityCoefficient = primarySolver->gravityVector()[2];  // z-component
+        
+        // Get fracture spacing Lz
+        real64 Lz = this->getFracSpacingLz();
+        
+        GEOS_LOG("Gravity coefficient: " << gravityCoefficient << ", Lz: " << Lz);
+        
+        // TODO: Implement gravity drainage pressure update for dual continuum
+        // This requires accessing gravityDrainagePressure constitutive models
+        // and calling updateState() with density data from both matrix and fracture regions
+      }
+    }
+  }
 
   // Explicit instantiation for default template
   template class DualContinuumFVM<SinglePhaseBase, SinglePhaseBase>;
