@@ -35,17 +35,30 @@ GravityDrainagePressureBase::GravityDrainagePressureBase( string const & name,
   registerField< fields::gravdrainage::gravityDrainagePressure >( &m_gravityDrainagePressure );
 }
 
-void GravityDrainagePressureBase::setupGravityDrainagePressure() const
+void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView2d< real64 const > const matrixFluidDensity, arrayView2d< real64 const > const fractureFluidDensity, real64 m_fracSpacingLz ) const
 {
   // Default implementation: do nothing, let derived classes override if needed
 }
 
+void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView3d< real64 const > const matrixFluidDensity, arrayView3d< real64 const > const fractureFluidDensity, real64 m_fracSpacingLz ) const
+{
+  // Default implementation: do nothing, let derived classes override if needed
+}
+
+void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView3d< real64 const> const matrixFluidDensity,
+                                   arrayView2d< real64 const> const matrixPhaseVolumeFraction,
+                                   arrayView2d< real64 const > const fractureFluidDensity,
+                                   real64 gravityCoefficient,
+                                   real64 Lz ) const
+{
+  // Default implementation: do nothing, let derived classes override if needed
+}
 
 void GravityDrainagePressureBase::allocateConstitutiveData( dataRepository::Group & parent,
                                                             localIndex const numPts )
 {
-
-  m_gravityDrainagePressure.resize( numPts );
+  int phaseNumber = 3 ;//TODO@LSL 直接分配三个相的数量，不管实际问题是什么
+  m_gravityDrainagePressure.resize( numPts, phaseNumber);
   m_gravityDrainagePressure.zero();
 
   //需要放在设置值的后边，才能分配到constitutive中的subgroup中。

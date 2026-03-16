@@ -10,30 +10,31 @@
       name="DualContinuumSolver"
       flowSolverName="compflow1"
       flowSolverName1="compflow2"
-      logLevel="0"
+      logLevel="2"
       writeLinearSystem="0"
       targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
       matrixRegionList="{ Region1 }"
       fractureRegionList="{ Region2 }">
       <DualContinuumCrossFlow
         fractureSpacingLx="3.05"
-        fractureSpacingLy="3.050"
+        fractureSpacingLy="3.05"
         fractureSpacingLz="3.05"
+        gravityDrainageFlag="1"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
 <!--      这里的fractureSpacingLx、fractureSpacingLy、fractureSpacingLz是不起作用，在代码中硬编码形状因子25。-->
       <LinearSolverParameters
         solverType="direct"
         directParallel="0"
-        logLevel="0"/>
+        logLevel="2"/>
       <NonlinearSolverParameters
-        newtonTol="1.0e-4"
+        newtonTol="1.0e-3"
         newtonMaxIter="40"/>
     </CompositionalMultiPhaseDualContinuumFVM>
 
     <CompositionalMultiphaseFVM
       name="compflow1"
-      logLevel="0"
+      logLevel="2"
       discretization="fluidTPFA"
       temperature="297.15"
       useMass="1"
@@ -41,7 +42,7 @@
       maxCompFractionChange="0.5"
       targetRegions="{mesh1/Region1 }">
       <NonlinearSolverParameters
-        newtonTol="1.0e-6"
+        newtonTol="1.0e-4"
         newtonMaxIter="100"
         lineSearchAction="None"
         maxTimeStepCuts="5"/>
@@ -51,7 +52,7 @@
 
     <CompositionalMultiphaseFVM
       name="compflow2"
-      logLevel="1"
+      logLevel="2"
       discretization="fluidTPFA"
       temperature="297.15"
       useMass="1"
@@ -59,7 +60,7 @@
       maxCompFractionChange="0.5"
       targetRegions="{mesh2/Region2 }">
       <NonlinearSolverParameters
-        newtonTol="1.0e-6"
+        newtonTol="1.0e-4"
         newtonMaxIter="100"
         lineSearchAction="None"
         maxTimeStepCuts="5"/>
@@ -98,7 +99,7 @@
 
     <PeriodicEvent
             name="outputs"
-            timeFrequency="7884000"
+            timeFrequency="3942000"
             targetExactTimestep="1"
             target="/Outputs/water_oil_305"/>
     <PeriodicEvent
@@ -113,7 +114,7 @@
 
     <PeriodicEvent
       name="solverApplications"
-      maxEventDt="7884000"
+      maxEventDt="1971000"
       target="/Solvers/DualContinuumSolver"/>
 
     <!-- <PeriodicEvent
@@ -134,21 +135,22 @@
       name="Region1"
       meshBody="mesh1"
       cellBlocks="{ block1 }"
-      materialList="{ fluid, rock, relperm, cappres }"/>
+      materialList="{ fluid, rock, relperm, cappres ,gravityDrainagePressure}"/>
     <CellElementRegion
       name="Region2"
       meshBody="mesh2"
       cellBlocks="{ block2 }"
-      materialList="{ fluid, fractureRock, relperm, fractureCappres }"/>
+      materialList="{ fluid, fractureRock, relperm, fractureCappres ,gravityDrainagePressure}"/>
   </ElementRegions>
 
   <Constitutive>
     <SimpleGravityDrainagePressure
             name="gravityDrainagePressure"/>
+    <!--实际上油的密度为819.18，死油模型不能考虑溶解气，将地表分离出的溶解气算进去总密度是1072.18-->
     <DeadOilFluid
       name="fluid"
       phaseNames="{ oil, water }"
-      surfaceDensities="{ 800.907131537, 1020.3440 }"
+      surfaceDensities="{ 1072.18, 1041.2 }"
       componentMolarWeight="{ 120e-3, 18e-3 }"
       tableFiles="{ pvto_dead_oil_over_bub.txt, pvtw_bo.txt }"/>
 

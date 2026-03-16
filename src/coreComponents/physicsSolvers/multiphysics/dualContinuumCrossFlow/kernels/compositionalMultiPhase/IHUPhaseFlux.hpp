@@ -1687,6 +1687,7 @@ struct IHUPhaseFlux
            integer const ip,
            integer const hasCapPressure,
            integer const checkPhasePresenceInGravity,
+           integer const hasGravityDraingae,
            localIndex const ( &seri )[numFluxSupportPoints],
            localIndex const ( &sesri )[numFluxSupportPoints],
            localIndex const ( &sei )[numFluxSupportPoints],
@@ -1714,6 +1715,7 @@ struct IHUPhaseFlux
            ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
+           ElementViewConst< arrayView2d< real64 const > > const & gravityDrainagePressure_m,
            real64 & potGrad,
            real64 ( &phaseFlux ),
            real64 ( & dPhaseFlux_dP )[numFluxSupportPoints],
@@ -1736,7 +1738,7 @@ struct IHUPhaseFlux
     for( integer jp = 0; jp < numPhase; ++jp )
     {
       PPUPhaseFlux::compute( numPhase, jp,
-                             hasCapPressure, checkPhasePresenceInGravity,
+                             hasCapPressure, checkPhasePresenceInGravity,hasGravityDraingae,
                              seri, sesri, sei,
                              trans, dTrans_dPres,
                              pres_m, pres_f, gravCoef_m, gravCoef_f,
@@ -1745,6 +1747,7 @@ struct IHUPhaseFlux
                              dCompFrac_dCompDens_m, dCompFrac_dCompDens_f,
                              phaseMassDens_m, phaseMassDens_f, dPhaseMassDens_m, dPhaseMassDens_f,
                              phaseCapPressure_m, phaseCapPressure_f, dPhaseCapPressure_dPhaseVolFrac_m, dPhaseCapPressure_dPhaseVolFrac_f,
+                             gravityDrainagePressure_m,
                              potGrad, phaseFlux, dPhaseFlux_dP, dPhaseFlux_dC, dPhaseFlux_dTrans );
 
       // accumulate into total flux

@@ -73,6 +73,8 @@ assembleCouplingTerms(real64 const time_n,
     kernelFlags.set( KernelFlags::TotalMassEquation );
   if( this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence && this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence)
     kernelFlags.set( KernelFlags::CheckPhasePresenceInGravity );
+  if( Base::getGravityDrainageFlag() )
+    kernelFlags.set( KernelFlags::GravityDrainage);
 
 
 //    forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&]( string const &,
@@ -388,7 +390,13 @@ void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW
       
       // Get gravity coefficient from primary solver
       real64 gravityCoefficient = primarySolver->gravityVector()[2];  // z-component
-      
+      MeshLevel  &  matrixMesh = const_cast<MeshLevel&>(* meshLevelPtrs[0]);
+      MeshLevel  &  fractureMesh = const_cast<MeshLevel&>(* meshLevelPtrs[1]);
+
+      Base::updateGravityPressure(matrixMesh,fractureMesh, gravityCoefficient);
+
+
+      /*
       // Get fracture spacing Lz
       real64 Lz = this->getFracSpacingLz();
       
@@ -397,6 +405,7 @@ void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW
       // TODO: Implement gravity drainage pressure update for compositional dual continuum
       // This requires accessing gravityDrainagePressure constitutive models
       // and calling updateState() with density data from both matrix and fracture regions
+       */
     }
   }
 }

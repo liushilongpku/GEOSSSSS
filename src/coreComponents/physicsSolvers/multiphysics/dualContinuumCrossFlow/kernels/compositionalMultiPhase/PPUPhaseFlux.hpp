@@ -62,6 +62,7 @@ struct PPUPhaseFlux
            integer const ip,
            integer const hasCapPressure,
            integer const checkPhasePresenceInGravity,
+           integer const hasGravityDraingae,
            localIndex const ( &seri )[numFluxSupportPoints],
            localIndex const ( &sesri )[numFluxSupportPoints],
            localIndex const ( &sei )[numFluxSupportPoints],
@@ -89,6 +90,7 @@ struct PPUPhaseFlux
            ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
+           ElementViewConst< arrayView2d< real64 const >> const & gravityDrainagePressure_m,
            real64 & potGrad,
            real64 & phaseFlux,
            real64 ( & dPhaseFlux_dP )[numFluxSupportPoints],
@@ -110,11 +112,12 @@ struct PPUPhaseFlux
     real64 dPresGrad_dC[numFluxSupportPoints][numComp]{};
     real64 dGravHead_dP[numFluxSupportPoints]{};
     real64 dGravHead_dC[numFluxSupportPoints][numComp]{};
-    PotGrad::compute< numComp, numFluxSupportPoints >( numPhase, ip, hasCapPressure, checkPhasePresenceInGravity,
+    PotGrad::compute< numComp, numFluxSupportPoints >( numPhase, ip, hasCapPressure, checkPhasePresenceInGravity,hasGravityDraingae,
                                                        seri, sesri, sei, trans, dTrans_dPres, pres_m, pres_f,
                                                        gravCoef_m, gravCoef_f, phaseVolFrac_m, phaseVolFrac_f, dPhaseVolFrac_m, dPhaseVolFrac_f, dCompFrac_dCompDens_m, dCompFrac_dCompDens_f,
                                                        phaseMassDens_m, phaseMassDens_f, dPhaseMassDens_m, dPhaseMassDens_f,
                                                        phaseCapPressure_m, phaseCapPressure_f, dPhaseCapPressure_dPhaseVolFrac_m, dPhaseCapPressure_dPhaseVolFrac_f,
+                                                       gravityDrainagePressure_m,
                                                        potGrad, dPotGrad_dTrans, dPresGrad_dP,
                                                        dPresGrad_dC, dGravHead_dP, dGravHead_dC );
 

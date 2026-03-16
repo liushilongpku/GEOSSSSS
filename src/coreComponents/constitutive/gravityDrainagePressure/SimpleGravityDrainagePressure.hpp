@@ -49,8 +49,14 @@ public:
   virtual string getCatalogName() const override { return catalogName(); }
 
 
-  void setupGravityDrainagePressure() const override;
+  void setupGravityDrainagePressure(arrayView2d< real64 const> const matrixFluidDensity, arrayView2d< real64 const> const fractureFluidDensity, real64 m_fracSpacingLz ) const override;
 
+  //void setupGravityDrainagePressure(arrayView3d< real64 const> const matrixFluidDensity, arrayView3d< real64 const> const fractureFluidDensity, real64 m_fracSpacingLz ) const override;
+  void setupGravityDrainagePressure(arrayView3d< real64 const> const matrixFluidDensity,
+                                                                   arrayView2d< real64 const> const matrixPhaseVolumeFraction,
+                                                                   arrayView2d< real64 const > const fractureFluidDensity,
+                                                                   real64 gravityCoefficient,
+                                                                   real64 Lz ) const override;
 
   /**
    * @brief Update gravity drainage pressure

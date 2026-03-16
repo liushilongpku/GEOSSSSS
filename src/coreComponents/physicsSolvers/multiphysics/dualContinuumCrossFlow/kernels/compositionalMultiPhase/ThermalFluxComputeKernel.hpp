@@ -60,6 +60,7 @@ public:
   using MultiFluidAccessors = AbstractBase::MultiFluidAccessors;
   using CapPressureAccessors = AbstractBase::CapPressureAccessors;
   using PermeabilityAccessors = AbstractBase::PermeabilityAccessors;
+  using GravityDrainagePressureAccessors = AbstractBase::GravityDrainagePressureAccessors;
 
   using AbstractBase::m_dt;
   using AbstractBase::m_numPhases;
@@ -159,6 +160,7 @@ public:
                      CapPressureAccessors const & capPressureAccessors_f,
                      PermeabilityAccessors const & permeabilityAccessors_m,
                      PermeabilityAccessors const & permeabilityAccessors_f,
+                     GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors_m,
                      ThermalConductivityAccessors const & thermalConductivityAccessors_m,
                      ThermalConductivityAccessors const & thermalConductivityAccessors_f,
                      real64 const dt,
@@ -179,6 +181,7 @@ public:
             capPressureAccessors_f,
             permeabilityAccessors_m,
             permeabilityAccessors_f,
+            gravityDrainagePressureAccessors_m,
             dt,
             localMatrix,
             localRhs,
@@ -641,6 +644,7 @@ public:
       typename KernelType::CapPressureAccessors capPressureAccessors_f( fractureElemManager, secondarySolverName );
       typename KernelType::PermeabilityAccessors permeabilityAccessors_m( matrixElemManager, primarySolverName );
       typename KernelType::PermeabilityAccessors permeabilityAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::GravityDrainagePressureAccessors gravityDrainagePressureAccessors_m(matrixElemManager,primarySolverName);
       typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors_m( matrixElemManager, primarySolverName );
       typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors_f( fractureElemManager, secondarySolverName );
 
@@ -651,6 +655,7 @@ public:
                          multiFluidAccessors_f, thermalMultiFluidAccessors_f,
                          capPressureAccessors_m, capPressureAccessors_f,
                          permeabilityAccessors_m, permeabilityAccessors_f,
+                         gravityDrainagePressureAccessors_m,
                          thermalConductivityAccessors_m, thermalConductivityAccessors_f,
                          dt, localMatrix, localRhs, kernelFlags );
       KernelType::template launch< POLICY >( stencilWrapper.size(), kernel );

@@ -89,12 +89,12 @@ public:
   /**
    * @brief Get gravity drainage pressure field
    */
-  arrayView1d< real64 > gravityDrainagePressure() { return m_gravityDrainagePressure; }
+  arrayView2d< real64 > gravityDrainagePressure() { return m_gravityDrainagePressure; }
 
   /**
    * @brief Get gravity drainage pressure field (const)
    */
-  arrayView1d< real64 const > gravityDrainagePressure() const { return m_gravityDrainagePressure; }
+  arrayView2d< real64 const > gravityDrainagePressure() const { return m_gravityDrainagePressure; }
 
   /**
    * @brief Update gravity drainage pressure
@@ -106,11 +106,19 @@ public:
                             localIndex const numElements,
                             real64 const Lz ) = 0;
 
-  virtual void setupGravityDrainagePressure() const;
+  virtual void setupGravityDrainagePressure(arrayView2d< real64 const> const matrixFluidDensity, arrayView2d< real64 const > const fractureFluidDensity, real64 m_fracSpacingLz ) const;
+
+  virtual void setupGravityDrainagePressure(arrayView3d< real64 const> const matrixFluidDensity, arrayView3d< real64 const > const fractureFluidDensity, real64 m_fracSpacingLz ) const;
+
+  virtual void setupGravityDrainagePressure(arrayView3d< real64 const> const matrixFluidDensity,
+                                     arrayView2d< real64 const> const matrixPhaseVolumeFraction,
+                                     arrayView2d< real64 const > const fractureFluidDensity,
+                                     real64 gravityCoefficient,
+                                     real64 Lz ) const;
 
 protected:
 
-  array1d< real64 > m_gravityDrainagePressure;
+  array2d< real64 > m_gravityDrainagePressure;
 };
 
 }

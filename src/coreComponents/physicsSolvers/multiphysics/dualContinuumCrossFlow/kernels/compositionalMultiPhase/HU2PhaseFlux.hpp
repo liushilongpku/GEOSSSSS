@@ -66,6 +66,7 @@ struct HU2PhaseFlux
            integer const ip,
            integer const hasCapPressure,
            integer const checkPhasePresenceInGravity,
+           integer const hasGravityDraingae,
            localIndex const ( &seri )[numFluxSupportPoints],
            localIndex const ( &sesri )[numFluxSupportPoints],
            localIndex const ( &sei )[numFluxSupportPoints],
@@ -93,6 +94,7 @@ struct HU2PhaseFlux
            ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
+           ElementViewConst< arrayView2d< real64 const > > const & gravityDrainagePressure_m,
            real64 & GEOS_UNUSED_PARAM( potGrad ),
            real64 ( &phaseFlux ),
            real64 ( & dPhaseFlux_dP )[numFluxSupportPoints],
@@ -102,6 +104,7 @@ struct HU2PhaseFlux
     computeViscousFlux< numComp, numFluxSupportPoints >( ip, numPhase,
                                                          hasCapPressure,
                                                          checkPhasePresenceInGravity,
+                                                         hasGravityDraingae,
                                                          seri, sesri, sei,
                                                          trans, dTrans_dPres,
                                                          pres_m, pres_f,
@@ -111,6 +114,7 @@ struct HU2PhaseFlux
                                                          phaseMob_m, phaseMob_f, dPhaseMob_m, dPhaseMob_f,
                                                          phaseVolFrac_m, phaseVolFrac_f, dPhaseVolFrac_m, dPhaseVolFrac_f,
                                                          phaseCapPressure_m, phaseCapPressure_f, dPhaseCapPressure_dPhaseVolFrac_m, dPhaseCapPressure_dPhaseVolFrac_f,
+                                                         gravityDrainagePressure_m,
                                                          phaseFlux, dPhaseFlux_dP, dPhaseFlux_dC );
     // gravity part
     computeGravityFlux< numComp, numFluxSupportPoints >( ip, numPhase,
@@ -146,6 +150,7 @@ protected:
                       integer const & numPhase,
                       integer const & hasCapPressure,
                       integer const & checkPhasePresenceInGravity,
+                      integer const & hasGravityDraingae,
                       localIndex const (&seri)[numFluxSupportPoints],
                       localIndex const (&sesri)[numFluxSupportPoints],
                       localIndex const (&sei)[numFluxSupportPoints],
@@ -172,6 +177,7 @@ protected:
                       ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
                       ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
                       ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
+                      ElementViewConst< arrayView2d< real64 const >> const & gravityDrainagePressure_m,
                       real64 ( &phaseFlux ),
                       real64 ( & dPhaseFlux_dP )[numFluxSupportPoints],
                       real64 ( & dPhaseFlux_dC )[numFluxSupportPoints][numComp] )
@@ -184,6 +190,7 @@ protected:
     computeTotalFlux( numPhase,
                       hasCapPressure,
                       checkPhasePresenceInGravity,
+                      hasGravityDraingae,
                       seri, sesri, sei,
                       trans, dTrans_dPres,
                       pres_m, pres_f,
@@ -193,6 +200,7 @@ protected:
                       dCompFrac_dCompDens_m, dCompFrac_dCompDens_f,
                       phaseMassDens_m, phaseMassDens_f, dPhaseMassDens_m, dPhaseMassDens_f,
                       phaseCapPressure_m, phaseCapPressure_f, dPhaseCapPressure_dPhaseVolFrac_m, dPhaseCapPressure_dPhaseVolFrac_f,
+                      gravityDrainagePressure_m,
                       totFlux, dTotFlux_dP, dTotFlux_dC );
 
     localIndex k_up = -1;
@@ -441,6 +449,7 @@ protected:
   computeTotalFlux( integer const & numPhase,
                     const integer & hasCapPressure,
                     const integer & checkPhasePresenceInGravity,
+                    const integer & hasGravityDraingae,
                     localIndex const (&seri)[numFluxSupportPoints],
                     localIndex const (&sesri)[numFluxSupportPoints],
                     localIndex const (&sei)[numFluxSupportPoints],
@@ -467,6 +476,7 @@ protected:
                     ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
                     ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
                     ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
+                    ElementViewConst< arrayView2d< real64 const >> const & gravityDrainagePressure_m,
                     real64 & totFlux, real64 (& dTotFlux_dP)[numFluxSupportPoints], real64 (& dTotFlux_dC)[numFluxSupportPoints][numComp] )
   {
     for( integer jp = 0; jp < numPhase; ++jp )
@@ -480,6 +490,7 @@ protected:
       PPUPhaseFlux::compute( numPhase, jp,
                              hasCapPressure,
                              checkPhasePresenceInGravity,
+                             hasGravityDraingae,
                              seri, sesri, sei,
                              trans, dTrans_dPres,
                              pres_m, pres_f, gravCoef_m, gravCoef_f,
@@ -488,6 +499,7 @@ protected:
                              dCompFrac_dCompDens_m, dCompFrac_dCompDens_f,
                              phaseMassDens_m, phaseMassDens_f, dPhaseMassDens_m, dPhaseMassDens_f,
                              phaseCapPressure_m, phaseCapPressure_f, dPhaseCapPressure_dPhaseVolFrac_m, dPhaseCapPressure_dPhaseVolFrac_f,
+                             gravityDrainagePressure_m,
                              potGrad, phaseFlux, dPhaseFlux_dP, dPhaseFlux_dC, dPhaseFlux_dTrans );
 
       UpwindHelpers::addToValueAndDerivatives( phaseFlux, dPhaseFlux_dP, dPhaseFlux_dC,

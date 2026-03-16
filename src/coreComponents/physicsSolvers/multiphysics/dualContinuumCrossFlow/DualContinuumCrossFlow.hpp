@@ -32,6 +32,10 @@ public:
                        MeshLevel & meshMatrix,
                        MeshLevel & meshFracture );
 
+  void setupGravityDrainagePressure( MeshLevel & meshMatrix,
+                                     MeshLevel & fractureMatrix,
+                                     real64 const & gravityCoefficient);
+
   // Launch the kernel to add transfer terms to residual
   // (Template to support different solver traits if needed)
   template< typename SOLVER_TRAITS >

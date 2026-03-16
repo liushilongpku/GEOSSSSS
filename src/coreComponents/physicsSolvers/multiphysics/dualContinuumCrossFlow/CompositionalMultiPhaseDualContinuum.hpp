@@ -15,17 +15,17 @@
 #ifndef GEOS_PHYSICSSOLVERS_MULTIPHASE_FLUIDFLOW_DUALCONTINUUMFVM_HPP_
 #define GEOS_PHYSICSSOLVERS_MULTIPHASE_FLUIDFLOW_DUALCONTINUUMFVM_HPP_
 
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolver.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolverBase.hpp"
 #include "physicsSolvers/fluidFlow/CompositionalMultiphaseFVM.hpp"
 namespace geos
 {
 
 template< typename PRIMARY_FLOW_SOLVER = CompositionalMultiphaseFVM, typename SECONDARY_FLOW_SOLVER = CompositionalMultiphaseFVM >
-class CompositionalMultiPhaseDualContinuumFVM : public DualContinuumFlowSolver<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>
+class CompositionalMultiPhaseDualContinuumFVM : public DualContinuumFlowSolverBase<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>
 {
 public:
 
-  using Base = DualContinuumFlowSolver<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>;
+  using Base = DualContinuumFlowSolverBase<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>;
   using Base::forDiscretizationOnMeshTargets;
   using Base::m_discretizationName;
   using Base::m_linearSolverParameters;

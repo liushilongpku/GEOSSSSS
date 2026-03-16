@@ -17,7 +17,8 @@
 #include "physicsSolvers/fluidFlow/CompositionalMultiphaseBaseFields.hpp"
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
 
-
+#include "constitutive/gravityDrainagePressure/GravityDrainagePressureBase.hpp"
+#include "constitutive/gravityDrainagePressure/GravityDrainagePressureFields.hpp"
 namespace geos
 {
 
@@ -41,7 +42,9 @@ enum class KernelFlags
   /// Flag indicating whether IHU is used or not
   IHU = 1 << 6, // 64
   /// Flag indicating whether HU 2-phase simplified version is used or not
-  HU2PH = 1 << 7 // 128
+  HU2PH = 1 << 7, // 128
+  /// Flag indicating whether GravityDrainage uis used or not
+  GravityDrainage = 1 << 8
 };
 
 /******************************** FluxComputeKernelBase ********************************/
@@ -83,6 +86,11 @@ public:
                               fields::multifluid::phaseCompFraction,
                               fields::multifluid::dPhaseCompFraction >;
 
+
+  using GravityDrainagePressureAccessors =
+    StencilMaterialAccessors< constitutive::GravityDrainagePressureBase,
+                              fields::gravdrainage::gravityDrainagePressure >;
+
   using CapPressureAccessors =
     StencilMaterialAccessors< constitutive::CapillaryPressureBase,
                               fields::cappres::phaseCapPressure,
@@ -117,7 +125,8 @@ public:
                          MultiFluidAccessors const & multiFluidAccessors_m,
                          DofNumberAccessor const & dofNumberAccessor_f,
                          CompFlowAccessors const & compFlowAccessors_f,
-                         MultiFluidAccessors const & multiFluidAccessors_f, 
+                         MultiFluidAccessors const & multiFluidAccessors_f,
+                         GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors,
                          real64 const dt,
                          CRSMatrixView< real64, globalIndex const > const & localMatrix,
                          arrayView1d< real64 > const & localRhs,
@@ -170,6 +179,11 @@ protected:
   ElementViewConst< arrayView4d< real64 const, constitutive::multifluid::USD_PHASE_COMP > > const m_phaseCompFrac_f;
   ElementViewConst< arrayView5d< real64 const, constitutive::multifluid::USD_PHASE_COMP_DC > > const m_dPhaseCompFrac_m;
   ElementViewConst< arrayView5d< real64 const, constitutive::multifluid::USD_PHASE_COMP_DC > > const m_dPhaseCompFrac_f;
+
+
+  /// 重力
+  ElementViewConst< arrayView2d< real64 const > > const m_gravityDrainagePressure;
+
 
   // Residual and jacobian
   // 矩阵与向量不需要区分，因为是同一个矩阵

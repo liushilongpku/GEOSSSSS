@@ -121,7 +121,7 @@
             name="Region2"
             meshBody="mesh2"
             cellBlocks="{ block2 }"
-            materialList="{ water, rock_DPDK,gravityDrainagePressure }"/>
+            materialList="{ water2, rock_DPDK,gravityDrainagePressure }"/>
   </ElementRegions>
 
   <Constitutive>
@@ -131,11 +131,19 @@
     <CompressibleSinglePhaseFluid
       name="water"
       defaultDensity="1000"
+      referenceDensity="1000"
       defaultViscosity="0.001"
       referencePressure="0.0"
       compressibility="5e-10"
       viscosibility="0.0"/>
-
+    <CompressibleSinglePhaseFluid
+            name="water2"
+            defaultDensity="800"
+            referenceDensity="800"
+            defaultViscosity="0.001"
+            referencePressure="0.0"
+            compressibility="5e-10"
+            viscosibility="0.0"/>
     <CompressibleSolidConstantPermeability
       name="rock"
       solidModelName="nullSolid"

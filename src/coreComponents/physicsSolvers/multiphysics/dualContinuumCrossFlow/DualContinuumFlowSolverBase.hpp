@@ -7,7 +7,7 @@
  */
 
 /**
- * @file DualContinuumFlowSolver.hpp
+ * @file DualContinuumFlowSolverBase.hpp
  *
  * @brief A coupled solver that binds two flow solvers for dual-continuum/dual-porosity-style models.
  */
@@ -44,7 +44,7 @@ namespace geos
     }
 
 template< typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER >
-class DualContinuumFlowSolver : public CoupledSolver< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >
+class DualContinuumFlowSolverBase : public CoupledSolver< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >
 {
 public:
 
@@ -63,7 +63,7 @@ public:
 
   static string coupledSolverAttributePrefix() { return "dualcontinuum"; }
 
-  DualContinuumFlowSolver( string const & name, dataRepository::Group * parent )
+  DualContinuumFlowSolverBase( string const & name, dataRepository::Group * parent )
     : Base( name, parent ),
     m_crossFlow( viewKeyStruct::DualContinuumCrossFlow(), this )
 
@@ -134,6 +134,17 @@ public:
     m_crossFlow.setupCrossFlow( domain, primaryMesh, secondaryMesh );//TODO@LSL 这块需要对多region进行支持，可能会报错
   };
 
+  virtual void initializePostInitialConditionsPostSubGroups() override
+  {
+    Base::initializePostInitialConditionsPostSubGroups();
+
+    DomainPartition& domain = this->template getGroupByPath< DomainPartition >( "/Problem/domain" );
+    MeshBody & matrix = domain.getMeshBody("mesh1");
+    MeshBody & fracture = domain.getMeshBody("mesh2");
+    MeshLevel & primaryMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
+    MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
+    m_crossFlow.setupGravityDrainagePressure(primaryMesh, secondaryMesh, 9.81);
+  }
   /**
    * @brief accessor for the pointer to the primary flow solver
    * @return a pointer to the primary flow solver
@@ -525,6 +536,11 @@ protected:
     Base::setupSystem( domain, dofManager, localMatrix, rhs, solution, setSparsity );
   }
 
+  void updateGravityPressure(MeshLevel & meshMatrix, MeshLevel & meshFracture, real64 const & gravityCoefficient)
+  {
+    m_crossFlow.setupGravityDrainagePressure(meshMatrix, meshFracture, gravityCoefficient);
+  }
+
 protected:
   /**
    * @brief Print registered mesh connectivity values to terminal
@@ -800,7 +816,7 @@ private:
 
   };
 
-}; // class DualContinuumFlowSolver
+}; // class DualContinuumFlowSolverBase
 
 } // namespace geos
 

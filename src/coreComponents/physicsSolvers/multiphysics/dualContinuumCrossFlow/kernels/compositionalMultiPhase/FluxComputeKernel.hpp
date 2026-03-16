@@ -96,6 +96,7 @@ public:
                      CapPressureAccessors const & capPressureAccessors_f,
                      PermeabilityAccessors const & permeabilityAccessors_m,
                      PermeabilityAccessors const & permeabilityAccessors_f,
+                     GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors_m,
                      real64 const dt,
                      CRSMatrixView< real64, globalIndex const > const & localMatrix,
                      arrayView1d< real64 > const & localRhs,
@@ -109,6 +110,7 @@ public:
                              dofNumberAccessor_f,
                              compFlowAccessors_f,
                              multiFluidAccessors_f,
+                             gravityDrainagePressureAccessors_m,
                              dt,
                              localMatrix,
                              localRhs,
@@ -129,6 +131,7 @@ public:
     m_dPhaseCapPressure_dPhaseVolFrac_m( capPressureAccessors_m.get( fields::cappres::dPhaseCapPressure_dPhaseVolFraction {} ) ),
     m_phaseCapPressure_f( capPressureAccessors_f.get( fields::cappres::phaseCapPressure {} ) ),
     m_dPhaseCapPressure_dPhaseVolFrac_f( capPressureAccessors_f.get( fields::cappres::dPhaseCapPressure_dPhaseVolFraction {} ) ),
+    m_gravityDrainagePressure_m( gravityDrainagePressureAccessors_m.get( fields::gravdrainage::gravityDrainagePressure {} ) ),
     m_stencilWrapper( stencilWrapper ),
     m_seri( stencilWrapper.getElementRegionIndices() ),
     m_sesri( stencilWrapper.getElementSubRegionIndices() ),
@@ -294,6 +297,7 @@ public:
               ip,
               m_kernelFlags.isSet( KernelFlags::CapPressure ),
               m_kernelFlags.isSet( KernelFlags::CheckPhasePresenceInGravity ),
+              m_kernelFlags.isSet( KernelFlags::GravityDrainage),
               seri, sesri, sei,
               trans,
               dTrans_dPres,
@@ -304,6 +308,7 @@ public:
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
               m_phaseCapPressure_m, m_phaseCapPressure_f, m_dPhaseCapPressure_dPhaseVolFrac_m, m_dPhaseCapPressure_dPhaseVolFrac_f, // Using matrix cap pressure for first support point, fracture for second
+              m_gravityDrainagePressure,
               potGrad,
               phaseFlux,
               dPhaseFlux_dP,
@@ -316,6 +321,7 @@ public:
               ip,
               m_kernelFlags.isSet( KernelFlags::CapPressure ),
               m_kernelFlags.isSet( KernelFlags::CheckPhasePresenceInGravity ),
+              m_kernelFlags.isSet( KernelFlags::GravityDrainage),
               seri, sesri, sei,
               trans,
               dTrans_dPres,
@@ -326,6 +332,7 @@ public:
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
               m_phaseCapPressure_m, m_phaseCapPressure_f, m_dPhaseCapPressure_dPhaseVolFrac_m, m_dPhaseCapPressure_dPhaseVolFrac_f, // Using matrix cap pressure for first support point, fracture for second
+              m_gravityDrainagePressure_m,
               potGrad,
               phaseFlux,
               dPhaseFlux_dP,
@@ -338,6 +345,7 @@ public:
               ip,
               m_kernelFlags.isSet( KernelFlags::CapPressure ),
               m_kernelFlags.isSet( KernelFlags::CheckPhasePresenceInGravity ),
+              m_kernelFlags.isSet( KernelFlags::GravityDrainage),
               seri, sesri, sei,
               trans,
               dTrans_dPres,
@@ -348,6 +356,7 @@ public:
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
               m_phaseCapPressure_m, m_phaseCapPressure_f, m_dPhaseCapPressure_dPhaseVolFrac_m, m_dPhaseCapPressure_dPhaseVolFrac_f, // Using matrix cap pressure for first support point, fracture for second
+              m_gravityDrainagePressure,
               potGrad,
               phaseFlux,
               dPhaseFlux_dP,
@@ -360,6 +369,7 @@ public:
               ip,
               m_kernelFlags.isSet( KernelFlags::CapPressure ),
               m_kernelFlags.isSet( KernelFlags::CheckPhasePresenceInGravity ),
+              m_kernelFlags.isSet( KernelFlags::GravityDrainage),
               seri, sesri, sei,
               trans,
               dTrans_dPres,
@@ -370,6 +380,7 @@ public:
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
               m_phaseCapPressure_m, m_phaseCapPressure_f, m_dPhaseCapPressure_dPhaseVolFrac_m, m_dPhaseCapPressure_dPhaseVolFrac_f, // Using matrix cap pressure for first support point, fracture for second
+              m_gravityDrainagePressure,
               potGrad,
               phaseFlux,
               dPhaseFlux_dP,
@@ -575,6 +586,9 @@ protected:
   ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const m_phaseCapPressure_f;
   ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const m_dPhaseCapPressure_dPhaseVolFrac_f;
 
+  /// 重力项
+  ElementViewConst< arrayView2d< real64 const > > const m_gravityDrainagePressure_m;
+
   // Stencil information
 
   /// Reference to the stencil wrapper
@@ -652,10 +666,12 @@ public:
       typename kernelType::CapPressureAccessors capPressureAccessors_f( fractureElemManager, secondarySolverName );
       typename kernelType::PermeabilityAccessors permeabilityAccessors_m( matrixElemManager, primarySolverName );
       typename kernelType::PermeabilityAccessors permeabilityAccessors_f( fractureElemManager, secondarySolverName );
+      typename kernelType::GravityDrainagePressureAccessors gravityDrainagePressureAccessors_m(matrixElemManager,primarySolverName);
 
       kernelType kernel( numPhases, m_rankOffset_m, m_rankOffset_f, stencilWrapper, dofNumberAccessor_m,
                          compFlowAccessors_m, multiFluidAccessors_m, dofNumberAccessor_f, compFlowAccessors_f, multiFluidAccessors_f,
                          capPressureAccessors_m, capPressureAccessors_f, permeabilityAccessors_m, permeabilityAccessors_f,
+                         gravityDrainagePressureAccessors_m,
                          dt, localMatrix, localRhs, kernelFlags );
       kernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
     } );

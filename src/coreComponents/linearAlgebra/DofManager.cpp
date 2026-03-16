@@ -1248,7 +1248,7 @@ void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex
   {
     for(const string & regionName : regions)
     {
-      if (regionName == matrixRegionName|| regionName == fractureRegionName)//the legitimacy has already been checked in DualContinuumFlowSolver
+      if (regionName == matrixRegionName|| regionName == fractureRegionName)//the legitimacy has already been checked in DualContinuumFlowSolverBase
       {
         stdVector<string> regionNames = {regionName};
 

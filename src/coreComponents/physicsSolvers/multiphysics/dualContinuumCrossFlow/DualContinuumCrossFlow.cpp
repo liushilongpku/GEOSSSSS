@@ -5,8 +5,11 @@
 #include "mesh/ElementRegionBase.hpp"
 #include "mesh/CellElementRegion.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
-#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolver.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumFlowSolverBase.hpp"
 #include "constitutive/gravityDrainagePressure/SimpleGravityDrainagePressure.hpp"
+#include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
+#include "physicsSolvers/fluidFlow/SinglePhaseBaseFields.hpp"
+#include "constitutive/fluid/multifluid/MultiFluidBase.hpp"
 
 namespace geos
 {
@@ -20,7 +23,7 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
 {
 
   setInputFlags( InputFlags::OPTIONAL );
-  
+
   // Register parameters to be read from XML
   registerWrapper( viewKeyStruct::fractureSpacingLxString(), &m_fracSpacingLx ).
                                                                                  setInputFlag( InputFlags::REQUIRED ).
@@ -45,11 +48,11 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
   // Register the stencil so it shows up in output/checkpoint
 
   registerWrapper( viewKeyStruct::DualContinuumStencilString(), &m_stencil ).
-                          setRestartFlags( RestartFlags::NO_WRITE );
+                                                                              setRestartFlags( RestartFlags::NO_WRITE );
   this->registerWrapper( viewKeyStruct::gravityDrainageFlag(), &m_gravityDrainageFlag ).
     setInputFlag( dataRepository::InputFlags::OPTIONAL ).
-    setDefaultValue(0).
-    setDescription( "flag of gravity drainage" );
+        setDefaultValue( 0 ).
+        setDescription( "flag of gravity drainage" );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )
@@ -83,7 +86,7 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
                                              MeshLevel & meshFracture )
 {
 
-  
+
   if( m_matrixRegionList.size() == 0 || m_fractureRegionList.size() == 0 )
   {
     GEOS_ERROR( "Matrix region list or fracture region list is empty." );
@@ -97,22 +100,6 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
   string meshMatrixBodyName = meshMatrix.getParent().getParent().getName();
   string meshFractureBodyName = meshFracture.getParent().getParent().getName();
 
-  // 重力排驱压力初始化
-  // 1.1 初始化重力排驱压力
-  if(m_gravityDrainageFlag)
-  {
-    elemManagerMatrix.forElementRegions( [&]( ElementRegionBase const & elemRegionMatrix )
-    {
-      elemRegionMatrix.forElementSubRegions( [&]( ElementSubRegionBase const & elementSubRegionMatrix )
-      {
-        dataRepository::Group const & constitutiveModels = elementSubRegionMatrix.getConstitutiveModels();
-        constitutiveModels.forSubGroups< GravityDrainagePressureBase >( [&]( GravityDrainagePressureBase const & gdModel )
-        {
-          gdModel.setupGravityDrainagePressure();
-        } );
-      });
-    });
-  }
 
 
   // 2 构建窜流项stencil
@@ -149,39 +136,35 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
 
   // 2.2 循环所有 Region，构建 Stencil
   localIndex regionMatrixIdx = 0;
-  elemManagerMatrix.forElementRegions( [&]( ElementRegionBase const & elemRegionMatrix ){
+  elemManagerMatrix.forElementRegions( [&]( ElementRegionBase const & elemRegionMatrix )
+  {
 
     //根据matrix的名字找到对应的fracture名字与region
     string regionName = elemRegionMatrix.getName();
     localIndex couplingRegionIndexInList = findRegionIndexInList( regionName );
     string fractureRegionName = m_fractureRegionList[couplingRegionIndexInList];
     localIndex regionFractureIdx = findRegionIndexInRegionManager( elemManagerFracture, fractureRegionName );
-
     ElementRegionBase const & elemRegionFracture = elemManagerFracture.getRegion( fractureRegionName );
-
     // 校验大小是否匹配
-    if( elemRegionMatrix.getNumberOfElements() != elemRegionFracture.getNumberOfElements() ){
+    if( elemRegionMatrix.getNumberOfElements() != elemRegionFracture.getNumberOfElements() )
+    {
       GEOS_ERROR( "Region size mismatch between matrix region " << regionName << " and fracture region " << fractureRegionName );
       return;
     }
-
-
     localIndex subRegionIdx = 0;//默认matrix 与 fracture 的subregion相同
-    elemRegionMatrix.forElementSubRegions( [&]( ElementSubRegionBase const & elementSubRegionMatrix ){
+    elemRegionMatrix.forElementSubRegions( [&]( ElementSubRegionBase const & elementSubRegionMatrix )
+    {
       //目前只需要获得matrix的体积属性,因此无需获取fracture的subregion
       //ElementSubRegionBase const & elementSubRegionFracture = elemRegionFracture.getSubRegions()[subRegionIdx];
       auto const & cellVolumeArrayViewMatrix = elementSubRegionMatrix.getReference< array1d< real64 > >( "elementVolume" );
-
       for( localIndex i = 0; i < elementSubRegionMatrix.size(); i++ )
       {
         localIndex regionIndices[2] = { regionMatrixIdx, regionFractureIdx };
         localIndex subRegionIndices[2] = { subRegionIdx, subRegionIdx }; // Assuming default subregion 0
         localIndex elementIndices[2] = { i, i }; // 1-to-1 mapping
-
         // Compute Geometric Weights [Wx, Wy, Wz]
         //薄板形状的形状因子，乘体积是因为算这个网格的交换而不是每单位体积的交换
         // W = 4 * V / L^2
-
         //长方形的是 kazemi
         // W = 4(1/a²+1/b²+1/c²)
         // 修正：从数组中获取第 i 个单元的体积
@@ -190,15 +173,15 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
         shapeFactory[0] = 4.0 * Volume * invLx2;
         shapeFactory[1] = 4.0 * Volume * invLy2;
         shapeFactory[2] = 4.0 * Volume * invLz2;
-//        shapeFactory[0] = 2.69*Volume;
-//        shapeFactory[1] = 2.69*Volume;
-//        shapeFactory[2] = 2.69*Volume;
-//        shapeFactory[0] = 25*Volume;
-//        shapeFactory[1] = 25*Volume;
-//        shapeFactory[2] = 25*Volume;
-//        shapeFactory[0] = 30*Volume;
-//        shapeFactory[1] = 30*Volume;
-//        shapeFactory[2] = 30*Volume;
+        //        shapeFactory[0] = 2.69*Volume;
+        //        shapeFactory[1] = 2.69*Volume;
+        //        shapeFactory[2] = 2.69*Volume;
+        //        shapeFactory[0] = 25*Volume;
+        //        shapeFactory[1] = 25*Volume;
+        //        shapeFactory[2] = 25*Volume;
+        //        shapeFactory[0] = 30*Volume;
+        //        shapeFactory[1] = 30*Volume;
+        //        shapeFactory[2] = 30*Volume;
         // Add to Stencil
         m_stencil.add( 2, regionIndices, subRegionIndices, elementIndices, shapeFactory, ConnIdx );
         ConnIdx++;
@@ -207,6 +190,83 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
     } );
     regionMatrixIdx++;
   } );
+
+
+  // 重力排驱压力初始化
+  // 1.1 初始化重力排驱压力,在flowsolver中后初始化
+  // setupGravityDrainagePressure(meshMatrix,meshFracture,9.81);
+}
+
+
+void DualContinuumCrossFlow::setupGravityDrainagePressure( MeshLevel & meshMatrix,
+                                                           MeshLevel & fractureMatrix,
+                                                           real64 const & gravityCoefficient)
+{
+  ElementRegionManager & elemManagerMatrix = meshMatrix.getElemManager();
+  ElementRegionManager & elemManagerFracture = fractureMatrix.getElemManager();
+
+/*
+  typename TYPEOFREF(m_stencil)::KernelWrapper stencilWrapper = m_stencil.createKernelWrapper();
+
+
+  template< typename VIEWTYPE >
+  using ElementViewConst = ElementRegionManager::ElementViewConst< VIEWTYPE >;
+
+  using SinglePhaseFluidAccessors =
+    StencilMaterialAccessors< constitutive::SingleFluidBase,
+                              fields::singlefluid::density,
+                              fields::singlefluid::dDensity >;
+
+  //在多相计算中可能需要饱和度
+
+  string const nameMatrix = "matrix";
+  string const nameFracture = "fracture";
+
+  SinglePhaseFluidAccessors matrixFluidAccessors(elemRegionMatrix,nameMatrix);
+  SinglePhaseFluidAccessors fractureFluidAccessors(elemRegionFracture,nameFracture);
+
+  ElementViewConst< arrayView1d< real64 const > > const m_pres;
+
+  forAll< parallelDevicePolicy<> >( stencilWrapper.size() ,[=] GEOS_HOST_DEVICE ( localIndex const iconn )
+  {
+
+
+  });
+
+*/
+
+
+  if( m_gravityDrainageFlag )
+  {
+    elemManagerMatrix.forElementRegions( [&]( ElementRegionBase const & elemRegionMatrix ){
+      //根据matrix的名字找到对应的fracture名字与region
+      string regionName = elemRegionMatrix.getName();
+      localIndex couplingRegionIndexInList = findRegionIndexInList( regionName );
+      string fractureRegionName = m_fractureRegionList[couplingRegionIndexInList];
+
+      ElementRegionBase const & elemRegionFracture = elemManagerFracture.getRegion( fractureRegionName );
+
+      elemRegionMatrix.forElementSubRegionsIndex< CellElementSubRegion >( [&]( localIndex const subRegionIndex, CellElementSubRegion const & matrixSubRegion )
+      {
+        string const & fluidNameMatrix = matrixSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() );
+        MultiFluidBase const & fluidMatrix = matrixSubRegion.getConstitutiveModel< MultiFluidBase >( fluidNameMatrix );
+
+        arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > const matrixFluidDensity = fluidMatrix.phaseDensity();
+        arrayView2d< real64 const > matrixPhaseVolumeFraction = matrixSubRegion.getField< fields::flow::phaseVolumeFraction >();
+
+
+        ElementSubRegionBase const & fractureSubRegion = elemRegionFracture.getSubRegion( subRegionIndex );
+        string const & fluidNameFracture = fractureSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() );
+        MultiFluidBase const & fluidFracture = fractureSubRegion.getConstitutiveModel< MultiFluidBase >(fluidNameFracture );
+        arrayView2d< real64 const > const fractureFluidTotalDensity = fluidFracture.totalDensity();
+
+        dataRepository::Group const & constitutiveModels = matrixSubRegion.getConstitutiveModels();
+        constitutiveModels.forSubGroups< GravityDrainagePressureBase >( [&]( GravityDrainagePressureBase const & gdModel ){
+          gdModel.setupGravityDrainagePressure(matrixFluidDensity, matrixPhaseVolumeFraction, fractureFluidTotalDensity, gravityCoefficient, m_fracSpacingLz);
+        });
+      });
+    } );
+  }
 }
 
 // Example implementation of assembly (you need to adapt types to match SinglePhaseBase)
@@ -226,7 +286,7 @@ void DualContinuumCrossFlow::assembleCouplingTerms( MeshLevel & mesh,
   //      atomicAdd( res_frac, +Flux );
   // }
 }
-//using DualContinuumSinglePhaseSolver = DualContinuumFlowSolver< SinglePhaseBase, SinglePhaseBase >;
+//using DualContinuumSinglePhaseSolver = DualContinuumFlowSolverBase< SinglePhaseBase, SinglePhaseBase >;
 
 //REGISTER_CATALOG_ENTRY( DualContinuumSinglePhaseSolver, DualContinuumCrossFlow, string const &, Group * const )
 

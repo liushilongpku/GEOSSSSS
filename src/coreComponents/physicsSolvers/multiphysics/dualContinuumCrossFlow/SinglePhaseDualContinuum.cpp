@@ -180,7 +180,7 @@ namespace geos
   template< typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
   void DualContinuumFVM< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER  >::setupDofs( DomainPartition const & domain, DofManager & dofManager ) const
   {
-    // Let the base DualContinuumFlowSolver call each sub-solver's setupDofs
+    // Let the base DualContinuumFlowSolverBase call each sub-solver's setupDofs
     Base::setupDofs( domain, dofManager );
   }
   */
@@ -310,9 +310,13 @@ namespace geos
       
       if( meshLevelPtrs.size() >= 2 )
       {
-        MeshLevel const * matrixMeshPtr = meshLevelPtrs[0];
-        MeshLevel const * fractureMeshPtr = meshLevelPtrs[1];
-        
+        MeshLevel  &  matrixMesh = const_cast<MeshLevel&>(* meshLevelPtrs[0]);
+        MeshLevel  &  fractureMesh = const_cast<MeshLevel&>(* meshLevelPtrs[1]);
+
+        //Base::updateGravityPressure(matrixMesh,fractureMesh);
+
+
+        /*
         ElementRegionManager const & matrixElemManager = matrixMeshPtr->getElemManager();
         ElementRegionManager const & fractureElemManager = fractureMeshPtr->getElemManager();
         
@@ -327,6 +331,7 @@ namespace geos
         // TODO: Implement gravity drainage pressure update for dual continuum
         // This requires accessing gravityDrainagePressure constitutive models
         // and calling updateState() with density data from both matrix and fracture regions
+        */
       }
     }
   }

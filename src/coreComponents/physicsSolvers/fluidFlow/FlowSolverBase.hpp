@@ -131,7 +131,7 @@ public:
    * @brief Set the flag to apply boundary conditions
    * @param applyBC true to apply boundary conditions, false otherwise
    *
-   * This setter is made public to allow derived classes, such as DualContinuumFlowSolver,
+   * This setter is made public to allow derived classes, such as DualContinuumFlowSolverBase,
    * to control boundary condition application in multi-physics coupled solvers.
    * Previously, m_applyBC was private, preventing access from coupled solvers.
    */

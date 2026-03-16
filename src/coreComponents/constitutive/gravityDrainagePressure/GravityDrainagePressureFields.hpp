@@ -33,7 +33,7 @@ namespace gravdrainage
 
 DECLARE_FIELD( gravityDrainagePressure,
                "gravityDrainagePressure",
-               array1d< real64 >,
+               array2d< real64 >,
                0,
                LEVEL_0,
                WRITE_AND_READ,

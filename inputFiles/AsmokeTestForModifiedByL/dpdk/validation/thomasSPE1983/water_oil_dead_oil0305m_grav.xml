@@ -16,9 +16,10 @@
       matrixRegionList="{ Region1 }"
       fractureRegionList="{ Region2 }">
       <DualContinuumCrossFlow
-        fractureSpacingLx="3.05"
-        fractureSpacingLy="3.050"
-        fractureSpacingLz="3.05"
+        fractureSpacingLx="0.305"
+        fractureSpacingLy="0.3050"
+        fractureSpacingLz="0.305"
+        gravityDrainageFlag="1"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
 <!--      这里的fractureSpacingLx、fractureSpacingLy、fractureSpacingLz是不起作用，在代码中硬编码形状因子25。-->
@@ -72,9 +73,9 @@
     <InternalMesh
       name="mesh1"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 3.05 }"
-      yCoords="{ 0, 3.05  }"
-      zCoords="{ 0, 3.05  }"
+      xCoords="{ 0, 0.305 }"
+      yCoords="{ 0, 0.305  }"
+      zCoords="{ 0, 0.305  }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
@@ -82,9 +83,9 @@
     <InternalMesh
       name="mesh2"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 3.05  }"
-      yCoords="{ 0, 3.05  }"
-      zCoords="{ 0, 3.05  }"
+      xCoords="{ 0, 0.305  }"
+      yCoords="{ 0, 0.305  }"
+      zCoords="{ 0, 0.305  }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
@@ -94,28 +95,28 @@
 <!--  <Events-->
 <!--    maxTime="8640000">   86400-->
   <Events
-          maxTime="157680000">
+          maxTime="3456000">
+
 
     <PeriodicEvent
-            name="outputs"
-            timeFrequency="7884000"
-            targetExactTimestep="1"
-            target="/Outputs/water_oil_305"/>
-    <PeriodicEvent
       name="outputTimeHistory_mesh1"
-      timeFrequency="7884000"
+      timeFrequency="28800"
       target="/Outputs/timeHistoryOutput_mesh1"/>
 
     <PeriodicEvent
       name="outputTimeHistory_mesh2"
-      timeFrequency="7884000"
+      timeFrequency="28800"
       target="/Outputs/timeHistoryOutput_mesh2"/>
 
     <PeriodicEvent
       name="solverApplications"
-      maxEventDt="7884000"
+      maxEventDt="28800"
       target="/Solvers/DualContinuumSolver"/>
-
+    <PeriodicEvent
+            name="outputs"
+            timeFrequency="28800"
+            targetExactTimestep="1"
+            target="/Outputs/water_oil_0305"/>
     <!-- <PeriodicEvent
       name="statistics"
       timeFrequency="3153600"
@@ -134,12 +135,12 @@
       name="Region1"
       meshBody="mesh1"
       cellBlocks="{ block1 }"
-      materialList="{ fluid, rock, relperm, cappres }"/>
+      materialList="{ fluid, rock, relperm, cappres,gravityDrainagePressure }"/>
     <CellElementRegion
       name="Region2"
       meshBody="mesh2"
       cellBlocks="{ block2 }"
-      materialList="{ fluid, fractureRock, relperm, fractureCappres }"/>
+      materialList="{ fluid, fractureRock, relperm, fractureCappres,gravityDrainagePressure }"/>
   </ElementRegions>
 
   <Constitutive>
@@ -360,7 +361,7 @@
 
   <Outputs>
     <VTK
-      name="water_oil_305"/>
+      name="water_oil_0305"/>
 
     <TimeHistory
       name="timeHistoryOutput_mesh1"

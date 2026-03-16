@@ -33,6 +33,7 @@ struct PotGrad
             integer const ip,
             integer const hasCapPressure,
             integer const checkPhasePresenceInGravity,
+            integer const hasGravityDraingae,
             localIndex const ( &seri )[numFluxSupportPoints],
             localIndex const ( &sesri )[numFluxSupportPoints],
             localIndex const ( &sei )[numFluxSupportPoints],
@@ -56,6 +57,7 @@ struct PotGrad
             ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
             ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
             ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
+            ElementViewConst< arrayView2d< real64 >> const & gravityDrainagePressure_m,
             real64 & potGrad,
             real64 & dPotGrad_dTrans,
             real64 ( & dPresGrad_dP )[numFluxSupportPoints],
@@ -144,13 +146,19 @@ struct PotGrad
         }
       }
 
+      real64 gravityDrainagePressure = 0.0;
+      if(hasGravityDraingae)
+      {
+        gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][ip];
+      }
+
       if( i==0 ) //判断是应该使用那种物质中的场
       {
         //TODO@LSL 这里需要添加一个网格内部的重力项？与SPE6的案例设置对上，kazemi模型dP+dP_cap+dP_gravity
         //std::cout << "phase " << ip << " in block "<< i << " has pressure of " << pres_m[er][esr][ei]<< " and the cappres is :"<< capPressure<< std::endl;
 
-        real64 const dP = (false) ? pres_m[er][esr][ei] - capPressure +  3.05/2 * 9.8 * 800 :  pres_m[er][esr][ei] - capPressure ;
-        //real64 const dP =  pres_m[er][esr][ei] - capPressure ;
+        //real64 const dP = pres_m[er][esr][ei] - capPressure - (ip == 1 ? gravityDrainagePressure_m[er][esr][ei][0] : 0); 应该是这样，但是将重力加到对应的相中，结果貌似一致？但是收敛性好
+        real64 const dP = pres_m[er][esr][ei] - capPressure + gravityDrainagePressure;
         presGrad += trans[i] * dP;
         dPresGrad_dTrans += dP;
         dPresGrad_dP[i] += trans[i] * ( 1 - dCapPressure_dP ) + dTrans_dPres[i] * dP;

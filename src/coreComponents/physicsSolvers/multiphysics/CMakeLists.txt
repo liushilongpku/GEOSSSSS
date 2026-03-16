@@ -37,7 +37,7 @@ set( multiPhysicsSolvers_headers
     PoromechanicsInitialization.hpp
     PoromechanicsFields.hpp
      dualContinuumCrossFlow/CompositionalMultiPhaseDualContinuum.hpp
-     dualContinuumCrossFlow/DualContinuumFlowSolver.hpp
+     dualContinuumCrossFlow/DualContinuumFlowSolverBase.hpp
      dualContinuumCrossFlow/DualContinuumCrossFlow.hpp
      dualContinuumCrossFlow/SinglePhaseDualContinuum.hpp
      dualContinuumCrossFlow/kernels/singlePhase/CrossFlowComputeKernel.hpp
