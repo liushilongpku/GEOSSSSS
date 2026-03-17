@@ -3,14 +3,11 @@
 <Problem>
   <Solvers>
 
-                <!-- fractureSpacingLx="3.05"
-        fractureSpacingLy="3.05"
-        fractureSpacingLz="3.05"  -->
     <CompositionalMultiPhaseDualContinuumFVM
       name="DualContinuumSolver"
       flowSolverName="compflow1"
       flowSolverName1="compflow2"
-      logLevel="0"
+      logLevel="1"
       writeLinearSystem="0"
       targetRegions="{ mesh1/Region1 ,mesh2/Region2}"
       matrixRegionList="{ Region1 }"
@@ -19,9 +16,9 @@
         fractureSpacingLx="3.05"
         fractureSpacingLy="3.050"
         fractureSpacingLz="3.05"
+        gravityDrainageFlag="1"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
-<!--      这里的fractureSpacingLx、fractureSpacingLy、fractureSpacingLz是不起作用，在代码中硬编码形状因子25。-->
       <LinearSolverParameters
         solverType="direct"
         directParallel="0"
@@ -33,7 +30,7 @@
 
     <CompositionalMultiphaseFVM
       name="compflow1"
-      logLevel="0"
+      logLevel="1"
       discretization="fluidTPFA"
       temperature="297.15"
       useMass="1"
@@ -73,8 +70,8 @@
       name="mesh1"
       elementTypes="{ C3D8 }"
       xCoords="{ 0, 3.05 }"
-      yCoords="{ 0, 3.05  }"
-      zCoords="{ 0, 3.05  }"
+      yCoords="{ 0, 3.05 }"
+      zCoords="{ 0, 3.05 }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
@@ -82,44 +79,42 @@
     <InternalMesh
       name="mesh2"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 3.05  }"
-      yCoords="{ 0, 3.05  }"
-      zCoords="{ 0, 3.05  }"
+      xCoords="{ 0, 3.05 }"
+      yCoords="{ 0, 3.05 }"
+      zCoords="{ 0, 3.05 }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
       cellBlockNames="{ block2 }"/>
   </Mesh>
 
-<!--  <Events-->
-<!--    maxTime="8640000">   86400-->
   <Events
-          maxTime="157680000">
+    maxTime="157680000">
+    <PeriodicEvent
+      name="outputs"
+      timeFrequency="3153600"
+      targetExactTimestep="1"
+      target="/Outputs/vtkOutput"/>
 
     <PeriodicEvent
-            name="outputs"
-            timeFrequency="7884000"
-            targetExactTimestep="1"
-            target="/Outputs/water_oil_305"/>
-    <PeriodicEvent
       name="outputTimeHistory_mesh1"
-      timeFrequency="7884000"
+      timeFrequency="3153600"
       target="/Outputs/timeHistoryOutput_mesh1"/>
 
     <PeriodicEvent
       name="outputTimeHistory_mesh2"
-      timeFrequency="7884000"
+      timeFrequency="3153600"
       target="/Outputs/timeHistoryOutput_mesh2"/>
 
     <PeriodicEvent
       name="solverApplications"
-      maxEventDt="7884000"
+      maxEventDt="3153600"
       target="/Solvers/DualContinuumSolver"/>
 
-    <!-- <PeriodicEvent
+    <PeriodicEvent
       name="statistics"
       timeFrequency="3153600"
-      target="/Tasks/compositionalMultiphaseFlowStatistics"/> -->
+      target="/Tasks/compositionalMultiphaseFlowStatistics"/>
   </Events>
 
   <NumericalMethods>
@@ -134,35 +129,30 @@
       name="Region1"
       meshBody="mesh1"
       cellBlocks="{ block1 }"
-      materialList="{ fluid, rock, relperm, cappres }"/>
+      materialList="{ fluid, rock, relperm, cappres,gravityDrainagePressure }"/>
     <CellElementRegion
       name="Region2"
       meshBody="mesh2"
       cellBlocks="{ block2 }"
-      materialList="{ fluid, fractureRock, relperm, fractureCappres }"/>
+      materialList="{ fluid, rock, relperm, fractureCappres ,gravityDrainagePressure}"/>
   </ElementRegions>
 
   <Constitutive>
     <SimpleGravityDrainagePressure
             name="gravityDrainagePressure"/>
-    <DeadOilFluid
+
+    <BlackOilFluid
       name="fluid"
-      phaseNames="{ oil, water }"
-      surfaceDensities="{ 800.907131537, 1020.3440 }"
-      componentMolarWeight="{ 120e-3, 18e-3 }"
-      tableFiles="{ pvto_dead_oil_over_bub.txt, pvtw_bo.txt }"/>
+      phaseNames="{ oil, gas, water }"
+      surfaceDensities="{ 819.18, 0.929, 1041.2 }"
+      componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
+      tableFiles="{ pvto_bo_reinfine_high_Vis.txt, pvtg_norv_bo.txt, pvtw_bo.txt }"/>
 
     <CompressibleSolidConstantPermeability
       name="rock"
       solidModelName="nullSolid"
       porosityModelName="rockPorosity"
       permeabilityModelName="rockPerm"/>
-
-    <CompressibleSolidConstantPermeability
-      name="fractureRock"
-      solidModelName="nullSolid"
-      porosityModelName="fracturePorosity"
-      permeabilityModelName="fracturePerm"/>
 
     <NullModel
       name="nullSolid"/>
@@ -171,37 +161,30 @@
       name="rockPorosity"
       defaultReferencePorosity="0.3"
       referencePressure="43e6"
-      compressibility="5.0e-10"/>
-
-    <PressurePorosity
-      name="fracturePorosity"
-      defaultReferencePorosity="0.01"
-      referencePressure="43e6"
-      compressibility="5.0e-10"/>
-<!--    几乎不可压缩-->
+      compressibility="1.0e-9"/>
 
     <TableRelativePermeability
       name="relperm"
-      phaseNames="{ oil, water }"
-      wettingNonWettingRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"/>
+      phaseNames="{ oil, gas, water }"
+      wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
+      nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
+      threePhaseInterpolator="STONEII"/>
 
     <TableCapillaryPressure
       name="cappres"
-      phaseNames="{ oil, water }"
-      wettingNonWettingCapPressureTableName="waterCapPresTable"/>
+      phaseNames="{ oil, gas, water }"
+      wettingIntermediateCapPressureTableName="waterCapPresTable"
+      nonWettingIntermediateCapPressureTableName="gasCapPresTable"/>
 
     <TableCapillaryPressure
       name="fractureCappres"
-      phaseNames="{ oil, water }"
-      wettingNonWettingCapPressureTableName="fractureWaterCapPresTable"/>
+      phaseNames="{ oil, gas, water }"
+      wettingIntermediateCapPressureTableName="fractureWaterCapPresTable"
+      nonWettingIntermediateCapPressureTableName="fractureGasCapPresTable"/>
 
     <ConstantPermeability
       name="rockPerm"
       permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
-
-    <ConstantPermeability
-      name="fracturePerm"
-      permeabilityComponents="{ 1.0e-14, 1.0e-14, 1.0e-14 }"/>
   </Constitutive>
 
   <FieldSpecifications>
@@ -231,7 +214,7 @@
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="0"
-      scale="0.6088"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.8-->
+      scale="0.5366"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.8-->
     <FieldSpecification
       name="initialComposition_oil_mesh2"
       initialCondition="1"
@@ -243,14 +226,33 @@
       scale="0.0001"/>
 
     <FieldSpecification
-      name="initialComposition_water_mesh1"
+      name="initialComposition_gas_mesh1"
       initialCondition="1"
       targetMesh="mesh1"
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="1"
-      scale="0.3912"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.2-->
+     scale="0.1658"/><!-- 全部溶解在油相中-->
+    <FieldSpecification
+      name="initialComposition_gas_mesh2"
+      initialCondition="1"
+      targetMesh="mesh2"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="1"
+      scale="0.0"/>
+
+    <FieldSpecification
+      name="initialComposition_water_mesh1"
+      initialCondition="1"
+      targetMesh="mesh1"
+      setNames="{ all }"
+      objectPath="ElementRegions"
+      fieldName="globalCompFraction"
+      component="2"
+      scale="0.2976"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.2-->
     <FieldSpecification
       name="initialComposition_water_mesh2"
       initialCondition="1"
@@ -258,9 +260,36 @@
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
-      component="1"
+      component="2"
       scale="0.9999"/>
-
+<!--constant BC-->
+    <FieldSpecification
+            name="constComposition_oil_mesh2"
+            initialCondition="0"
+            targetMesh="mesh2"
+            setNames="{ all }"
+            objectPath="ElementRegions"
+            fieldName="globalCompFraction"
+            component="0"
+            scale="0.0001"/>
+    <FieldSpecification
+            name="constComposition_gas_mesh2"
+            initialCondition="0"
+            targetMesh="mesh2"
+            setNames="{ all }"
+            objectPath="ElementRegions"
+            fieldName="globalCompFraction"
+            component="1"
+            scale="0.0"/>
+    <FieldSpecification
+            name="constComposition_water_mesh2"
+            initialCondition="0"
+            targetMesh="mesh2"
+            setNames="{ all }"
+            objectPath="ElementRegions"
+            fieldName="globalCompFraction"
+            component="2"
+            scale="0.9999"/>
     <!-- Constant pressure boundary conditions to maintain 43MPa -->
     <!-- <FieldSpecification
       name="constantPressure_mesh1"
@@ -275,24 +304,7 @@
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/> 
-<!-- 定组分 -->
-    <FieldSpecification
-      name="constantWaterComposition_mesh2_o"
-      targetMesh="mesh2"
-      setNames="{ all }"
-      objectPath="ElementRegions"
-      fieldName="globalCompFraction"
-      component="0"
-      scale="0.0001"/>
-    <FieldSpecification
-      name="constantWaterComposition_mesh2_w"
-      targetMesh="mesh2"
-      setNames="{ all }"
-      objectPath="ElementRegions"
-      fieldName="globalCompFraction"
-      component="1"
-      scale="0.9999"/>
+      scale="43.0e+6"/>
   </FieldSpecifications>
 
   <Functions>
@@ -305,27 +317,23 @@
       name="oilRelPermTableForOW"
       coordinates="{ 0.25, 0.30, 0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80 }"
       values="{ 0.0, 0.042, 0.154, 0.304, 0.392, 0.492, 0.600, 0.723, 0.860, 1.000 }"/>
-
-<!--    <TableFunction-->
-<!--      name="gasRelPermTable"-->
-<!--      coordinates="{ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55 }"-->
-<!--      values="{ 0.0, 0.015, 0.050, 0.103, 0.190, 0.310, 0.420 }"/>-->
-<!--    <TableFunction-->
-<!--      name="oilRelPermTableForOG"-->
-<!--      coordinates="{ 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 }"-->
-<!--      values="{ 0.0, 0.028, 0.11, 0.25, 0.45, 0.70, 1.00 }"/>-->
+    <TableFunction
+      name="gasRelPermTable"
+      coordinates="{ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55 }"
+      values="{ 0.0, 0.015, 0.050, 0.103, 0.190, 0.310, 0.420 }"/>
+    <TableFunction
+      name="oilRelPermTableForOG"
+      coordinates="{ 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 }"
+      values="{ 0.0, 0.028, 0.11, 0.25, 0.45, 0.70, 1.00 }"/>
 
     <TableFunction
       name="waterCapPresTable"
       coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }"/>
-
-    <!--      values="{ 344738, 62052.84, 13789.52, 3447.38, 0, 0, 0, 0, 0, 0 }"/>-->
-
-<!--    <TableFunction-->
-<!--      name="gasCapPresTable"-->
-<!--      coordinates="{ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55 }"-->
-<!--   values="{ 517.11, 586.06, 654.99, 792.90, 999.74, 1758.16, 2661.38 }"/>-->
+    <TableFunction
+      name="gasCapPresTable"
+      coordinates="{ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55 }"
+   values="{ 517.11, 586.06, 654.99, 792.90, 999.74, 1758.16, 2661.38 }"/>
 
       <!-- values="{ -4585.010395,-1689.209906,241.304563,2240.799031,4309.223499,6929.227968,11417.721758}"/> -->
 
@@ -341,12 +349,12 @@
   </Functions>
 
   <Tasks>
-<!--    <CompositionalMultiphaseStatistics-->
-<!--      name="compositionalMultiphaseFlowStatistics"-->
-<!--      flowSolverName="compflow1"-->
-<!--      logLevel="1"-->
-<!--      computeCFLNumbers="1"-->
-<!--      computeRegionStatistics="1"/>-->
+    <CompositionalMultiphaseStatistics
+      name="compositionalMultiphaseFlowStatistics"
+      flowSolverName="compflow1"
+      logLevel="1"
+      computeCFLNumbers="1"
+      computeRegionStatistics="1"/>
 
     <PackCollection
       name="globalCompFractionCollection_mesh1"
@@ -360,7 +368,7 @@
 
   <Outputs>
     <VTK
-      name="water_oil_305"/>
+      name="vtkOutput"/>
 
     <TimeHistory
       name="timeHistoryOutput_mesh1"

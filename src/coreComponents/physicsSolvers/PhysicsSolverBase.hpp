@@ -123,6 +123,25 @@ public:
                         DomainPartition & domain ) override;
 
   /**
+   * @brief Public proxy to invoke inherited initializePostInitialConditionsPreSubGroups.
+   *
+   * This wrapper exposes protected Group initialization hooks for coupled solvers
+   * that need to call these methods on solver objects from sibling contexts.
+   */
+  void initializePostInitialConditionsPreSubGroupsPublic()
+  {
+    initializePostInitialConditionsPreSubGroups();
+  }
+
+  /**
+   * @brief Public proxy to invoke inherited initializePostInitialConditionsPostSubGroups.
+   */
+  void initializePostInitialConditionsPostSubGroupsPublic()
+  {
+    initializePostInitialConditionsPostSubGroups();
+  }
+
+  /**
    * @copydoc ExecutableGroup::execute
    */
   virtual bool execute( real64 const time_n,

@@ -125,6 +125,10 @@ public:
   virtual void initializePostInitialConditionsPreSubGroups() override
   {
     Base::initializePostInitialConditionsPreSubGroups();
+    forEachArgInTuple( m_solvers, [&]( auto & solver, auto idx )
+    {
+      solver->initializePostInitialConditionsPreSubGroupsPublic();
+    } );
 
     DomainPartition& domain = this->template getGroupByPath< DomainPartition >( "/Problem/domain" );
     MeshBody & matrix = domain.getMeshBody("mesh1");
@@ -137,6 +141,10 @@ public:
   virtual void initializePostInitialConditionsPostSubGroups() override
   {
     Base::initializePostInitialConditionsPostSubGroups();
+    forEachArgInTuple( m_solvers, [&]( auto & solver, auto idx )
+    {
+      solver->initializePostInitialConditionsPostSubGroupsPublic();
+    } );
 
     DomainPartition& domain = this->template getGroupByPath< DomainPartition >( "/Problem/domain" );
     MeshBody & matrix = domain.getMeshBody("mesh1");
