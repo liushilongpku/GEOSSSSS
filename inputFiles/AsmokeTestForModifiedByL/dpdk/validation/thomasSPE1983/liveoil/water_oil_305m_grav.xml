@@ -13,9 +13,9 @@
       matrixRegionList="{ Region1 }"
       fractureRegionList="{ Region2 }">
       <DualContinuumCrossFlow
-        fractureSpacingLx="3.05"
-        fractureSpacingLy="3.050"
-        fractureSpacingLz="3.05"
+        fractureSpacingLx="3"
+        fractureSpacingLy="3"
+        fractureSpacingLz="3"
         gravityDrainageFlag="1"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
@@ -69,9 +69,9 @@
     <InternalMesh
       name="mesh1"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 3.05 }"
-      yCoords="{ 0, 3.05 }"
-      zCoords="{ 0, 3.05 }"
+      xCoords="{ 0, 3 }"
+      yCoords="{ 0, 3 }"
+      zCoords="{ 0, 3 }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
@@ -79,9 +79,9 @@
     <InternalMesh
       name="mesh2"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 3.05 }"
-      yCoords="{ 0, 3.05 }"
-      zCoords="{ 0, 3.05 }"
+      xCoords="{ 0, 3 }"
+      yCoords="{ 0, 3 }"
+      zCoords="{ 0, 3 }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
@@ -92,28 +92,28 @@
     maxTime="157680000">
     <PeriodicEvent
       name="outputs"
-      timeFrequency="3153600"
+      timeFrequency="7884000"
       targetExactTimestep="1"
       target="/Outputs/vtkOutput"/>
 
     <PeriodicEvent
       name="outputTimeHistory_mesh1"
-      timeFrequency="3153600"
+      timeFrequency="7884000"
       target="/Outputs/timeHistoryOutput_mesh1"/>
 
     <PeriodicEvent
       name="outputTimeHistory_mesh2"
-      timeFrequency="3153600"
+      timeFrequency="7884000"
       target="/Outputs/timeHistoryOutput_mesh2"/>
 
     <PeriodicEvent
       name="solverApplications"
-      maxEventDt="3153600"
+      maxEventDt="7884000"
       target="/Solvers/DualContinuumSolver"/>
 
     <PeriodicEvent
       name="statistics"
-      timeFrequency="3153600"
+      timeFrequency="7884000"
       target="/Tasks/compositionalMultiphaseFlowStatistics"/>
   </Events>
 
@@ -140,6 +140,7 @@
   <Constitutive>
     <SimpleGravityDrainagePressure
             name="gravityDrainagePressure"/>
+<!--    surfaceDensities="{ 819.18, 0.929, 1041.2 }"-->
 
     <BlackOilFluid
       name="fluid"
@@ -160,7 +161,7 @@
     <PressurePorosity
       name="rockPorosity"
       defaultReferencePorosity="0.3"
-      referencePressure="43e6"
+      referencePressure="42.85e6"
       compressibility="1.0e-9"/>
 
     <TableRelativePermeability
@@ -196,7 +197,7 @@
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>
+      scale="42.85e+6"/>
     <FieldSpecification
       name="initialPressure_mesh2"
       initialCondition="1"
@@ -204,7 +205,7 @@
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>
+      scale="42.85e+6"/>
 
     <FieldSpecification
       name="initialComposition_oil_mesh1"
@@ -290,21 +291,21 @@
             fieldName="globalCompFraction"
             component="2"
             scale="0.9999"/>
-    <!-- Constant pressure boundary conditions to maintain 43MPa -->
+    <!-- Constant pressure boundary conditions to maintain 42.85MPa -->
     <!-- <FieldSpecification
       name="constantPressure_mesh1"
       targetMesh="mesh1"
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>-->
+      scale="42.85e+6"/>-->
     <FieldSpecification
       name="constantPressure_mesh2"
       targetMesh="mesh2"
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>
+      scale="42.85e+6"/>
   </FieldSpecifications>
 
   <Functions>
@@ -323,7 +324,7 @@
       values="{ 0.0, 0.015, 0.050, 0.103, 0.190, 0.310, 0.420 }"/>
     <TableFunction
       name="oilRelPermTableForOG"
-      coordinates="{ 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 }"
+      coordinates="{ 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8 }"
       values="{ 0.0, 0.028, 0.11, 0.25, 0.45, 0.70, 1.00 }"/>
 
     <TableFunction

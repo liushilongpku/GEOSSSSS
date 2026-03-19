@@ -170,18 +170,18 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
         // 修正：从数组中获取第 i 个单元的体积
         real64 const Volume = cellVolumeArrayViewMatrix[i];
         real64 shapeFactory[3];
-        shapeFactory[0] = 4.0 * Volume * invLx2;
-        shapeFactory[1] = 4.0 * Volume * invLy2;
-        shapeFactory[2] = 4.0 * Volume * invLz2;
+        //shapeFactory[0] = 4.0 * Volume * invLx2;
+        //shapeFactory[1] = 4.0 * Volume * invLy2;
+        //shapeFactory[2] = 4.0 * Volume * invLz2;
         //        shapeFactory[0] = 2.69*Volume;
         //        shapeFactory[1] = 2.69*Volume;
         //        shapeFactory[2] = 2.69*Volume;
-        //        shapeFactory[0] = 25*Volume;
-        //        shapeFactory[1] = 25*Volume;
-        //        shapeFactory[2] = 25*Volume;
-        //        shapeFactory[0] = 30*Volume;
-        //        shapeFactory[1] = 30*Volume;
-        //        shapeFactory[2] = 30*Volume;
+                shapeFactory[0] = 0.9*Volume;
+                shapeFactory[1] = 0.9*Volume;
+                shapeFactory[2] = 0.9*Volume;
+//                shapeFactory[0] = 90*Volume;
+//                shapeFactory[1] = 90*Volume;
+//                shapeFactory[2] = 90*Volume;
         // Add to Stencil
         m_stencil.add( 2, regionIndices, subRegionIndices, elementIndices, shapeFactory, ConnIdx );
         ConnIdx++;

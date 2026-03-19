@@ -149,13 +149,16 @@ struct PotGrad
       real64 gravityDrainagePressure = 0.0;
       if(hasGravityDraingae)
       {
-        gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][ip];
+        if(ip == 0)
+        {
+          gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][0];
+        }
       }
 
       if( i==0 ) //判断是应该使用那种物质中的场
       {
         //TODO@LSL 这里需要添加一个网格内部的重力项？与SPE6的案例设置对上，kazemi模型dP+dP_cap+dP_gravity
-        //std::cout << "phase " << ip << " in block "<< i << " has pressure of " << pres_m[er][esr][ei]<< " and the cappres is :"<< capPressure<< std::endl;
+        std::cout <<" and the cappres is :"<< capPressure<<" the grav is: "<< gravityDrainagePressure<< std::endl;
 
         //real64 const dP = pres_m[er][esr][ei] - capPressure - (ip == 1 ? gravityDrainagePressure_m[er][esr][ei][0] : 0); 应该是这样，但是将重力加到对应的相中，结果貌似一致？但是收敛性好
         real64 const dP = pres_m[er][esr][ei] - capPressure + gravityDrainagePressure;

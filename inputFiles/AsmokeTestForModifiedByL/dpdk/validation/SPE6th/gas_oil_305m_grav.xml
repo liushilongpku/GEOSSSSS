@@ -13,9 +13,9 @@
       matrixRegionList="{ Region1 }"
       fractureRegionList="{ Region2 }">
       <DualContinuumCrossFlow
-        fractureSpacingLx="0.30"
-        fractureSpacingLy="0.30"
-        fractureSpacingLz="0.30"
+        fractureSpacingLx="3.05"
+        fractureSpacingLy="3.05"
+        fractureSpacingLz="3.05"
         gravityDrainageFlag="1"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
@@ -38,7 +38,7 @@
       maxCompFractionChange="0.5"
       targetRegions="{mesh1/Region1 }">
       <NonlinearSolverParameters
-        newtonTol="1.0e-4"
+        newtonTol="1.0e-6"
         newtonMaxIter="100"
         lineSearchAction="None"
         maxTimeStepCuts="5"/>
@@ -56,7 +56,7 @@
       maxCompFractionChange="0.5"
       targetRegions="{mesh2/Region2 }">
       <NonlinearSolverParameters
-        newtonTol="1.0e-4"
+        newtonTol="1.0e-6"
         newtonMaxIter="100"
         lineSearchAction="None"
         maxTimeStepCuts="5"/>
@@ -69,9 +69,9 @@
     <InternalMesh
       name="mesh1"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 0.30 }"
-      yCoords="{ 0, 0.30 }"
-      zCoords="{ 0, 0.30 }"
+      xCoords="{ 0, 3.05 }"
+      yCoords="{ 0, 3.05 }"
+      zCoords="{ 0, 3.05 }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
@@ -79,9 +79,9 @@
     <InternalMesh
       name="mesh2"
       elementTypes="{ C3D8 }"
-      xCoords="{ 0, 0.30 }"
-      yCoords="{ 0, 0.30 }"
-      zCoords="{ 0, 0.30 }"
+      xCoords="{ 0, 3.05 }"
+      yCoords="{ 0, 3.05 }"
+      zCoords="{ 0, 3.05 }"
       nx="{ 1 }"
       ny="{ 1 }"
       nz="{ 1 }"
@@ -89,31 +89,31 @@
   </Mesh>
 
   <Events
-    maxTime="3456000">
+    maxTime="157680000">
     <PeriodicEvent
       name="outputs"
-      timeFrequency="86400"
+      timeFrequency="3153600"
       targetExactTimestep="1"
       target="/Outputs/vtkOutput"/>
 
     <PeriodicEvent
       name="outputTimeHistory_mesh1"
-      timeFrequency="86400"
+      timeFrequency="3153600"
       target="/Outputs/timeHistoryOutput_mesh1"/>
 
     <PeriodicEvent
       name="outputTimeHistory_mesh2"
-      timeFrequency="86400"
+      timeFrequency="3153600"
       target="/Outputs/timeHistoryOutput_mesh2"/>
 
     <PeriodicEvent
       name="solverApplications"
-      maxEventDt="86400"
+      maxEventDt="3153600"
       target="/Solvers/DualContinuumSolver"/>
 
     <PeriodicEvent
       name="statistics"
-      timeFrequency="86400"
+      timeFrequency="3153600"
       target="/Tasks/compositionalMultiphaseFlowStatistics"/>
   </Events>
 
@@ -146,7 +146,7 @@
       phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
-      tableFiles="{ pvto_bo_reinfine_high_Vis.txt, pvtg_norv_bo.txt, pvtw_bo.txt }"/>
+      tableFiles="{ pvto_bo_reinfine.txt, pvtg_norv_bo.txt, pvtw_bo.txt }"/>
 
     <CompressibleSolidConstantPermeability
       name="rock"
@@ -159,8 +159,8 @@
 
     <PressurePorosity
       name="rockPorosity"
-      defaultReferencePorosity="0.3"
-      referencePressure="43e6"
+      defaultReferencePorosity="0.29"
+      referencePressure="31.12e6"
       compressibility="1.0e-9"/>
 
     <TableRelativePermeability
@@ -169,6 +169,7 @@
       wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
       nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
       threePhaseInterpolator="STONEII"/>
+
 
     <TableCapillaryPressure
       name="cappres"
@@ -196,7 +197,7 @@
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>
+      scale="31.12e+6"/>
     <FieldSpecification
       name="initialPressure_mesh2"
       initialCondition="1"
@@ -204,7 +205,7 @@
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>
+      scale="31.12e+6"/>
 
     <FieldSpecification
       name="initialComposition_oil_mesh1"
@@ -214,7 +215,7 @@
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="0"
-      scale="0.5366"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.8-->
+      scale="0.5788"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.8-->
     <FieldSpecification
       name="initialComposition_oil_mesh2"
       initialCondition="1"
@@ -233,7 +234,7 @@
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="1"
-     scale="0.1658"/><!-- 全部溶解在油相中-->
+     scale="0.1320"/><!-- 全部溶解在油相中-->
     <FieldSpecification
       name="initialComposition_gas_mesh2"
       initialCondition="1"
@@ -242,7 +243,7 @@
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="1"
-      scale="0.0"/>
+      scale="0.9999"/>
 
     <FieldSpecification
       name="initialComposition_water_mesh1"
@@ -252,7 +253,7 @@
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="2"
-      scale="0.2976"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.2-->
+      scale="0.2892"/><!--无法直接给体积分数，通过质量分数代替，代表体积分数0.2-->
     <FieldSpecification
       name="initialComposition_water_mesh2"
       initialCondition="1"
@@ -261,7 +262,7 @@
       objectPath="ElementRegions"
       fieldName="globalCompFraction"
       component="2"
-      scale="0.9999"/>
+      scale="0.0"/>
 <!--constant BC-->
     <FieldSpecification
             name="constComposition_oil_mesh2"
@@ -280,7 +281,7 @@
             objectPath="ElementRegions"
             fieldName="globalCompFraction"
             component="1"
-            scale="0.0"/>
+            scale="0.9999"/>
     <FieldSpecification
             name="constComposition_water_mesh2"
             initialCondition="0"
@@ -289,22 +290,22 @@
             objectPath="ElementRegions"
             fieldName="globalCompFraction"
             component="2"
-            scale="0.9999"/>
-    <!-- Constant pressure boundary conditions to maintain 43MPa -->
+            scale="0.0"/>
+    <!-- Constant pressure boundary conditions to maintain 31.12MPa -->
     <!-- <FieldSpecification
       name="constantPressure_mesh1"
       targetMesh="mesh1"
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>-->
+      scale="31.12e+6"/>-->
     <FieldSpecification
       name="constantPressure_mesh2"
       targetMesh="mesh2"
       setNames="{ all }"
       objectPath="ElementRegions"
       fieldName="pressure"
-      scale="43.0e+6"/>
+      scale="31.12e+6"/>
   </FieldSpecifications>
 
   <Functions>
@@ -325,6 +326,7 @@
       name="oilRelPermTableForOG"
       coordinates="{ 0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8 }"
       values="{ 0.0, 0.028, 0.11, 0.25, 0.45, 0.70, 1.00 }"/>
+<!--    coordinates="{ 0.45, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 }" 这里是除了气外的饱和度，而应该用油的饱和度，即减去残余水-->
 
     <TableFunction
       name="waterCapPresTable"
@@ -333,7 +335,9 @@
     <TableFunction
       name="gasCapPresTable"
       coordinates="{ 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.55 }"
-   values="{ 517.11, 586.06, 654.99, 792.90, 999.74, 1758.16, 2661.38 }"/>
+    values="{ 517.11, 586.06, 654.99, 792.90, 999.74, 1758.16, 2661.38 }"/>
+<!--    需要基于表面张力缩放-->
+<!--    values = "{ 2711.9, 3073.5, 3435.0, 4158.3, 5243.0, 9220.6, 13957.2 }"/>-->
 
       <!-- values="{ -4585.010395,-1689.209906,241.304563,2240.799031,4309.223499,6929.227968,11417.721758}"/> -->
 
