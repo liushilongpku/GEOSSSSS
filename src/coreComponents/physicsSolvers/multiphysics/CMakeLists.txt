@@ -56,6 +56,8 @@ set( multiPhysicsSolvers_headers
      dualContinuumCrossFlow/kernels/compositionalMultiPhase/ThermalFluxComputeKernel.hpp
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseBaseDpdk.hpp
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseDpdkFVM.hpp
+     dualContinuumPoromechanics/DualContinuumPoromechanicsSolverBase.hpp
+     dualContinuumPoromechanics/SinglePhaseDualContinuumPoromechanicsSolver.hpp
     poromechanicsKernels/MultiphasePoromechanics.hpp
     poromechanicsKernels/MultiphasePoromechanics_impl.hpp
     poromechanicsKernels/MultiphasePoromechanicsConformingFractures.hpp
@@ -98,6 +100,7 @@ set( multiPhysicsSolvers_sources
     SinglePhasePoromechanicsEmbeddedFractures.cpp
     SinglePhasePoromechanicsConformingFractures.cpp
     SinglePhaseReservoirAndWells.cpp
+     dualContinuumPoromechanics/SinglePhaseDualContinuumPoromechanicsSolver.cpp
      dualContinuumCrossFlow/CompositionalMultiPhaseDualContinuum.cpp
      dualContinuumCrossFlow/DualContinuumCrossFlow.cpp
      dualContinuumCrossFlow/anotherWayOfDualContinuum/SinglePhaseDpdkFVM.cpp

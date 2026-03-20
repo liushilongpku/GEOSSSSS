@@ -1071,9 +1071,10 @@ void SolidMechanicsLagrangianFEM::assembleSystem( real64 const GEOS_UNUSED_PARAM
                                                   arrayView1d< real64 > const & localRhs )
 {
   GEOS_MARK_FUNCTION;
-
-  localMatrix.zero();
-  localRhs.zero();
+  
+  //TODO@LSL 这里为了适配双重介质力学，删除了清零函数，是否存在未知的影响？
+  //localMatrix.zero();
+  //localRhs.zero();
 
   forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
                                                                 MeshLevel & mesh,

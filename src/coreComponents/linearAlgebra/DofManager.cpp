@@ -959,12 +959,21 @@ void DofManager::setSparsityPatternDualContinuum(SparsityPatternView< globalInde
                                             string matrixRegionName,
                                             string fractureRegionName) const
 {
+  FieldDescription const & rowFieldDescription = m_fields[rowFieldIndex];
+  FieldDescription const & colFieldDescription = m_fields[colFieldIndex];
 
-  FieldDescription const & field = m_fields[rowFieldIndex];
+  // Only apply dual-continuum coupling if both fields are in element-based flow context.
+  if( rowFieldDescription.location != FieldLocation::Elem ||
+      colFieldDescription.location != FieldLocation::Elem )
+  {
+    return;
+  }
+
+  FieldDescription const & field = rowFieldDescription;
   CouplingDescription const & coupling = m_coupling.at( {rowFieldIndex, rowFieldIndex} );
   integer const numComp = field.numComponents;
   globalIndex const rankDofOffset = rankOffset();
-  CompMask const & globallyCoupledComps = field.globallyCoupledComponents;
+  CompMask const & globallyCoupledComponents = field.globallyCoupledComponents;
 
   forMeshSupport( field.support, *m_domain, [&]( MeshBody const &, MeshLevel const & mesh, auto const & regions )
   {
@@ -1241,6 +1250,13 @@ void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex
   FieldDescription const &rowFieldDescription = m_fields[rowFieldIndex];
   FieldDescription const &colFieldDescription = m_fields[colFieldIndex];
 
+  // Only apply dual-continuum coupling if both fields are in element-based flow context.
+  if( rowFieldDescription.location != FieldLocation::Elem ||
+      colFieldDescription.location != FieldLocation::Elem )
+  {
+    return;
+  }
+
   integer const numComp = rowFieldDescription.numComponents;
   globalIndex const rankDofOffset = rankOffset();
 
@@ -1254,6 +1270,8 @@ void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex
 
         mesh.getElemManager().forElementSubRegions(regionNames, [&](localIndex const, ElementSubRegionBase const &subRegion)
         {
+          GEOS_LOG(subRegion.getName());
+          GEOS_LOG(rowFieldDescription.key);
           arrayView1d<integer const> const ghostRank = subRegion.ghostRank();
           arrayView1d<globalIndex const> const dofNumber = subRegion.getReference<array1d<globalIndex> >(rowFieldDescription.key);
           forAll<parallelHostPolicy>(subRegion.size(),[&](localIndex const ei)
@@ -1411,14 +1429,21 @@ void DofManager::setSparsityPattern( SparsityPattern< globalIndex > & pattern ) 
   {
     for( integer blockCol = 0; blockCol < numFields; ++blockCol )
     {
-      countRowLengthsOneBlock( rowSizes, blockRow, blockCol );
+      countRowLengthsOneBlock( rowSizes, blockRow, blockCol );//rowsize[]是每一行非零元素的数量，
 
-      ///设置双重介质稀疏矩阵结构
-      for(size_t RegionIndex=0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
+      ///设置双重介质稀疏矩阵结构，只有定义在elem中的才需要组装双重介质，排除力学耦合
+      bool const isDualContinuumFlowPair = m_isdpdk && blockRow == blockCol &&
+                                           m_fields[blockRow].location == FieldLocation::Elem &&
+                                           m_fields[blockCol].location == FieldLocation::Elem;
+      if( isDualContinuumFlowPair )
       {
-        if(m_isdpdk && blockRow == blockCol )//目前对双重介质均使用了相同的场名称
+        for( size_t RegionIndex = 0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
         {
-          countRowLengthsDualContinuum(rowSizes, blockRow, blockCol, m_matrixRegionList[RegionIndex], m_fractureRegionList[RegionIndex]);
+          countRowLengthsDualContinuum( rowSizes,
+                                        blockRow,
+                                        blockCol,
+                                        m_matrixRegionList[RegionIndex],
+                                        m_fractureRegionList[RegionIndex] );
         }
       }
     }
@@ -1434,12 +1459,19 @@ void DofManager::setSparsityPattern( SparsityPattern< globalIndex > & pattern ) 
     {
       setSparsityPatternOneBlock( pattern.toView(), blockRow, blockCol );
 
-      ///设置双重介质稀疏矩阵结构
-      for(size_t RegionIndex=0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
+      ///设置双重介质稀疏矩阵结构，只有定义在elem中的才需要组装双重介质，排除力学耦合
+      bool const isDualContinuumFlowPair = m_isdpdk && blockRow == blockCol &&
+                                           m_fields[blockRow].location == FieldLocation::Elem &&
+                                           m_fields[blockCol].location == FieldLocation::Elem;
+      if( isDualContinuumFlowPair )
       {
-        if(m_isdpdk && blockRow == blockCol )//目前对双重介质均使用了相同的场名称
+        for( size_t RegionIndex = 0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
         {
-          setSparsityPatternDualContinuum( pattern.toView(), blockRow, blockCol, m_matrixRegionList[RegionIndex], m_fractureRegionList[RegionIndex] );
+          setSparsityPatternDualContinuum( pattern.toView(),
+                                          blockRow,
+                                          blockCol,
+                                          m_matrixRegionList[RegionIndex],
+                                          m_fractureRegionList[RegionIndex] );
         }
       }
     }

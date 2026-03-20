@@ -1,0 +1,260 @@
+<?xml version="1.0" ?>
+
+<Problem>
+  <Solvers>
+    <!-- Define individual solvers and reference them from the poromechanics coupled solver -->
+    <SinglePhaseFVM
+      name="matrixFlowSolver"
+      logLevel="1"
+      discretization="singlePhaseTPFA"
+      targetRegions="{ mesh1/matrixRegion }">
+    <NonlinearSolverParameters
+            newtonMaxIter="40"
+            newtonTol="1.0e-3"/>
+    <LinearSolverParameters
+            krylovTol="1.0e-12"
+            solverType="gmres"/>
+    </SinglePhaseFVM>
+    <SinglePhaseFVM
+      name="fractureFlowSolver"
+      logLevel="1"
+      discretization="singlePhaseTPFA"
+      targetRegions="{ mesh2/fractureRegion }">
+    <NonlinearSolverParameters
+            newtonMaxIter="40"
+            newtonTol="1.0e-3"/>
+    <LinearSolverParameters
+            krylovTol="1.0e-12"
+            solverType="gmres"/>
+  </SinglePhaseFVM>
+
+    <SolidMechanicsLagrangianFEM
+      name="solidMechanicsSolver"
+      logLevel="1"
+      discretization="FE1"
+      targetRegions="{ mesh1/matrixRegion }"
+      timeIntegrationOption="QuasiStatic"
+      contactRelationName="tractionlessContact"/>
+
+    <!-- Dual-continuum flow wrapper that binds the two single-phase flow solvers -->
+    <DualContinuumFVM
+      name="dualcontinuumSolver"
+      logLevel="1"
+      flowSolverName="matrixFlowSolver"
+      flowSolverName1="fractureFlowSolver"
+      matrixRegionList="{ matrixRegion }"
+      fractureRegionList="{ fractureRegion }"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      transferCoefficient="0.0">
+    <DualContinuumCrossFlow
+            fractureSpacingLx="3"
+            fractureSpacingLy="3"
+            fractureSpacingLz="3"
+            gravityDrainageFlag="0"
+            matrixRegionList="{ matrixRegion }"
+            fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters
+              newtonMaxIter="40"
+              newtonTol="1.0e-3"/>
+      <LinearSolverParameters
+              krylovTol="1.0e-12"
+              solverType="gmres"/>
+    </DualContinuumFVM>
+    <!-- Poromechanics solver that uses the dual-continuum flow wrapper -->
+    <SinglePhaseDualContinuumPoromechanics
+      name="poromechanicsSolver"
+      logLevel="1"
+      dualcontinuumSolverName="dualcontinuumSolver"
+      solidSolverName="solidMechanicsSolver"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      stabilizationType="None"
+      isThermal="0">
+    <NonlinearSolverParameters
+            newtonMaxIter="40"
+            newtonTol="1.0e-3"/>
+    <LinearSolverParameters
+            krylovTol="1.0e-12"
+            solverType="gmres"/>
+    </SinglePhaseDualContinuumPoromechanics>
+
+  </Solvers>
+
+  <Mesh>
+    <InternalMesh
+      name="mesh1"
+      elementTypes="{ C3D8 }"
+      xCoords="{ 0,1, 9, 10 }"
+      yCoords="{ 0, 10 }"
+      zCoords="{ 0, 10 }"
+      nx="{ 1,1,1 }"
+      ny="{ 1 }"
+      nz="{ 1 }"
+      cellBlockNames="{ matrixBlock }"/>
+    <InternalMesh
+      name="mesh2"
+      elementTypes="{ C3D8 }"
+      xCoords="{ 0,1, 9, 10 }"
+      yCoords="{ 0, 10 }"
+      zCoords="{ 0, 10 }"
+      nx="{ 1,1,1 }"
+      ny="{ 1 }"
+      nz="{ 1 }"
+      cellBlockNames="{ fractureBlock }"/>
+  </Mesh>
+
+  <Geometry>
+    <Box
+      name="leftBoundary"
+      xMin="{ -0.01, -0.01, -0.01 }"
+      xMax="{ 1.01, 10.1, 10.1 }"/>
+    <Box
+      name="rightBoundary"
+      xMin="{ 8.9, -0.1, -0.1 }"
+      xMax="{ 1.1, 10.1, 10.1 }"/>
+  </Geometry>
+
+  <Events maxTime="100">
+    <PeriodicEvent
+      name="solverApplications"
+      forceDt="0.1"
+      target="/Solvers/poromechanicsSolver"/>
+    <PeriodicEvent
+      name="outputs"
+      timeFrequency="10"
+      target="/Outputs/vtkOutput"/>
+  </Events>
+
+  <NumericalMethods>
+    <FiniteVolume>
+      <TwoPointFluxApproximation
+        name="singlePhaseTPFA"/>
+    </FiniteVolume>
+    <FiniteElements>
+      <FiniteElementSpace
+        name="FE1"
+        order="1"/>
+    </FiniteElements>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="matrixRegion"
+      meshBody="mesh1"
+      cellBlocks="{ matrixBlock }"
+      materialList="{ porousRock, water }"/>
+    <CellElementRegion
+      name="fractureRegion"
+      meshBody="mesh2"
+      cellBlocks="{ fractureBlock }"
+      materialList="{ porousRock, water }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CompressibleSinglePhaseFluid
+      name="water"
+      defaultDensity="1000"
+      defaultViscosity="0.001"
+      referencePressure="0"
+      compressibility="1e-9"/>
+
+    <!-- Solid model for porous rock -->
+    <ElasticIsotropic
+      name="porousRockSolid"
+      defaultDensity="2700"
+      defaultBulkModulus="1e10"
+      defaultShearModulus="1e10"/>
+
+    <!-- Porous wrapper that references the solid, porosity and permeability models -->
+    <PorousElasticIsotropic
+      name="porousRock"
+      permeabilityModelName="permeability"
+      porosityModelName="porosityModel"
+      solidModelName="porousRockSolid"/>
+
+    <BiotPorosity
+      name="porosityModel"
+      defaultGrainBulkModulus="1e10"
+      defaultReferencePorosity="0.3"/>
+
+    <ConstantPermeability
+      name="permeability"
+      permeabilityComponents="{ 1e-12, 1e-12, 1e-12 }"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+    <FieldSpecification
+      name="initialPressure"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh1"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="1e6"/>
+    <FieldSpecification
+      name="initialPressureFracture"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh2"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="1.2e6"/>
+    <FieldSpecification
+      name="leftPressure"
+      targetMesh="mesh2"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="1e6"
+      setNames="{ leftBoundary }"/>
+    <FieldSpecification
+            name="leftPressureFracture"
+            targetMesh="mesh2"
+            objectPath="ElementRegions"
+            fieldName="pressure"
+            scale="1.2e6"
+            setNames="{ leftBoundary }"/>
+    <FieldSpecification
+      name="rightPressure"
+            targetMesh="mesh1"
+            objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="1e6"
+      setNames="{ rightBoundary }"/>
+      <FieldSpecification
+            name="rightPressureFracture"
+            targetMesh="mesh2"
+            objectPath="ElementRegions"
+            fieldName="pressure"
+            scale="1.2e6"
+            setNames="{ rightBoundary }"/>
+    <FieldSpecification
+      name="xConstraint"
+      objectPath="nodeManager"
+      targetMesh="mesh1"
+      fieldName="totalDisplacement"
+      component="0"
+      scale="0.0"
+      setNames="{ leftBoundary }"/>
+    <FieldSpecification
+      name="yConstraint"
+      objectPath="nodeManager"
+      targetMesh="mesh1"
+      fieldName="totalDisplacement"
+      component="1"
+      scale="0.0"
+      setNames="{ leftBoundary, rightBoundary }"/>
+    <FieldSpecification
+      name="zConstraint"
+      objectPath="nodeManager"
+      targetMesh="mesh1"
+      fieldName="totalDisplacement"
+      component="2"
+      scale="0.0"
+      setNames="{ leftBoundary, rightBoundary }"/>
+  </FieldSpecifications>
+
+  <Outputs>
+  <VTK
+          name="vtkOutput"/>
+  </Outputs>
+
+</Problem>

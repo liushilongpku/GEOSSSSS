@@ -30,19 +30,8 @@ namespace geos
 {
     namespace stabilization
     {
-        enum class StabilizationType : integer
-        {
-            None,
-            Global,
-            Local,
-        };
-
-        ENUM_STRINGS( StabilizationType,
-                      "None",
-                      "Global",
-                      "Local" );
-    }
-
+  enum class StabilizationType : integer;
+}
 template< typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER >
 class DualContinuumFlowSolverBase : public CoupledSolver< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >
 {
@@ -223,7 +212,51 @@ public:
     return m_crossFlow.getFracSpacingLz();
   }
 
-protected:
+  // Support for PoromechanicsSolver expectations (delegated to primary/secondary solvers)
+  integer isThermal() const
+  {
+    // Assume both solvers have the same thermal flag
+    return primarySolver()->isThermal();
+  }
+
+  void enableFixedStressPoromechanicsUpdate()
+  {
+    primarySolver()->enableFixedStressPoromechanicsUpdate();
+    secondarySolver()->enableFixedStressPoromechanicsUpdate();
+  }
+
+  void enableJumpStabilization()
+  {
+    primarySolver()->enableJumpStabilization();
+    secondarySolver()->enableJumpStabilization();
+  }
+
+  void setKeepVariablesConstantDuringInitStep( bool const keepVariablesConstantDuringInitStep )
+  {
+    primarySolver()->setKeepVariablesConstantDuringInitStep( keepVariablesConstantDuringInitStep );
+    secondarySolver()->setKeepVariablesConstantDuringInitStep( keepVariablesConstantDuringInitStep );
+  }
+
+  void updatePorosityAndPermeability( ElementSubRegionBase & subRegion )
+  {
+    // Forward to the appropriate overload on the underlying solvers depending on subregion type
+    if( auto * cellSub = dynamic_cast< CellElementSubRegion * >( &subRegion ) )
+    {
+      primarySolver()->updatePorosityAndPermeability( *cellSub );
+      secondarySolver()->updatePorosityAndPermeability( *cellSub );
+    }
+    else if( auto * surfSub = dynamic_cast< SurfaceElementSubRegion * >( &subRegion ) )
+    {
+      primarySolver()->updatePorosityAndPermeability( *surfSub );
+      secondarySolver()->updatePorosityAndPermeability( *surfSub );
+    }
+    else
+    {
+      GEOS_ERROR( "Unsupported ElementSubRegionBase type in updatePorosityAndPermeability" );
+    }
+  }
+
+public:
   /**
    * @brief Register mesh connectivity between matrix and fracture regions
    * @param domain The domain partition containing both meshes
@@ -522,7 +555,7 @@ protected:
                            CRSMatrix< real64, globalIndex > & localMatrix,
                            ParallelVector & rhs,
                            ParallelVector & solution,
-                           bool const setSparsity ) override
+                           bool const setSparsity = true ) override
   {
     // TracAI: Register mesh connectivity on first setup system call
     static bool connectivityRegistered = false;

@@ -282,11 +282,11 @@ public:
         localIndex const localRow = LvArray::integerConversion< localIndex >( globalRow - m_rankOffsetM );
         GEOS_ASSERT_GE( localRow, 0 );
         GEOS_ASSERT_GT( m_localMatrix.numRows(), localRow );
-        GEOS_LOG("matrix ");
-        GEOS_LOG("the connection id is " << iconn);
-        GEOS_LOG("the global row number is " << globalRow);
-        GEOS_LOG("the local row number is " << localRow);
-        GEOS_LOG("the dof column indices are " << stack.dofColIndices);
+//        GEOS_LOG("matrix ");
+//        GEOS_LOG("the connection id is " << iconn);
+//        GEOS_LOG("the global row number is " << globalRow);
+//        GEOS_LOG("the local row number is " << localRow);
+//        GEOS_LOG("the dof column indices are " << stack.dofColIndices);
         RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[0 * numEqn] );
         m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
                                                                             stack.dofColIndices.data(),
@@ -302,11 +302,11 @@ public:
       localIndex const localRow = LvArray::integerConversion< localIndex >( globalRow - m_rankOffsetF );
       GEOS_ASSERT_GE( localRow, 0 );
       GEOS_ASSERT_GT( m_localMatrix.numRows(), localRow );
-      GEOS_LOG("frac ");
-      GEOS_LOG("the connection id is " << iconn);
-      GEOS_LOG("the global row number is " << globalRow);
-      GEOS_LOG("the local row number is " << localRow);
-      GEOS_LOG("the dof column indices are " << stack.dofColIndices);
+//      GEOS_LOG("frac ");
+//      GEOS_LOG("the connection id is " << iconn);
+//      GEOS_LOG("the global row number is " << globalRow);
+//      GEOS_LOG("the local row number is " << localRow);
+//      GEOS_LOG("the dof column indices are " << stack.dofColIndices);
       RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[1 * numEqn] );
       m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
                                                                           stack.dofColIndices.data(),

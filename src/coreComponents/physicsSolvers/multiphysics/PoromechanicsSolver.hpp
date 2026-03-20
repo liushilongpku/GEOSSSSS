@@ -43,10 +43,13 @@ enum class StabilizationType : integer
   Local,
 };
 
+#ifndef GEOS_STABILIZATION_TYPE_TO_STRING_DEFINED
+#define GEOS_STABILIZATION_TYPE_TO_STRING_DEFINED
 ENUM_STRINGS( StabilizationType,
               "None",
               "Global",
               "Local" );
+#endif
 }
 
 
