@@ -123,13 +123,17 @@ public:
                          SinglePhaseFluidAccessors const & singlePhaseFluidAccessors_fracture,
                          PermeabilityAccessors const & permeabilityAccessors_fracture,
                          GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors,
+                          bool const hasGravityDrainage,
+                          real64 const gravityCoefficient,
+                          real64 const fractureSpacingLz,
+                          real64 const interporosityExchangeCoefficient,
                          real64 const & dt,
                          CRSMatrixView< real64, globalIndex const > const & localMatrix,
                          arrayView1d< real64 > const & localRhs )
     : m_rankOffsetM(rankOffsetM),
     m_rankOffsetF( rankOffsetF ),
     m_dt( dt ),
-    m_dofMatrixNumber( dofMatrixNumberAccessor.toNestedViewConst() ),//????
+    m_dofMatrixNumber( dofMatrixNumberAccessor.toNestedViewConst() ),
     m_dofFractureNumber( dofFractureNumberAccessor.toNestedViewConst()),
     m_permeability( permeabilityAccessors.get( fields::permeability::permeability {} ) ),
     m_dPerm_dPres( permeabilityAccessors.get( fields::permeability::dPerm_dPressure {} ) ),
@@ -149,6 +153,10 @@ public:
     m_dens_fracture( singlePhaseFluidAccessors_fracture.get( fields::singlefluid::density {} ) ),
     m_dDens_fracture( singlePhaseFluidAccessors_fracture.get( fields::singlefluid::dDensity {} ) ),
     m_gravityDrainagePressure( gravityDrainagePressureAccessors.get( fields::gravdrainage::gravityDrainagePressure {} ) ),
+    m_hasGravityDrainage( hasGravityDrainage ),
+    m_gravityCoefficient( gravityCoefficient ),
+    m_fractureSpacingLz( fractureSpacingLz ),
+    m_interporosityExchangeCoefficient( interporosityExchangeCoefficient ),
     m_localMatrix( localMatrix ),
     m_localRhs( localRhs )
   {}
@@ -210,7 +218,18 @@ protected:
   ElementViewConst< arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > > const m_dDens_fracture;
 
   /// Views on gravity drainage pressure
-  ElementViewConst< arrayView1d< real64 const > > const m_gravityDrainagePressure;
+  ElementViewConst< arrayView2d< real64 const > > const m_gravityDrainagePressure;
+
+  /// Flag indicating whether gravity drainage is active
+  bool const m_hasGravityDrainage;
+
+  /// Gravity coefficient (z-component)
+  real64 const m_gravityCoefficient;
+  /// Fracture spacing in z-direction (for GDP Jacobian derivatives)
+  real64 const m_fractureSpacingLz;
+
+  /// Direct interporosity exchange coefficient [Pa^{-1} s^{-1}]; 0 = use Kazemi
+  real64 const m_interporosityExchangeCoefficient;
 
   // Residual and jacobian
 

@@ -93,6 +93,10 @@ namespace geos
                                                   matrixMeshPtr->getElemManager(),
                                                   fractureMeshPtr->getElemManager(),
                                                   stencilWrapper,
+                                                  this->getGravityDrainageFlag(),
+                                                  this->gravityVector()[2],
+                                                  this->getFracSpacingLz(),
+                                                  this->getInterporosityExchangeCoefficient(),
                                                   dt,
                                                   localMatrix.toViewConstSizes(),
                                                   localRhs.toView());
@@ -108,6 +112,10 @@ namespace geos
                                                   matrixMeshPtr->getElemManager(),
                                                   fractureMeshPtr->getElemManager(),
                                                   stencilWrapper,
+                                                  this->getGravityDrainageFlag(),
+                                                  this->gravityVector()[2],
+                                                  this->getFracSpacingLz(),
+                                                  this->getInterporosityExchangeCoefficient(),
                                                   dt,
                                                   localMatrix.toViewConstSizes(),
                                                   localRhs.toView());
@@ -313,25 +321,8 @@ namespace geos
         MeshLevel  &  matrixMesh = const_cast<MeshLevel&>(* meshLevelPtrs[0]);
         MeshLevel  &  fractureMesh = const_cast<MeshLevel&>(* meshLevelPtrs[1]);
 
-        //Base::updateGravityPressure(matrixMesh,fractureMesh);
-
-
-        /*
-        ElementRegionManager const & matrixElemManager = matrixMeshPtr->getElemManager();
-        ElementRegionManager const & fractureElemManager = fractureMeshPtr->getElemManager();
-        
-        // Get gravity coefficient from primary solver
-        real64 gravityCoefficient = primarySolver->gravityVector()[2];  // z-component
-        
-        // Get fracture spacing Lz
-        real64 Lz = this->getFracSpacingLz();
-        
-        GEOS_LOG("Gravity coefficient: " << gravityCoefficient << ", Lz: " << Lz);
-        
-        // TODO: Implement gravity drainage pressure update for dual continuum
-        // This requires accessing gravityDrainagePressure constitutive models
-        // and calling updateState() with density data from both matrix and fracture regions
-        */
+        real64 const gravityCoefficient = primarySolver->gravityVector()[2];
+        Base::updateGravityPressure(matrixMesh,fractureMesh, gravityCoefficient);
       }
     }
   }

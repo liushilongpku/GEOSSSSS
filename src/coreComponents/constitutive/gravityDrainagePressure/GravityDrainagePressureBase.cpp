@@ -35,7 +35,7 @@ GravityDrainagePressureBase::GravityDrainagePressureBase( string const & name,
   registerField< fields::gravdrainage::gravityDrainagePressure >( &m_gravityDrainagePressure );
 }
 
-void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView2d< real64 const > const matrixFluidDensity, arrayView2d< real64 const > const fractureFluidDensity, real64 m_fracSpacingLz ) const
+void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView2d< real64 const > const matrixFluidDensity, arrayView2d< real64 const > const fractureFluidDensity, real64 gravityCoefficient, real64 Lz ) const
 {
   // Default implementation: do nothing, let derived classes override if needed
 }
@@ -57,7 +57,7 @@ void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView3d< real
 void GravityDrainagePressureBase::allocateConstitutiveData( dataRepository::Group & parent,
                                                             localIndex const numPts )
 {
-  int phaseNumber = 3 ;//TODO@LSL 直接分配三个相的数量，不管实际问题是什么
+  localIndex const phaseNumber = 1;
   m_gravityDrainagePressure.resize( numPts, phaseNumber);
   m_gravityDrainagePressure.zero();
 

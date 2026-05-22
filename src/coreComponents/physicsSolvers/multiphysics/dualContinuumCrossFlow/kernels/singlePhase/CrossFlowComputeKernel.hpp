@@ -66,6 +66,10 @@ public:
                           SinglePhaseFluidAccessors const & singlePhaseFluidAccessors_fracture,
                           PermeabilityAccessors const & permeabilityAccessors_fracture,
                           GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors,
+                          bool const hasGravityDrainage,
+                          real64 const gravityCoefficient,
+                          real64 const fractureSpacingLz,
+                          real64 const interporosityExchangeCoefficient,
                           real64 const & dt,
                           CRSMatrixView< real64, globalIndex const > const & localMatrix,
                           arrayView1d< real64 > const & localRhs )
@@ -79,8 +83,12 @@ public:
                                   singlePhaseFlowAccessors_fracture,
                                   singlePhaseFluidAccessors_fracture,
                                   permeabilityAccessors_fracture,
-                                  gravityDrainagePressureAccessors,
-                                  dt,
+                                   gravityDrainagePressureAccessors,
+                                   hasGravityDrainage,
+                                   gravityCoefficient,
+                                   fractureSpacingLz,
+                                   interporosityExchangeCoefficient,
+                                   dt,
                                   localMatrix,
                                   localRhs ),
       m_stencilWrapper( stencilWrapper ),
@@ -194,14 +202,26 @@ public:
   {
     //TODO@LSL：这里删除了用于多个面的connectionIndex，因为在Flux的计算中需要考虑裂缝面单元和基质单元的关系，双重介质不需要
     // first, compute the transmissibilities at this face
-    // 事实上这里应该也需要修改 传进去的不应该只有m_permeability和m_dPerm_dPres
-    // m_permeability_fracture和m_dPerm_dPres_fracture也应该参与计算
-    // 现在看应该不用修改，因为只需要计算基质的传导率而裂缝的传导率在窜流项的计算中几乎不起作用。
     m_stencilWrapper.computeWeights( iconn,
                                      m_permeability,
                                      m_dPerm_dPres,
                                      stack.transmissibility,
                                      stack.dTrans_dPres );
+
+    // Override transmissibility with direct Gamma formula if set
+    if( m_interporosityExchangeCoefficient > 0.0 )
+    {
+      // T_direct = Gamma * mu * V_element  [m^3]
+      // V_element = weight[0] / 4  (since weight[0] = 4V/Lx² and Lx=1 for dummy)
+      // mu = 1 / mobility  (single-phase: mobility = 1/mu)
+      localIndex const er  = m_seri( iconn, 0 );
+      localIndex const esr = m_sesri( iconn, 0 );
+      localIndex const ei  = m_sei( iconn, 0 );
+      real64 const mu = 1.0 / std::max( m_mob[er][esr][ei], 1e-20 );
+      real64 const V  = m_stencilWrapper.getWeight( iconn, 0 ) / 4.0;
+      stack.transmissibility = m_interporosityExchangeCoefficient * mu * V;
+      stack.dTrans_dPres = 0.0;  // direct Gamma has no pressure dependence
+    }
     localIndex k[2];
     k[0]=0;//同一个连接关系中元素的索引，在此stencil中仅是0与1，所以不循环
     k[1]=1;
@@ -236,6 +256,9 @@ public:
                                  m_mob_fracture,
                                  m_dMob_fracture,
                                  m_gravityDrainagePressure,
+                                 m_hasGravityDrainage,
+                                 m_gravityCoefficient,
+                                 m_fractureSpacingLz,
                                  alpha,
                                  mobility,
                                  potGrad,
@@ -251,8 +274,13 @@ public:
     {
       localIndex const localDofIndexPres = k[ke] * numDof;
 
-      //TODO@LSL check 这里与flux中的符号相反，但是我的传导结果也是对的，不知道哪里反了
-      //现在我改为与flux相同的模式试一下，为什么没有影响 QAQ ？
+      //TODO@LSL: Fixed Jacobian index swap. Previously the matrix row used
+      // localFluxJacobian[1] (fracture equation's Jacobian) and the fracture row
+      // used localFluxJacobian[0] (matrix equation's Jacobian). This caused wrong
+      // signs in the K_pmpf and K_pfpm coupling blocks, leading to Newton divergence
+      // when cross-flow is active. Now each row gets its OWN Jacobian:
+      //   matrix row (k[0]) → localFluxJacobian[0] ∼ +dt * dFlux_dP
+      //   fracture row (k[1]) → localFluxJacobian[1] ∼ -dt * dFlux_dP
       stack.localFluxJacobian[k[0]*numEqn][localDofIndexPres] += m_dt * dFlux_dP[ke];
       stack.localFluxJacobian[k[1]*numEqn][localDofIndexPres] -= m_dt * dFlux_dP[ke];
     }
@@ -289,9 +317,9 @@ public:
 //        GEOS_LOG("the dof column indices are " << stack.dofColIndices);
         RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[0 * numEqn] );
         m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
-                                                                            stack.dofColIndices.data(),
-                                                                            stack.localFluxJacobian[1 * numEqn].dataIfContiguous(),
-                                                                            stack.stencilSize * numDof );
+                                                                             stack.dofColIndices.data(),
+                                                                             stack.localFluxJacobian[0 * numEqn].dataIfContiguous(),
+                                                                             stack.stencilSize * numDof );
 
         // call the lambda to assemble additional terms, such as thermal terms
         kernelOp( 0, localRow );
@@ -309,9 +337,9 @@ public:
 //      GEOS_LOG("the dof column indices are " << stack.dofColIndices);
       RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow], stack.localFlux[1 * numEqn] );
       m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >( localRow,
-                                                                          stack.dofColIndices.data(),
-                                                                          stack.localFluxJacobian[0 * numEqn].dataIfContiguous(),
-                                                                          stack.stencilSize * numDof );
+                                                                           stack.dofColIndices.data(),
+                                                                           stack.localFluxJacobian[1 * numEqn].dataIfContiguous(),
+                                                                           stack.stencilSize * numDof );
 
       // call the lambda to assemble additional terms, such as thermal terms
       kernelOp( 1, localRow );
@@ -387,6 +415,10 @@ public:
                    ElementRegionManager const & matrixElemManager,
                    ElementRegionManager const & fractureElemManager,
                    DualContinuumStencilWrapper const & stencilWrapper,
+                   bool const hasGravityDrainage,
+                   real64 const gravityCoefficient,
+                   real64 const fractureSpacingLz,
+                   real64 const interporosityExchangeCoefficient,
                    real64 const & dt,
                    CRSMatrixView< real64, globalIndex const > const & localMatrix,
                    arrayView1d< real64 > const & localRhs )
@@ -417,6 +449,9 @@ public:
                        flowAccessors, fluidAccessors, permAccessors,
                        flowAccessors_fracture,fluidAccessors_fracture,permAccessors_fracture,
                        gravDrainAccessors,
+                       hasGravityDrainage,
+                       gravityCoefficient, fractureSpacingLz,
+                       interporosityExchangeCoefficient,
                        dt, localMatrix, localRhs );
     kernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
   }

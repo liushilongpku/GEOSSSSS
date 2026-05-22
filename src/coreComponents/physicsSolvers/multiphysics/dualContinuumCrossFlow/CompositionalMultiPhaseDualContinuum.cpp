@@ -394,18 +394,6 @@ void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW
       MeshLevel  &  fractureMesh = const_cast<MeshLevel&>(* meshLevelPtrs[1]);
 
       Base::updateGravityPressure(matrixMesh,fractureMesh, gravityCoefficient);
-
-
-      /*
-      // Get fracture spacing Lz
-      real64 Lz = this->getFracSpacingLz();
-      
-      GEOS_LOG("Gravity coefficient: " << gravityCoefficient << ", Lz: " << Lz);
-      
-      // TODO: Implement gravity drainage pressure update for compositional dual continuum
-      // This requires accessing gravityDrainagePressure constitutive models
-      // and calling updateState() with density data from both matrix and fracture regions
-       */
     }
   }
 }

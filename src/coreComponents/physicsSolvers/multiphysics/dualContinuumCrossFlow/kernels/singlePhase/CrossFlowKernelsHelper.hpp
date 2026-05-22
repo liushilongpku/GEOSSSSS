@@ -157,7 +157,10 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
                                   ElementViewConst< arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > > const & dDens_fracture,
                                   ElementViewConst< arrayView1d< real64 const > > const & mob_fracture,
                                   ElementViewConst< arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > > const & dMob_fracture,
-                                  ElementViewConst< arrayView1d< real64 const > > const & gravityDrainagePressure,
+                                  ElementViewConst< arrayView2d< real64 const > > const & gravityDrainagePressure,
+                                  bool const hasGravityDrainage,
+                                  real64 const gravityCoefficient,
+                                  real64 const fractureSpacingLz,
                                   real64 & alpha,
                                   real64 & mobility,
                                   real64 & potGrad,
@@ -179,6 +182,19 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
   real64 sumWeightGrav = 0.0;
   real64 potScale = 0.0;
 
+  // GDP Jacobian: dP_grav/dP = sign_arg * g * Lz/2 * (+/- dRho/dP)
+  real64 dGdp_dP[2] = {0.0, 0.0};
+  if( hasGravityDrainage )
+  {
+    real64 const rho_m = dens[seri[0]][sesri[0]][sei[0]][0];
+    real64 const rho_f = dens_fracture[seri[1]][sesri[1]][sei[1]][0];
+    real64 const arg = gravityCoefficient * ( rho_f - rho_m ) * 0.5 * fractureSpacingLz;
+    real64 const signArg = ( arg > 0.0 ) ? 1.0 : ( arg < 0.0 ) ? -1.0 : 0.0;
+    real64 const coeff = signArg * gravityCoefficient * 0.5 * fractureSpacingLz;
+    dGdp_dP[0] = coeff * ( -dDens[seri[0]][sesri[0]][sei[0]][0][DerivOffset::dP] );
+    dGdp_dP[1] = coeff * dDens_fracture[seri[1]][sesri[1]][sei[1]][0][DerivOffset::dP];
+  }
+
   // Side 0 (matrix, non-fracture): contributes positively
   {
     localIndex const ke = 0;
@@ -188,10 +204,11 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
 
     real64 const pressure = pres[er][esr][ei];
     real64 const gravD = gravCoef[er][esr][ei];
-    real64 const pot = transmissibility * ( pressure - densMean * gravD );
+    real64 const gdp = hasGravityDrainage ? gravityDrainagePressure[er][esr][ei][0] : 0.0;
+    real64 const pot = transmissibility * ( pressure - densMean * gravD + gdp );
 
     potGrad += pot;
-    dpotGrad_dTrans += ( pressure - densMean * gravD );  // sign +1
+    dpotGrad_dTrans += ( pressure - densMean * gravD + gdp );  // sign +1
     sumWeightGrav += transmissibility * gravD;
 
     potScale = fmax( potScale, fabs( pot ) );
@@ -210,7 +227,7 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
 
     potGrad -= pot;//TODO@LSL flux中是+=，或者在原有flux的计算中transmissibility已经暗含了方向。
     dpotGrad_dTrans -= ( pressure - densMean * gravD );  // sign -1，这里与原来的符号是一致的
-    sumWeightGrav += transmissibility * gravD;
+    sumWeightGrav -= transmissibility * gravD;
 
     potScale = fmax( potScale, fabs( pot ) );
   }
@@ -263,10 +280,12 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
   // Currently reserved for future use in potGrad or dFlux_dP calculations
 
   // TODO@LSL：需要添加形状因子，调整传导率的计算方式，现在先按原来的方式计算
-  dFlux_dP[0] = mobility * ( transmissibility - dDensMean_dP[0] * sumWeightGrav )
+  dFlux_dP[0] = mobility * ( transmissibility - dDensMean_dP[0] * sumWeightGrav
+                             + transmissibility * dGdp_dP[0] )
                 + dMobility_dP[0] * potGrad + dFlux_dTrans * dTrans_dPres;
 
-  dFlux_dP[1] = mobility * ( transmissibility - dDensMean_dP[1] * sumWeightGrav )
+  dFlux_dP[1] = mobility * ( -transmissibility - dDensMean_dP[1] * sumWeightGrav
+                             + transmissibility * dGdp_dP[1] )
                 + dMobility_dP[1] * potGrad + dFlux_dTrans * dTrans_dPres;
 }
 /*

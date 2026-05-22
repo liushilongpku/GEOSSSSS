@@ -50,9 +50,12 @@ public:
     return maxNumPointsInFlux;
   }
 
-  typename TwoPointStencilTraits::IndexContainerViewConstType m_MeshBodyIndices;
-
-private:
+  GEOS_HOST_DEVICE
+  GEOS_FORCE_INLINE
+  real64 getWeight( localIndex const iconn, localIndex const dim ) const
+  {
+    return m_weights[iconn][dim];
+  }
 
 };//end class DualContinuumStencilWrapper
 

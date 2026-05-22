@@ -141,6 +141,10 @@ public:
                           PermeabilityAccessors const & permeabilityAccessors_fracture,
                           ThermalConductivityAccessors const & thermalConductivityAccessors_fracture,
                           GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors,
+                          bool const hasGravityDrainage,
+                          real64 const gravityCoefficient,
+                          real64 const fractureSpacingLz,
+                          real64 const interporosityExchangeCoefficient,
                           real64 const & dt,
                      CRSMatrixView< real64, globalIndex const > const & localMatrix,
                      arrayView1d< real64 > const & localRhs )
@@ -156,6 +160,10 @@ public:
             singlePhaseFluidAccessors_fracture,
             permeabilityAccessors_fracture,
             gravityDrainagePressureAccessors,
+            hasGravityDrainage,
+            gravityCoefficient,
+            fractureSpacingLz,
+            interporosityExchangeCoefficient,
             dt,
             localMatrix,
             localRhs ),
@@ -256,6 +264,8 @@ public:
       // compute potential difference
 
       // compute derivative of gravity potential difference wrt temperature
+      // Note: GDP (gravityDrainagePressure) is treated explicitly — updated per timestep
+      // before assembly, held constant during Newton iterations. No d(GDP)/dT needed.
       real64 const gravD_matrix = trans[0] * m_gravCoef[seri[0]][sesri[0]][sei[0]];
       real64 const gravD_fracture = trans[1] * m_gravCoef_fracture[seri[1]][sesri[1]][sei[1]];
 
@@ -499,6 +509,10 @@ public:
                    ElementRegionManager const & matrixElemManager,
                    ElementRegionManager const & fractureElemManager,
                    STENCILWRAPPER const & stencilWrapper,
+                   bool const hasGravityDrainage,
+                   real64 const gravityCoefficient,
+                   real64 const fractureSpacingLz,
+                   real64 const interporosityExchangeCoefficient,
                    real64 const & dt,
                    CRSMatrixView< real64, globalIndex const > const & localMatrix,
                    arrayView1d< real64 > const & localRhs )
@@ -540,8 +554,11 @@ public:
                        permAccessors, thermalConductivityAccessors,
                        flowAccessors_fracture, thermalFlowAccessors_fracture, fluidAccessors_fracture, thermalFluidAccessors_fracture,
                        permAccessors_fracture,thermalConductivityAccessors_fracture,
-                       gravDrainAccessors,
-                       dt, localMatrix, localRhs );
+                        gravDrainAccessors,
+                        hasGravityDrainage,
+                        gravityCoefficient, fractureSpacingLz,
+                        interporosityExchangeCoefficient,
+                        dt, localMatrix, localRhs );
     KernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
   }
 };

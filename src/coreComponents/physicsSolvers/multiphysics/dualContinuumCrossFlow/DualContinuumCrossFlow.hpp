@@ -54,7 +54,6 @@ public:
 
   struct viewKeyStruct : public dataRepository::Group::viewKeyStruct
   {
-    // 定义的 XML 参数名
     static constexpr char const * fractureSpacingLxString() { return "fractureSpacingLx"; }
     static constexpr char const * fractureSpacingLyString() { return "fractureSpacingLy"; }
     static constexpr char const * fractureSpacingLzString() { return "fractureSpacingLz"; }
@@ -62,14 +61,21 @@ public:
     static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
     static constexpr char const * DualContinuumStencilString() {return "DualContinuumStencil";}
     static constexpr char const * gravityDrainageFlag() { return "gravityDrainageFlag"; }
-
+    /// Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}].
+    /// When > 0, bypasses the Kazemi shape-factor formula and uses
+    /// transmissibility = Gamma * mu * V_element.
+    static constexpr char const * interporosityExchangeCoefficientString()
+    { return "interporosityExchangeCoefficient"; }
   };
 
   DualContinuumStencil & getStencil(){return m_stencil;};
   int m_gravityDrainageFlag;
 
+  /// Get the direct interporosity exchange coefficient
+  real64 getInterporosityExchangeCoefficient() const
+  { return m_interporosityExchangeCoefficient; }
+
 private:
-  // --- Parameters ---
   real64 m_fracSpacingLx;
   real64 m_fracSpacingLy;
   real64 m_fracSpacingLz;
@@ -77,7 +83,9 @@ private:
   string_array m_matrixRegionList;
   string_array m_fractureRegionList;
 
-  // --- The Stencil ---
+  /// Direct interporosity exchange coefficient [Pa^{-1} s^{-1}]; 0 = use Kazemi
+  real64 m_interporosityExchangeCoefficient = 0.0;
+
   DualContinuumStencil m_stencil;
 };
 

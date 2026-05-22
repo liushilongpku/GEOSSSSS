@@ -27,6 +27,8 @@
 #include "physicsSolvers/solidMechanics/SolidMechanicsLagrangianFEM.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
 #include "physicsSolvers/multiphysics/PoromechanicsFields.hpp"
+#include "physicsSolvers/multiphysics/poromechanicsKernels/SinglePhasePoromechanics.hpp"
+#include "physicsSolvers/multiphysics/poromechanicsKernels/PoromechanicsKernelsDispatchTypeList.hpp"
 #include "constitutive/solid/CoupledSolidBase.hpp"
 #include "constitutive/contact/HydraulicApertureBase.hpp"
 #include "mesh/DomainPartition.hpp"
@@ -80,6 +82,15 @@ public:
                    GEOS_FMT( "{} {}: Primary and secondary flow solvers must have the same thermal setting",
                              this->getCatalogName(), this->getName() ),
                    InputError );
+
+    // Enable fixed-stress poromechanics update BEFORE registerDataOnMesh is called.
+    // registerDataOnMesh runs on sub-solvers before the coupled solver, so the flags
+    // must be set during postInputInitialization for pressure_k to be registered.
+    if( this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::Sequential )
+    {
+      this->solidMechanicsSolver()->enableFixedStressPoromechanicsUpdate();
+      this->flowSolver()->enableFixedStressPoromechanicsUpdate();
+    }
   }
 
   // Override setupDofs to handle dual continuum DOFs
@@ -108,7 +119,83 @@ public:
     //                         DofManager::Connector::Elem );
   }
 
-  // Override assembleCouplingTerms to include dual continuum coupling
+  // TODO@LSL: Monolithic poromechanics kernel for the MATRIX continuum (u + p_m).
+  //
+  // WHY MONOLITHIC (for matrix only):
+  //   The block-by-block approach (flow-solver → mech-solver → coupling-kernel) runs
+  //   three separate element traversals.  Each traversal evaluates the constitutive
+  //   model at a slightly different state point during the Newton iteration, producing
+  //   Jacobian blocks that are individually correct but mutually inconsistent.
+  //
+  //   When the matrix permeability is very low (k_matrix ≪ 1e-13 m²), the pressure
+  //   diagonal block K_pp shrinks to ~10⁻¹⁴ while the off-diagonal coupling
+  //   K_pu·K_uu⁻¹·K_up stays at ~10⁻¹⁰.  The Schur complement S = K_pp − K_pu·K_uu⁻¹·K_up
+  //   becomes dominated by the inconsistent off-diagonal terms, can flip sign,
+  //   and causes the Newton solver to diverge.
+  //
+  //   This monolithic kernel fuses the matrix momentum balance + matrix mass balance
+  //   in a SINGLE quadrature-point loop.  One constitutive evaluation per integration
+  //   point produces all blocks (K_uu, K_upm, K_pmu, K_pmpm) from the SAME state,
+  //   guaranteeing a self-consistent Schur complement irrespective of permeability.
+  //
+  // WHAT REMAINS BLOCK-BY-BLOCK:
+  //   - Fracture flow (K_pfpf): still assembled by SinglePhaseFVM.  Fracture permeability
+  //     is high (> 1e-15 m²) so its K_pp is well-conditioned.
+  //   - Cross-flow coupling (K_pmpf, K_pfpm): assembled by DualContinuumFVM.
+  //   - Fracture-mechanics coupling (K_upf, K_pfu): omitted (α_f ≈ 0 for most shales).
+  //
+  // The monolithic kernel reuses the existing SinglePhasePoromechanics kernel,
+  // which is already well-tested for single-porosity poromechanics, via the
+  // PoromechanicsSolver::assemblyLaunch infrastructure.
+
+  virtual void assembleSystem( real64 const time_n,
+                               real64 const dt,
+                               DomainPartition & domain,
+                               DofManager const & dofManager,
+                               CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                               arrayView1d< real64 > const & localRhs ) override
+  {
+    GEOS_UNUSED_VAR( time_n );
+
+    // ---- Step 1: Monolithic matrix kernel (u + p_m) ----
+    // Assembles K_uu, K_upm, K_pmu, K_pmpm in one quadrature-point loop
+    // on mesh1 (matrix) regions only.
+    string const flowDofKey =
+      dofManager.getKey( SinglePhaseBase::viewKeyStruct::elemDofFieldString() );
+
+    this->template forDiscretizationOnMeshTargets<>(
+      domain.getMeshBodies(),
+      [&]( string const & meshBodyName,
+           MeshLevel & mesh,
+           string_array const & regionNames )
+    {
+      if( meshBodyName != "mesh1" ) return;   // matrix mesh only
+
+      this->template assemblyLaunch<
+        PoromechanicsKernelsDispatchTypeList,
+        poromechanicsKernels::SinglePhasePoromechanicsKernelFactory >(
+          mesh, dofManager, regionNames,
+          viewKeyStruct::porousMaterialNamesString(),
+          localMatrix, localRhs, dt,
+          flowDofKey,
+          this->m_performStressInitialization,
+          FlowSolverBase::viewKeyStruct::fluidNamesString() );
+    } );
+
+    // ---- Step 2: Matrix face-based flux terms ----
+    this->flowSolver()->primarySolver()->assembleFluxTerms(
+      dt, domain, dofManager, localMatrix, localRhs );
+
+    // ---- Step 3: Fracture flow assembly (K_pfpf accumulation + face fluxes) ----
+    this->flowSolver()->secondarySolver()->assembleSystem(
+      time_n, dt, domain, dofManager, localMatrix, localRhs );
+
+    // ---- Step 4: Cross-flow coupling (K_pmpf, K_pfpm) ----
+    this->flowSolver()->assembleCouplingTerms(
+      time_n, dt, domain, dofManager, localMatrix, localRhs );
+  }
+
+  // Override assembleCouplingTerms — poromechanics coupling is handled by derived class.
   virtual void assembleCouplingTerms( real64 const time_n,
                                       real64 const dt,
                                       DomainPartition const & domain,
@@ -116,11 +203,29 @@ public:
                                       CRSMatrixView< real64, globalIndex const > const & localMatrix,
                                       arrayView1d< real64 > const & localRhs ) override
   {
-    // DualContinuumFlowSolverBase implements its own coupling in assembleSystem (through its own assembleCouplingTerms),
-    // so we do not directly call its protected assembleCouplingTerms here.
+    // DualContinuumFlowSolverBase::assembleCouplingTerms handles cross-flow within the flow
+    // step. Here we only handle the flow-mechanics coupling.
+    GEOS_UNUSED_VAR( time_n );
+    GEOS_UNUSED_VAR( dt );
+    GEOS_UNUSED_VAR( domain );
+    GEOS_UNUSED_VAR( dofManager );
+    GEOS_UNUSED_VAR( localMatrix );
+    GEOS_UNUSED_VAR( localRhs );
+  }
 
-    // Base class (Poromechanics) coupling is still applied.
-    Base::assembleCouplingTerms( time_n, dt, domain, dofManager, localMatrix, localRhs );
+  // Override registerDataOnMesh to ensure enableFixedStressPoromechanicsUpdate
+  // is called BEFORE sub-solvers' registerDataOnMesh (which checks the flag
+  // to determine whether to register pressure_k for Sequential coupling).
+  virtual void registerDataOnMesh( dataRepository::Group & meshBodies ) override
+  {
+    // Enable fixed-stress update BEFORE Base::registerDataOnMesh so that
+    // sub-solvers register pressure_k during their own registerDataOnMesh.
+    if( this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::Sequential )
+    {
+      this->solidMechanicsSolver()->enableFixedStressPoromechanicsUpdate();
+      this->flowSolver()->enableFixedStressPoromechanicsUpdate();
+    }
+    Base::registerDataOnMesh( meshBodies );
   }
 
   // Override initializePostInitialConditionsPreSubGroups to setup dual continuum

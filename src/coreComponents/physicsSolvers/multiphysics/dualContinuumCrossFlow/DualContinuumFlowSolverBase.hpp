@@ -140,7 +140,7 @@ public:
     MeshBody & fracture = domain.getMeshBody("mesh2");
     MeshLevel & primaryMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
     MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
-    m_crossFlow.setupGravityDrainagePressure(primaryMesh, secondaryMesh, 9.81);
+    m_crossFlow.setupGravityDrainagePressure(primaryMesh, secondaryMesh, this->gravityVector()[2]);
   }
   /**
    * @brief accessor for the pointer to the primary flow solver
@@ -210,6 +210,15 @@ public:
   real64 getFracSpacingLz() const
   {
     return m_crossFlow.getFracSpacingLz();
+  }
+
+  /**
+   * @brief Get the direct interporosity exchange coefficient Gamma
+   * @return Gamma in [Pa^{-1} s^{-1}]; 0 = use Kazemi shape factor
+   */
+  real64 getInterporosityExchangeCoefficient() const
+  {
+    return m_crossFlow.getInterporosityExchangeCoefficient();
   }
 
   // Support for PoromechanicsSolver expectations (delegated to primary/secondary solvers)

@@ -410,7 +410,11 @@ void HyprePreconditioner::setup( Matrix const & mat )
         m_precond->destroy( m_precond->ptr );
       }
 #if defined(GEOS_USE_SUPERLU_DIST)
-      hypre_SLUDistSetup( &m_precond->ptr, precondMat.unwrapped(), 0 );
+      if( !m_precond->ptr )
+      {
+        m_precond->ptr = (HYPRE_Solver)hypre_SLUDistCreate();
+      }
+      hypre_SLUDistSetup( m_precond->ptr, precondMat.unwrapped(), nullptr, nullptr );
 #endif
     }
   }

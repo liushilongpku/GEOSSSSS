@@ -10,6 +10,7 @@
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBaseFields.hpp"
 #include "constitutive/fluid/multifluid/MultiFluidBase.hpp"
+#include "constitutive/fluid/singlefluid/SingleFluidBase.hpp"
 
 namespace geos
 {
@@ -53,6 +54,14 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
     setInputFlag( dataRepository::InputFlags::OPTIONAL ).
         setDefaultValue( 0 ).
         setDescription( "flag of gravity drainage" );
+
+  registerWrapper( viewKeyStruct::interporosityExchangeCoefficientString(),
+                   &m_interporosityExchangeCoefficient ).
+    setApplyDefaultValue( 0.0 ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}]. "
+                    "When > 0, bypasses the Kazemi shape-factor formula and uses "
+                    "transmissibility = Gamma * mu * V_element." );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )
@@ -242,6 +251,7 @@ void DualContinuumCrossFlow::setupGravityDrainagePressure( MeshLevel & meshMatri
       //根据matrix的名字找到对应的fracture名字与region
       string regionName = elemRegionMatrix.getName();
       localIndex couplingRegionIndexInList = findRegionIndexInList( regionName );
+      if( couplingRegionIndexInList < 0 ) return;
       string fractureRegionName = m_fractureRegionList[couplingRegionIndexInList];
 
       ElementRegionBase const & elemRegionFracture = elemManagerFracture.getRegion( fractureRegionName );
@@ -249,20 +259,38 @@ void DualContinuumCrossFlow::setupGravityDrainagePressure( MeshLevel & meshMatri
       elemRegionMatrix.forElementSubRegionsIndex< CellElementSubRegion >( [&]( localIndex const subRegionIndex, CellElementSubRegion const & matrixSubRegion )
       {
         string const & fluidNameMatrix = matrixSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() );
-        MultiFluidBase const & fluidMatrix = matrixSubRegion.getConstitutiveModel< MultiFluidBase >( fluidNameMatrix );
 
-        arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > const matrixFluidDensity = fluidMatrix.phaseDensity();
-        arrayView2d< real64 const > matrixPhaseVolumeFraction = matrixSubRegion.getField< fields::flow::phaseVolumeFraction >();
-
+        dataRepository::Group const & matrixConstitutiveModels = matrixSubRegion.getGroup( ElementSubRegionBase::groupKeyStruct::constitutiveModelsString() );
 
         ElementSubRegionBase const & fractureSubRegion = elemRegionFracture.getSubRegion( subRegionIndex );
         string const & fluidNameFracture = fractureSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() );
-        MultiFluidBase const & fluidFracture = fractureSubRegion.getConstitutiveModel< MultiFluidBase >(fluidNameFracture );
-        arrayView2d< real64 const > const fractureFluidTotalDensity = fluidFracture.totalDensity();
+
+        dataRepository::Group const & fractureConstitutiveModels = fractureSubRegion.getGroup( ElementSubRegionBase::groupKeyStruct::constitutiveModelsString() );
 
         dataRepository::Group const & constitutiveModels = matrixSubRegion.getConstitutiveModels();
         constitutiveModels.forSubGroups< GravityDrainagePressureBase >( [&]( GravityDrainagePressureBase const & gdModel ){
-          gdModel.setupGravityDrainagePressure(matrixFluidDensity, matrixPhaseVolumeFraction, fractureFluidTotalDensity, gravityCoefficient, m_fracSpacingLz);
+
+          // Check if fluid is compositional multiphase (MultiFluidBase) or single-phase (SingleFluidBase)
+          constitutive::MultiFluidBase const * multiFluidMatrix = matrixConstitutiveModels.getGroupPointer< constitutive::MultiFluidBase >( fluidNameMatrix );
+          if( multiFluidMatrix )
+          {
+            arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > const matrixFluidDensity = multiFluidMatrix->phaseDensity();
+            arrayView2d< real64 const > matrixPhaseVolumeFraction = matrixSubRegion.getField< fields::flow::phaseVolumeFraction >();
+
+            constitutive::MultiFluidBase const & fluidFracture = fractureConstitutiveModels.getGroup< constitutive::MultiFluidBase >( fluidNameFracture );
+            arrayView2d< real64 const > const fractureFluidTotalDensity = fluidFracture.totalDensity();
+
+            gdModel.setupGravityDrainagePressure( matrixFluidDensity, matrixPhaseVolumeFraction, fractureFluidTotalDensity, gravityCoefficient, m_fracSpacingLz );
+          }
+          else
+          {
+            constitutive::SingleFluidBase const * singleFluidMatrix = matrixConstitutiveModels.getGroupPointer< constitutive::SingleFluidBase >( fluidNameMatrix );
+            constitutive::SingleFluidBase const * singleFluidFracture = fractureConstitutiveModels.getGroupPointer< constitutive::SingleFluidBase >( fluidNameFracture );
+            if( singleFluidMatrix && singleFluidFracture )
+            {
+              gdModel.setupGravityDrainagePressure( singleFluidMatrix->density(), singleFluidFracture->density(), gravityCoefficient, m_fracSpacingLz );
+            }
+          }
         });
       });
     } );
