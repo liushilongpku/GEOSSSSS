@@ -89,6 +89,7 @@
     <FieldSpecification name="initPressure" initialCondition="1"
       setNames="{ all }" objectPath="ElementRegions/Domain/cb1"
       fieldName="pressure" scale="4.48e5"/>
+      <!--解析解的初始值是4.483-->
 
     <FieldSpecification
       name="initial_sigma_x"
