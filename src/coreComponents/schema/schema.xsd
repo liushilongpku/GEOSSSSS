@@ -3145,6 +3145,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="fractureSpacingLz" type="real64" use="required" />
 		<!--gravityDrainageFlag => flag of gravity drainage-->
 		<xsd:attribute name="gravityDrainageFlag" type="integer" default="0" />
+		<!--interporosityExchangeCoefficient => Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}]. When > 0, bypasses the Kazemi shape-factor formula and uses transmissibility = Gamma * mu * V_element.-->
+		<xsd:attribute name="interporosityExchangeCoefficient" type="real64" default="0" />
 		<!--matrixRegionList => List of matrix regions-->
 		<xsd:attribute name="matrixRegionList" type="string_array" use="required" />
 	</xsd:complexType>
@@ -6392,6 +6394,8 @@ Information output from lower logLevels is added with the desired log level
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="BiotPorosityType">
+		<!--defaultBiotCoefficient => Default Biot coefficient (if >= 0, overrides auto-computed value)-->
+		<xsd:attribute name="defaultBiotCoefficient" type="real64" default="-1" />
 		<!--defaultGrainBulkModulus => Grain bulk modulus-->
 		<xsd:attribute name="defaultGrainBulkModulus" type="real64" use="required" />
 		<!--defaultPorosityTEC => Default thermal expansion coefficient-->
