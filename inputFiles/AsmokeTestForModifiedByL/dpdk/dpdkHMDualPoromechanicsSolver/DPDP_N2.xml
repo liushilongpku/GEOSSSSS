@@ -212,14 +212,12 @@
       objectPath="nodeManager" targetMesh="mesh1"
       fieldName="totalDisplacement" component="2" scale="-1.0" setNames="{ zpos }"
       functionName="loadFunction"/>
-<!--
     <FieldSpecification name="boundaryPressureM"
       objectPath="faceManager" targetMesh="mesh1"
       fieldName="pressure" scale="0.0" setNames="{ xpos }"/>
     <FieldSpecification name="boundaryPressureF"
       objectPath="faceManager" targetMesh="mesh2"
       fieldName="pressure" scale="0.0" setNames="{ xpos }"/>
-      -->
   </FieldSpecifications>
 
   <!-- τ=3 → t=308412s, log-spaced phases for plotting -->

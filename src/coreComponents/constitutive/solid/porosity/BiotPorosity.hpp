@@ -277,6 +277,11 @@ public:
     return m_biotCoefficient.toViewConst();
   }
 
+  arrayView1d< real64 const > const getGrainBulkModulus() const
+  {
+    return m_grainBulkModulus.toViewConst();
+  }
+
   virtual arrayView1d< real64 > const getAverageMeanTotalStressIncrement_k() override final
   {
     return m_averageMeanTotalStressIncrement_k.toView();

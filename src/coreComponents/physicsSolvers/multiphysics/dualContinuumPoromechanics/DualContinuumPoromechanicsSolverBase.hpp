@@ -31,6 +31,7 @@
 #include "physicsSolvers/multiphysics/poromechanicsKernels/PoromechanicsKernelsDispatchTypeList.hpp"
 #include "constitutive/solid/CoupledSolidBase.hpp"
 #include "constitutive/fluid/singlefluid/SingleFluidBase.hpp"
+#include "constitutive/solid/porosity/BiotPorosity.hpp"
 #include "constitutive/contact/HydraulicApertureBase.hpp"
 #include "mesh/DomainPartition.hpp"
 #include "mesh/utilities/AverageOverQuadraturePointsKernel.hpp"
@@ -463,6 +464,21 @@ private:
             fractureSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() ) ).density();
         arrayView1d< real64 const > const volume = fractureSubRegion.getElementVolume();
 
+        // Get fracture pressure for Biot porosity update
+        arrayView1d< real64 const > const p_f = fractureSubRegion.getField< fields::flow::pressure >();
+        arrayView1d< real64 const > const p_f_n = fractureSubRegion.getField< fields::flow::pressure_n >();
+
+        // Get grain bulk modulus and reference porosity for the Biot formula
+        constitutive::BiotPorosity const & fracBiotPorosity =
+            dynamic_cast< constitutive::BiotPorosity const & >( fracSolid.getBasePorosityModel() );
+        arrayView1d< real64 const > const grainBulkModulus = fracBiotPorosity.getGrainBulkModulus();
+        arrayView1d< real64 const > const refPorosity = fracSolid.getReferencePorosity();
+
+        // Get fluid density derivative for dMass/dP computation
+        arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > const dFluidDensity =
+            fractureSubRegion.getConstitutiveModel< constitutive::SingleFluidBase >(
+                fractureSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() ) ).dDensity();
+
         // Get matrix FE space for strain computation
         finiteElement::FiniteElementBase & subRegionFE =
           matrixSubRegion.template getReference< finiteElement::FiniteElementBase >(
@@ -509,22 +525,17 @@ private:
 
             if( k < phi_frac.size( 0 ) )
             {
-              real64 const phi_old = phi_frac[ k ][ 0 ];
-              real64 const phi_new = phi_n_frac[ k ][ 0 ] + alpha_f[ k ] * volStrainInc;
+              real64 const delta_p = p_f[ k ] - p_f_n[ k ];
+              real64 const biotSkeletonModulusInverse = (alpha_f[ k ] - refPorosity[ k ]) / grainBulkModulus[ k ];
+              real64 const phi_new = phi_n_frac[ k ][ 0 ] + alpha_f[ k ] * volStrainInc + biotSkeletonModulusInverse * delta_p;
               phi_frac[ k ][ 0 ] = phi_new;
 
-              // Update mass and dMass consistently: M = phi * rho * V
               real64 const V = volume[ k ];
               real64 const rho = rho_f[ k ][ 0 ];
               mass2[ k ] = phi_new * rho * V;
 
-              // dMass/dp = (dPhi_dP * rho + phi_new * drho_dp) * V
-              // dPhi_dP ≈ delta_phi / delta_p (approximate from change)
-              // For simplicity, use: dMass_new = dMass_old * (phi_new / phi_old)
-              if( phi_old > 1e-12 )
-              {
-                dMass2[ k ][ 0 ] = dMass2[ k ][ 0 ] * ( phi_new / phi_old );
-              }
+              real64 const drho_dp_val = dFluidDensity[ k ][ 0 ][ 0 ];
+              dMass2[ k ][ 0 ] = (biotSkeletonModulusInverse * rho + phi_new * drho_dp_val) * V;
             }
           } ); // forAll
         } ); // dispatch3D
