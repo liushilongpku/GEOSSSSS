@@ -203,6 +203,13 @@ protected:
   arrayView1d< real64 const > const m_temperature;
   arrayView1d< real64 const > const m_temperature_n;
 
+  /// Whether fracture poromechanics data is available (dual-porosity)
+  bool const m_hasFractureData;
+  /// Fracture pressure (mapped from mesh2 to mesh1)
+  arrayView1d< real64 const > const m_fracturePressure;
+  /// Fracture Biot coefficient
+  arrayView1d< real64 const > const m_fractureBiotCoefficient;
+
   /**
    * @brief Get a parameter representative of the stiffness, used as physical scaling for the
    * stabilization matrix.

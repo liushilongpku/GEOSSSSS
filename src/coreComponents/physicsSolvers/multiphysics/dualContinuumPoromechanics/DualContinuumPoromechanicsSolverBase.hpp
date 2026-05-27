@@ -208,6 +208,101 @@ public:
       time_n, dt, domain, dofManager, localMatrix, localRhs );
   }
 
+  // Override mapSolutionBetweenSolvers to handle dual-mesh sequential coupling.
+  // 1. After flow: add -α_f·p_f·I to stored effective stress (so mechanics kernel
+  //    computes correct total stress without needing K_upf).
+  // 2. After mechanics: restore stress, average mean stress on mesh1 only,
+  //    update porosity/permeability on mesh1 only.
+  virtual void mapSolutionBetweenSolvers( DomainPartition & domain, integer const solverType ) override
+  {
+    if( solverType == static_cast< integer >( SolverType::DualContinuumFlow ) )
+    {
+      // Copy p_f from mesh2 to mesh1 wrappers (sequential mode: assembleSystem
+      // not called, so mapFractureDataToMatrix doesn't run)
+      copyFracturePressureToMesh1( domain );
+      Base::updateBulkDensity( domain );
+    }
+    else if( solverType == static_cast< integer >( SolverType::SolidMechanics )
+             && !this->m_performStressInitialization )
+    {
+
+      // Average mean total stress on mesh1 only (mesh2 has no FE)
+      MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+      MeshLevel & meshLevel = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+      using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+      DualFlow & dualFlow = *this->flowSolver();
+      string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+      meshLevel.getElemManager().forElementSubRegions< CellElementSubRegion >( matrixRegions,
+        [&]( localIndex const, auto & subRegion )
+      {
+        string const & solidName = subRegion.template getReference< string >(
+          Base::viewKeyStruct::porousMaterialNamesString() );
+        constitutive::CoupledSolidBase & solid =
+          this->template getConstitutiveModel< constitutive::CoupledSolidBase >( subRegion, solidName );
+
+        arrayView2d< real64 const > const meanTotalStressIncrement_k = solid.getMeanTotalStressIncrement_k();
+        arrayView1d< real64 > const averageMeanTotalStressIncrement_k = solid.getAverageMeanTotalStressIncrement_k();
+
+        finiteElement::FiniteElementBase & subRegionFE =
+          subRegion.template getReference< finiteElement::FiniteElementBase >(
+            this->solidMechanicsSolver()->getDiscretizationName() );
+
+        finiteElement::FiniteElementDispatchHandler< BASE_FE_TYPES >::
+        dispatch3D( subRegionFE, [&]( auto const finiteElement )
+        {
+          using FE_TYPE = decltype( finiteElement );
+          AverageOverQuadraturePoints1DKernelFactory::
+            createAndLaunch< CellElementSubRegion, FE_TYPE, parallelDevicePolicy<> >(
+              meshLevel.getNodeManager(), meshLevel.getEdgeManager(), meshLevel.getFaceManager(),
+              subRegion, finiteElement, meanTotalStressIncrement_k, averageMeanTotalStressIncrement_k );
+        } );
+
+        this->flowSolver()->updatePorosityAndPermeability( subRegion );
+        this->updateBulkDensity( subRegion );
+      } );
+    }
+  }
+
+private:
+
+  // Copy p_f from mesh2 to mesh1 fracture wrappers directly (bypasses
+  // DofManager, needed in sequential mode where mapFractureDataToMatrix
+  // is not called).
+  void copyFracturePressureToMesh1( DomainPartition & domain )
+  {
+    MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+    MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
+    MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+    MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
+    using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+    DualFlow & dualFlow = *this->flowSolver();
+    string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+    string_array const & fractureRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
+
+    for( size_t i = 0; i < matrixRegions.size(); ++i )
+    {
+      ElementRegionBase & matrixRegion = meshLevel1.getElemManager().getRegion( matrixRegions[i] );
+      ElementRegionBase & fractureRegion = meshLevel2.getElemManager().getRegion( fractureRegions[i] );
+
+      matrixRegion.forElementSubRegionsIndex< CellElementSubRegion >(
+        [&]( localIndex const subRegIdx, CellElementSubRegion & matrixSubRegion )
+      {
+        if( subRegIdx >= fractureRegion.numSubRegions() ) return;
+        CellElementSubRegion & fractureSubRegion =
+          dynamic_cast< CellElementSubRegion & >( fractureRegion.getSubRegion( subRegIdx ) );
+
+        arrayView1d< real64 > const p_f_wrapper =
+          matrixSubRegion.getReference< array1d< real64 > >( viewKeyStruct::fracturePressureString() );
+        arrayView1d< real64 const > const p_f_mesh2 = fractureSubRegion.getField< fields::flow::pressure >();
+
+        for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
+        {
+          p_f_wrapper[ k ] = p_f_mesh2[ k ];
+        }
+      } );
+    }
+  }
+
   // Override assembleCouplingTerms — poromechanics coupling is handled by derived class.
   virtual void assembleCouplingTerms( real64 const time_n,
                                       real64 const dt,

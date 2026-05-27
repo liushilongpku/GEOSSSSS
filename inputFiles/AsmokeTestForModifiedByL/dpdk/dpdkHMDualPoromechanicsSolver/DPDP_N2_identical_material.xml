@@ -7,7 +7,7 @@
   Fracture: GOM Shale macro-fracture (K_f=2.25e7, k_f=4.93e-18)
   Initial conditions at t=0+:
     p_m = 0.455 Pc = 4.55e5 Pa,  p_f = 0.488 Pc = 4.88e5 Pa
-    sigma_eff_xx = -4.67e5 Pa (tension), sigma_eff_zz = -5.33e5 Pa (compression)
+    sigma_eff_xx = +4.67e5 Pa (tension), sigma_eff_zz = -5.33e5 Pa (compression)
   K_upf/K_pfu coupling enabled (α_f ≈ 0.999)
 -->
 <Problem>

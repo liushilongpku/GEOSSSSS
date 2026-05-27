@@ -70,7 +70,14 @@ FixedStressThermoPoromechanics( NodeManager const & nodeManager,
   m_pressure_n( elementSubRegion.template getField< fields::flow::pressure_n >() ),
   m_initialTemperature( elementSubRegion.template getField< fields::flow::initialTemperature >() ),
   m_temperature( elementSubRegion.template getField< fields::flow::temperature >() ),
-  m_temperature_n( elementSubRegion.template getField< fields::flow::temperature_n >() )
+  m_temperature_n( elementSubRegion.template getField< fields::flow::temperature_n >() ),
+  m_hasFractureData( elementSubRegion.hasWrapper( "fracturePressure" ) ),
+  m_fracturePressure( m_hasFractureData
+    ? elementSubRegion.template getReference< array1d< real64 > >( "fracturePressure" )
+    : arrayView1d< real64 const >() ),
+  m_fractureBiotCoefficient( m_hasFractureData
+    ? elementSubRegion.template getReference< array1d< real64 > >( "fractureBiotCoefficient" )
+    : arrayView1d< real64 const >() )
 {}
 
 template< typename SUBREGION_TYPE,
@@ -147,6 +154,17 @@ quadraturePointKernel( localIndex const k,
                                                                   strainInc,
                                                                   totalStress,
                                                                   stiffness );
+
+  // Add fracture Biot term -α_f·p_f·I to total stress (dual-porosity).
+  // RHS only — p_f is constant during sequential mechanics step, no Jacobian.
+  if( m_hasFractureData )
+  {
+    real64 const alpha_f = m_fractureBiotCoefficient[ k ];
+    real64 const p_f = m_fracturePressure[ k ];
+    totalStress[0] -= alpha_f * p_f;
+    totalStress[1] -= alpha_f * p_f;
+    totalStress[2] -= alpha_f * p_f;
+  }
 
   for( localIndex i=0; i<6; ++i )
   {

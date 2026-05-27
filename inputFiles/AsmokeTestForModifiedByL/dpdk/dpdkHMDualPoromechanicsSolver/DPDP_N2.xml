@@ -111,7 +111,8 @@
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       stabilizationType="None" isThermal="0">
       <NonlinearSolverParameters
-        couplingType="FullyImplicit" newtonMaxIter="80" newtonTol="1.0e-6"
+        couplingType="Sequential" newtonMaxIter="80" newtonTol="1.0e-6"
+        lineSearchAction="None"
         maxTimeStepCuts="2" timeStepCutFactor="0.5"/>
       <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
     </SinglePhaseDualContinuumPoromechanics>
@@ -209,9 +210,8 @@
       objectPath="nodeManager" targetMesh="mesh1"
       fieldName="totalDisplacement" component="2" scale="0.0" setNames="{ zneg }"/>
     <FieldSpecification name="zposLoad"
-      objectPath="nodeManager" targetMesh="mesh1"
-      fieldName="totalDisplacement" component="2" scale="-1.0" setNames="{ zpos }"
-      functionName="loadFunction"/>
+      objectPath="faceManager" targetMesh="mesh1"
+      fieldName="traction" component="2" scale="-1.0e6" setNames="{ zpos }"/>
     <FieldSpecification name="boundaryPressureM"
       objectPath="faceManager" targetMesh="mesh1"
       fieldName="pressure" scale="0.0" setNames="{ xpos }"/>
