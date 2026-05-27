@@ -6394,7 +6394,7 @@ Information output from lower logLevels is added with the desired log level
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="BiotPorosityType">
-		<!--defaultBiotCoefficient => Default Biot coefficient (if >= 0, overrides auto-computed value)-->
+		<!--defaultBiotCoefficient => Default Biot coefficient. When > 0, overrides the auto-computed value (1 - K/K_s).-->
 		<xsd:attribute name="defaultBiotCoefficient" type="real64" default="-1" />
 		<!--defaultGrainBulkModulus => Grain bulk modulus-->
 		<xsd:attribute name="defaultGrainBulkModulus" type="real64" use="required" />

@@ -30,6 +30,7 @@
 #include "physicsSolvers/multiphysics/poromechanicsKernels/SinglePhasePoromechanics.hpp"
 #include "physicsSolvers/multiphysics/poromechanicsKernels/PoromechanicsKernelsDispatchTypeList.hpp"
 #include "constitutive/solid/CoupledSolidBase.hpp"
+#include "constitutive/fluid/singlefluid/SingleFluidBase.hpp"
 #include "constitutive/contact/HydraulicApertureBase.hpp"
 #include "mesh/DomainPartition.hpp"
 #include "mesh/utilities/AverageOverQuadraturePointsKernel.hpp"
@@ -112,8 +113,8 @@ public:
     dofManager.addCoupling( fields::solidMechanics::totalDisplacement::key(),
                             PRIMARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
                             DofManager::Connector::Elem );
-    
-    // 后续有需要再设置裂缝的流固耦合
+
+    // 裂缝的流固耦合关系 — K_upf disabled for numerical stability
     // dofManager.addCoupling( fields::solidMechanics::totalDisplacement::key(),
     //                         SECONDARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
     //                         DofManager::Connector::Elem );
@@ -157,6 +158,9 @@ public:
   {
     GEOS_UNUSED_VAR( time_n );
 
+    // ---- Step 0: Map fracture data (p_f, α_f, DOF#) from mesh2 to mesh1 ----
+    mapFractureDataToMatrix( domain, dofManager );
+
     // ---- Step 1: Monolithic matrix kernel (u + p_m) ----
     // Assembles K_uu, K_upm, K_pmu, K_pmpm in one quadrature-point loop
     // on mesh1 (matrix) regions only.
@@ -182,11 +186,19 @@ public:
           FlowSolverBase::viewKeyStruct::fluidNamesString() );
     } );
 
-    // ---- Step 2: Matrix face-based flux terms ----
+    // ---- Step 1.5: Update fracture porosity with matrix strain (fixed-stress) ----
+    updateFracturePorosityFixedStress( domain );
+
+    // ---- Step 2: Fracture-mechanics coupling (K_upf) ----
+    // K_upf disabled: fracture pressure→displacement coupling is numerically unstable.
+    // Displacement→fracture coupling (K_pfu) is implicit through porosity/mass update.
+    // assembleFractureMechanicsCoupling( domain, dofManager, localMatrix, localRhs );
+
+    // ---- Step 3: Matrix face-based flux terms ----
     this->flowSolver()->primarySolver()->assembleFluxTerms(
       dt, domain, dofManager, localMatrix, localRhs );
 
-    // ---- Step 3: Fracture flow assembly (K_pfpf accumulation + face fluxes) ----
+    // ---- Step 4: Fracture flow assembly (K_pfpf accumulation + face fluxes) ----
     this->flowSolver()->secondarySolver()->assembleSystem(
       time_n, dt, domain, dofManager, localMatrix, localRhs );
 
@@ -213,6 +225,313 @@ public:
     GEOS_UNUSED_VAR( localRhs );
   }
 
+private:
+
+  // Map fracture pressure, Biot coeff, DOF# from mesh2 to mesh1
+  void mapFractureDataToMatrix( DomainPartition & domain, DofManager const & dofManager )
+  {
+    if( domain.getMeshBodies().numSubGroups() < 2 ) return;
+
+    MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+    MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
+    MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+    MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
+
+    ElementRegionManager & elemManager1 = meshLevel1.getElemManager();
+    ElementRegionManager & elemManager2 = meshLevel2.getElemManager();
+
+    string const flowDofKey = dofManager.getKey( SinglePhaseBase::viewKeyStruct::elemDofFieldString() );
+
+    using DualFlowSolver = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+    DualFlowSolver & dualFlow = *this->flowSolver();
+    string_array const & matrixRegionList = dualFlow.template getReference< string_array >( "matrixRegionList" );
+    string_array const & fractureRegionList = dualFlow.template getReference< string_array >( "fractureRegionList" );
+    if( matrixRegionList.empty() ) return;
+
+    for( size_t iPair = 0; iPair < matrixRegionList.size(); ++iPair )
+    {
+      string const & matrixRegionName   = matrixRegionList[ iPair ];
+      string const & fractureRegionName = fractureRegionList[ iPair ];
+
+      ElementRegionBase & matrixRegion   = elemManager1.getRegion( matrixRegionName );
+      ElementRegionBase & fractureRegion = elemManager2.getRegion( fractureRegionName );
+
+      matrixRegion.forElementSubRegionsIndex< CellElementSubRegion >(
+        [&]( localIndex const subRegIdx, CellElementSubRegion & matrixSubRegion )
+      {
+        if( subRegIdx >= fractureRegion.numSubRegions() ) return;
+        CellElementSubRegion & fractureSubRegion =
+          dynamic_cast< CellElementSubRegion & >( fractureRegion.getSubRegion( subRegIdx ) );
+
+        arrayView1d< real64 > const fracturePressure =
+          matrixSubRegion.getReference< array1d< real64 > >( viewKeyStruct::fracturePressureString() );
+        arrayView1d< real64 > const fractureBiotCoeff =
+          matrixSubRegion.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
+        arrayView1d< globalIndex > const fractureDofNumber =
+          matrixSubRegion.getReference< array1d< globalIndex > >( viewKeyStruct::fractureDofNumberString() );
+
+        arrayView1d< real64 const > const p_f = fractureSubRegion.getField< fields::flow::pressure >();
+        arrayView1d< globalIndex const > const p_f_dof =
+          fractureSubRegion.getReference< array1d< globalIndex > >( flowDofKey );
+
+        string const & fracturePorousName =
+          fractureSubRegion.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
+        constitutive::CoupledSolidBase const & fractureSolid =
+          this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fractureSubRegion, fracturePorousName );
+        arrayView1d< real64 const > const alpha_f = fractureSolid.getBiotCoefficient();
+
+        for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
+        {
+          fracturePressure[ k ]  = p_f[ k ];
+          fractureBiotCoeff[ k ] = alpha_f[ k ];
+          fractureDofNumber[ k ] = p_f_dof[ k ];
+        }
+      } );
+    }
+  }
+
+  // Assemble K_upf: fracture pressure contribution to displacement residual
+  void assembleFractureMechanicsCoupling( DomainPartition & domain,
+                                          DofManager const & dofManager,
+                                          CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                                          arrayView1d< real64 > const & localRhs )
+  {
+    if( domain.getMeshBodies().numSubGroups() < 2 ) return;
+
+    this->template forDiscretizationOnMeshTargets<>(
+      domain.getMeshBodies(),
+      [&]( string const & meshBodyName, MeshLevel & mesh, string_array const & regionNames )
+    {
+      if( meshBodyName != "mesh1" ) return;
+
+      string const dispDofKey = dofManager.getKey( fields::solidMechanics::totalDisplacement::key() );
+      NodeManager const & nodeManager = mesh.getNodeManager();
+      if( !nodeManager.hasWrapper( dispDofKey ) ) return;
+
+      globalIndex const rankOffset = dofManager.rankOffset();
+      arrayView1d< globalIndex const > const dispDofNumber =
+        nodeManager.getReference< globalIndex_array >( dispDofKey );
+
+      mesh.getElemManager().forElementSubRegions< CellElementSubRegion >(
+        regionNames,
+        [&]( localIndex const, CellElementSubRegion & subRegion )
+      {
+        if( !subRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) ) return;
+
+        arrayView1d< real64 const > const fracturePressure =
+          subRegion.getReference< array1d< real64 > >( viewKeyStruct::fracturePressureString() );
+        arrayView1d< real64 const > const fractureBiotCoeff =
+          subRegion.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
+        arrayView1d< globalIndex const > const fractureDofNumber =
+          subRegion.getReference< array1d< globalIndex > >( viewKeyStruct::fractureDofNumberString() );
+
+        finiteElement::FiniteElementBase & subRegionFE =
+          subRegion.template getReference< finiteElement::FiniteElementBase >(
+            this->solidMechanicsSolver()->getDiscretizationName() );
+
+        finiteElement::FiniteElementDispatchHandler< BASE_FE_TYPES >::
+        dispatch3D( subRegionFE, [&]( auto const finiteElement )
+        {
+          using FE_TYPE = decltype( finiteElement );
+          constexpr localIndex numNodesPerElem = FE_TYPE::maxSupportPoints;
+          constexpr integer numDofPerNode = 3;
+
+          arrayView2d< real64 const, nodes::REFERENCE_POSITION_USD > const X = nodeManager.referencePosition();
+          arrayView2d< localIndex const, cells::NODE_MAP_USD > const elemsToNodes = subRegion.nodeList().toViewConst();
+          arrayView1d< globalIndex const > const dofNumber = nodeManager.getReference< globalIndex_array >( dispDofKey );
+          typename FE_TYPE::template MeshData< CellElementSubRegion > meshData;
+          finiteElement::FiniteElementBase::initialize< FE_TYPE >(
+            nodeManager, mesh.getEdgeManager(), mesh.getFaceManager(), subRegion, meshData );
+
+          forAll< parallelDevicePolicy<> >( subRegion.size(),
+            [=] GEOS_HOST_DEVICE ( localIndex const k )
+          {
+            typename FE_TYPE::StackVariables feStack;
+            finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
+            localIndex const numSupportPoints = finiteElement.template numSupportPoints< FE_TYPE >( feStack );
+
+            globalIndex localRowDofIndex[ numNodesPerElem * numDofPerNode ];
+            for( localIndex a = 0; a < numSupportPoints; ++a )
+            {
+              localIndex const nodeIndex = elemsToNodes( k, a );
+              for( integer dim = 0; dim < numDofPerNode; ++dim )
+                localRowDofIndex[ numDofPerNode * a + dim ] = dofNumber[ nodeIndex ] + dim;
+            }
+
+            real64 localResidualMomentum[ numNodesPerElem * numDofPerNode ] = {};
+            real64 dLocalResMomentum_dFracPressure[ numNodesPerElem * numDofPerNode ] = {};
+            real64 const alpha_f = fractureBiotCoeff[ k ];
+            real64 const p_f     = fracturePressure[ k ];
+
+            for( integer q = 0; q < FE_TYPE::numQuadraturePoints; ++q )
+            {
+              real64 dNdX[ numNodesPerElem ][ 3 ], xLocal[ numNodesPerElem ][ 3 ];
+              for( localIndex a = 0; a < numSupportPoints; ++a )
+              {
+                localIndex const nodeIndex = elemsToNodes( k, a );
+                for( integer dim = 0; dim < numDofPerNode; ++dim )
+                  xLocal[ a ][ dim ] = X[ nodeIndex ][ dim ];
+              }
+              real64 const detJxW = finiteElement.template getGradN< FE_TYPE >( k, q, xLocal, feStack, dNdX );
+
+              for( localIndex a = 0; a < numSupportPoints; ++a )
+              {
+                for( integer dim = 0; dim < numDofPerNode; ++dim )
+                {
+                  real64 const gradPhi = dNdX[ a ][ dim ];
+                  localResidualMomentum[ numDofPerNode * a + dim ] += alpha_f * p_f * gradPhi * detJxW;
+                  dLocalResMomentum_dFracPressure[ numDofPerNode * a + dim ] += alpha_f * gradPhi * detJxW;
+                }
+              }
+            }
+
+            for( localIndex a = 0; a < numSupportPoints; ++a )
+            {
+              for( integer dim = 0; dim < numDofPerNode; ++dim )
+              {
+                localIndex const localRow = numDofPerNode * a + dim;
+                localIndex const dof = LvArray::integerConversion< localIndex >( localRowDofIndex[ localRow ] - rankOffset );
+                if( dof < 0 || dof >= localMatrix.numRows() ) continue;
+
+                RAJA::atomicAdd< parallelDeviceAtomic >( &localRhs[ dof ], localResidualMomentum[ localRow ] );
+                localMatrix.template addToRowBinarySearchUnsorted< parallelDeviceAtomic >(
+                  dof, &fractureDofNumber[ k ], &dLocalResMomentum_dFracPressure[ localRow ], 1 );
+              }
+            }
+          } ); // forAll
+        } ); // dispatch3D
+      } ); // forElementSubRegions
+    } ); // forDiscretizationOnMeshTargets
+  }
+
+  // Update fracture porosity with matrix strain increment using fixed-stress formula.
+  // Displacement→fracture-pressure coupling is implicit through porosity→mass in flow assembly.
+  // Update fracture porosity using matrix volumetric strain increment.
+  // The matrix displacement → fracture porosity coupling is implicit:
+  // porosity update → flow solver mass → consistent K_pfpf and residual.
+  void updateFracturePorosityFixedStress( DomainPartition & domain )
+  {
+    if( domain.getMeshBodies().numSubGroups() < 2 ) return;
+
+    MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+    MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
+    MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+    MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
+
+    using DualFlowSolver = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+    DualFlowSolver & dualFlow = *this->flowSolver();
+    string_array const & matrixRegionList   = dualFlow.template getReference< string_array >( "matrixRegionList" );
+    string_array const & fractureRegionList = dualFlow.template getReference< string_array >( "fractureRegionList" );
+    if( matrixRegionList.empty() ) return;
+
+    NodeManager const & nodeManager = meshLevel1.getNodeManager();
+    if( !nodeManager.hasWrapper( fields::solidMechanics::incrementalDisplacement::key() ) ) return;
+    arrayView2d< real64 const, nodes::INCR_DISPLACEMENT_USD > const incDisp =
+      nodeManager.getField< fields::solidMechanics::incrementalDisplacement >();
+
+    for( size_t iPair = 0; iPair < matrixRegionList.size(); ++iPair )
+    {
+      ElementRegionBase & matrixRegion   = meshLevel1.getElemManager().getRegion( matrixRegionList[ iPair ] );
+      ElementRegionBase & fractureRegion = meshLevel2.getElemManager().getRegion( fractureRegionList[ iPair ] );
+
+      matrixRegion.forElementSubRegionsIndex< CellElementSubRegion >(
+        [&]( localIndex const subRegIdx, CellElementSubRegion & matrixSubRegion )
+      {
+        if( subRegIdx >= fractureRegion.numSubRegions() ) return;
+        CellElementSubRegion & fractureSubRegion =
+          dynamic_cast< CellElementSubRegion & >( fractureRegion.getSubRegion( subRegIdx ) );
+
+        if( !matrixSubRegion.hasWrapper( viewKeyStruct::fractureBiotCoefficientString() ) ) return;
+        arrayView1d< real64 const > const alpha_f =
+          matrixSubRegion.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
+
+        // Get fracture porosity on mesh2 for direct update
+        string const & fracSolidName =
+          fractureSubRegion.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
+        constitutive::CoupledSolidBase & fracSolid =
+          fractureSubRegion.getConstitutiveModel< constitutive::CoupledSolidBase >( fracSolidName );
+        arrayView2d< real64 const > const phi_n_frac = fracSolid.getPorosity_n();
+        arrayView2d< real64 > const phi_frac = fracSolid.getPorosity();
+
+        // Get fracture mass and dMass for direct update (needed because
+        // updateState runs before assembly, so mass must be updated here)
+        arrayView1d< real64 > const mass2 = fractureSubRegion.getField< fields::flow::mass >();
+        arrayView2d< real64, constitutive::singlefluid::USD_FLUID > const dMass2 =
+          fractureSubRegion.getField< fields::flow::dMass >();
+        arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > const rho_f =
+          fractureSubRegion.getConstitutiveModel< constitutive::SingleFluidBase >(
+            fractureSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() ) ).density();
+        arrayView1d< real64 const > const volume = fractureSubRegion.getElementVolume();
+
+        // Get matrix FE space for strain computation
+        finiteElement::FiniteElementBase & subRegionFE =
+          matrixSubRegion.template getReference< finiteElement::FiniteElementBase >(
+            this->solidMechanicsSolver()->getDiscretizationName() );
+
+        finiteElement::FiniteElementDispatchHandler< BASE_FE_TYPES >::
+        dispatch3D( subRegionFE, [&]( auto const finiteElement )
+        {
+          using FE_TYPE = decltype( finiteElement );
+          constexpr localIndex NN = FE_TYPE::maxSupportPoints;
+          constexpr integer ND = 3;
+
+          arrayView2d< real64 const, nodes::REFERENCE_POSITION_USD > const X = nodeManager.referencePosition();
+          arrayView2d< localIndex const, cells::NODE_MAP_USD > const e2n = matrixSubRegion.nodeList().toViewConst();
+          typename FE_TYPE::template MeshData< CellElementSubRegion > meshData;
+          finiteElement::FiniteElementBase::initialize< FE_TYPE >(
+            nodeManager, meshLevel1.getEdgeManager(), meshLevel1.getFaceManager(), matrixSubRegion, meshData );
+
+          forAll< parallelDevicePolicy<> >( matrixSubRegion.size(),
+            [=] GEOS_HOST_DEVICE ( localIndex const k )
+          {
+            typename FE_TYPE::StackVariables feStack;
+            finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
+
+            real64 uhat[ NN ][ ND ];
+            for( localIndex a = 0; a < NN; ++a )
+            { localIndex const ni = e2n( k, a );
+              for( integer d = 0; d < ND; ++d ) uhat[ a ][ d ] = incDisp[ ni ][ d ]; }
+
+            real64 volStrainIncSum = 0.0, elemVol = 0.0;
+            for( integer q = 0; q < FE_TYPE::numQuadraturePoints; ++q )
+            {
+              real64 dNdX[ NN ][ ND ], xLoc[ NN ][ ND ];
+              for( localIndex a = 0; a < NN; ++a )
+              { localIndex const ni = e2n( k, a );
+                for( integer d = 0; d < ND; ++d ) xLoc[ a ][ d ] = X[ ni ][ d ]; }
+              real64 const detJxW = finiteElement.template getGradN< FE_TYPE >( k, q, xLoc, feStack, dNdX );
+              real64 strainInc[ 6 ] = {};
+              FE_TYPE::symmetricGradient( dNdX, uhat, strainInc );
+              volStrainIncSum += ( strainInc[0] + strainInc[1] + strainInc[2] ) * detJxW;
+              elemVol += detJxW;
+            }
+            real64 const volStrainInc = ( elemVol > 0.0 ) ? volStrainIncSum / elemVol : 0.0;
+
+            if( k < phi_frac.size( 0 ) )
+            {
+              real64 const phi_old = phi_frac[ k ][ 0 ];
+              real64 const phi_new = phi_n_frac[ k ][ 0 ] + alpha_f[ k ] * volStrainInc;
+              phi_frac[ k ][ 0 ] = phi_new;
+
+              // Update mass and dMass consistently: M = phi * rho * V
+              real64 const V = volume[ k ];
+              real64 const rho = rho_f[ k ][ 0 ];
+              mass2[ k ] = phi_new * rho * V;
+
+              // dMass/dp = (dPhi_dP * rho + phi_new * drho_dp) * V
+              // dPhi_dP ≈ delta_phi / delta_p (approximate from change)
+              // For simplicity, use: dMass_new = dMass_old * (phi_new / phi_old)
+              if( phi_old > 1e-12 )
+              {
+                dMass2[ k ][ 0 ] = dMass2[ k ][ 0 ] * ( phi_new / phi_old );
+              }
+            }
+          } ); // forAll
+        } ); // dispatch3D
+      } ); // forElementSubRegionsIndex
+    }
+  }
+
   // Override registerDataOnMesh to ensure enableFixedStressPoromechanicsUpdate
   // is called BEFORE sub-solvers' registerDataOnMesh (which checks the flag
   // to determine whether to register pressure_k for Sequential coupling).
@@ -226,6 +545,45 @@ public:
       this->flowSolver()->enableFixedStressPoromechanicsUpdate();
     }
     Base::registerDataOnMesh( meshBodies );
+
+    // Register mapped fracture fields on mesh1 element subregions
+    if( meshBodies.hasGroup( "mesh1" ) )
+    {
+      MeshBody & mesh1 = meshBodies.getGroup< MeshBody >( "mesh1" );
+      MeshLevel & meshLevel = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+      ElementRegionManager & elemManager = meshLevel.getElemManager();
+
+      for( localIndex iRegion = 0; iRegion < elemManager.numRegions(); ++iRegion )
+      {
+        ElementRegionBase & region = elemManager.getRegion( iRegion );
+        region.forElementSubRegions< CellElementSubRegion >( [&]( CellElementSubRegion & subRegion )
+        {
+          subRegion.registerWrapper< array1d< real64 > >( viewKeyStruct::fracturePressureString() )
+            .setApplyDefaultValue( -1 )
+            .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+            .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
+
+          subRegion.registerWrapper< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() )
+            .setApplyDefaultValue( -1 )
+            .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+            .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
+
+          subRegion.registerWrapper< array1d< globalIndex > >( viewKeyStruct::fractureDofNumberString() )
+            .setApplyDefaultValue( -1 )
+            .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+            .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
+        } );
+      }
+    }
+  }
+
+  // Save fracture porosity_n with strain after convergence
+  virtual void implicitStepComplete( real64 const & time, real64 const & dt,
+                                     DomainPartition & domain ) override
+  {
+    // Update fracture porosity with converged strain → saved in saveConvergedState
+    updateFracturePorosityFixedStress( domain );
+    Base::implicitStepComplete( time, dt, domain );
   }
 
   // Override initializePostInitialConditionsPreSubGroups to setup dual continuum
@@ -280,9 +638,13 @@ public:
     this->flowSolver()->updateGravityPressure( meshMatrix, meshFracture, gravityCoefficient );
   }
 
+public:
+
   struct viewKeyStruct : Base::viewKeyStruct
   {
-    // Add any additional view keys if needed
+    static constexpr char const * fracturePressureString() { return "fracturePressure"; }
+    static constexpr char const * fractureBiotCoefficientString() { return "fractureBiotCoefficient"; }
+    static constexpr char const * fractureDofNumberString() { return "fractureDofNumber"; }
   };
 
 };

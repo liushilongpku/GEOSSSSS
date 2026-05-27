@@ -58,7 +58,8 @@ public:
                        arrayView1d< real64 > const & bulkModulus,
                        arrayView1d< real64 > const & shearModulus,
                        arrayView1d< real64 > const & grainBulkModulus,
-                       integer const useUniaxialFixedStress ): PorosityBaseUpdates( newPorosity,
+                       integer const useUniaxialFixedStress,
+                       real64 const defaultBiotCoefficient ): PorosityBaseUpdates( newPorosity,
                                                                                     porosity_n,
                                                                                     dPorosity_dPressure,
                                                                                     dPorosity_dTemperature,
@@ -71,7 +72,8 @@ public:
     m_shearModulus( shearModulus ),
     m_meanTotalStressIncrement_k( meanTotalStressIncrement_k ),
     m_averageMeanTotalStressIncrement_k( averageMeanTotalStressIncrement_k ),
-    m_useUniaxialFixedStress( useUniaxialFixedStress )
+    m_useUniaxialFixedStress( useUniaxialFixedStress ),
+    m_defaultBiotCoefficient( defaultBiotCoefficient )
   {}
 
   GEOS_HOST_DEVICE
@@ -190,7 +192,10 @@ public:
     m_bulkModulus[k] = bulkModulus;
     m_shearModulus[k] = shearModulus;
 
-    m_biotCoefficient[k] =  1.0 - bulkModulus / m_grainBulkModulus[k];
+    if( m_defaultBiotCoefficient <= 0.0 )
+    {
+      m_biotCoefficient[k] = 1.0 - bulkModulus / m_grainBulkModulus[k];
+    }
   }
 
   GEOS_HOST_DEVICE
@@ -226,6 +231,9 @@ protected:
 
   /// Flag enabling uniaxial approximation in fixed stress update
   integer m_useUniaxialFixedStress;
+
+  /// Default Biot coefficient from XML. When > 0, overrides auto-computed value.
+  real64 m_defaultBiotCoefficient;
 };
 
 class BiotPorosity : public PorosityBase
@@ -307,7 +315,8 @@ public:
                           m_bulkModulus,
                           m_shearModulus,
                           m_grainBulkModulus,
-                          m_useUniaxialFixedStress );
+                          m_useUniaxialFixedStress,
+                          m_defaultBiotCoefficient );
   }
 
 protected:

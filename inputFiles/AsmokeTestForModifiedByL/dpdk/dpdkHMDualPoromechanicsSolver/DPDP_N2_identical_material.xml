@@ -55,7 +55,7 @@
       defaultDensity="0" defaultBulkModulus="4.51e8" defaultShearModulus="3.11e8"/>
     <BiotPorosity name="matrixPorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.1358"
-      defaultBiotCoefficient="0.3819"/>
+      defaultBiotCoefficient="0.5"/>
     <!-- Matrix: effective permeability × v_m -->
     <ConstantPermeability name="matrixPerm"
       permeabilityComponents="{ 4.79e-21, 4.79e-21, 4.79e-21 }"/>
@@ -65,13 +65,13 @@
 
     <!-- Fracture: GOM Shale macro-fracture (Table 1) -->
     <ElasticIsotropic name="fractureSolid"
-      defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.389e7"/>
+      defaultDensity="0" defaultBulkModulus="4.51e8" defaultShearModulus="3.11e8"/>
     <BiotPorosity name="fracturePorosity"
-      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.0285"
-      defaultBiotCoefficient="0.6014"/>
+      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.1358"
+      defaultBiotCoefficient="0.5"/>
     <!-- Fracture: effective permeability × v_f -->
     <ConstantPermeability name="fracturePerm"
-      permeabilityComponents="{ 4.79e-16, 4.79e-16, 4.79e-16 }"/>
+      permeabilityComponents="{ 4.79e-21, 4.79e-21, 4.79e-21 }"/>
     <PorousElasticIsotropic name="fractureRock"
       solidModelName="fractureSolid" porosityModelName="fracturePorosity"
       permeabilityModelName="fracturePerm"/>
@@ -150,7 +150,7 @@
     fieldName="pressure" scale="4.55e5"/>
   <FieldSpecification name="initPressureF" initialCondition="1"
     setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions"
-    fieldName="pressure" scale="4.88e5"/>
+    fieldName="pressure" scale="4.55e5"/>
 
   <!-- N=2 Initial effective stress (mesh1) -->
   <FieldSpecification name="initial_sigma_x" initialCondition="1"

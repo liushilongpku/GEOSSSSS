@@ -84,6 +84,11 @@ public:
     return getBasePorosityModel().getPorosity();
   }
 
+  arrayView2d< real64 > const getPorosity()
+  {
+    return getBasePorosityModel().getPorosity();
+  }
+
   /**
    * @brief get the reference porosity.
    * return a constant arrayView1d to the reference porosity

@@ -144,6 +144,12 @@ public:
   arrayView2d< real64 const > const  getPorosity() const { return m_newPorosity; }
 
   /**
+   * @brief Non-Const/mutable accessor for newPorosity.
+   * @return Accessor
+   */
+  arrayView2d< real64 > const getPorosity() { return m_newPorosity; }
+
+  /**
    * @brief Const/non-mutable accessor for porosity_n.
    * @return Accessor
    */

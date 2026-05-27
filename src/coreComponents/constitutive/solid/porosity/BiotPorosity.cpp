@@ -48,6 +48,11 @@ BiotPorosity::BiotPorosity( string const & name, Group * const parent ):
     setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Flag enabling uniaxial approximation in fixed stress update" );
 
+  registerWrapper( viewKeyStruct::defaultBiotCoefficientString(), &m_defaultBiotCoefficient ).
+    setApplyDefaultValue( -1.0 ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Default Biot coefficient. When > 0, overrides the auto-computed value (1 - K/K_s)." );
+
   registerWrapper( viewKeyStruct::solidBulkModulusString(), &m_bulkModulus ).
     setApplyDefaultValue( 1e-6 ).
     setDescription( "Solid bulk modulus" );
@@ -84,6 +89,12 @@ void BiotPorosity::postInputInitialization()
   // set results as array default values
   getWrapper< array1d< real64 > >( fields::porosity::grainBulkModulus::key() ).
     setApplyDefaultValue( m_defaultGrainBulkModulus );
+
+  if( m_defaultBiotCoefficient > 0.0 )
+  {
+    getWrapper< array1d< real64 > >( fields::porosity::biotCoefficient::key() ).
+      setApplyDefaultValue( m_defaultBiotCoefficient );
+  }
 }
 
 void BiotPorosity::initializeState() const
