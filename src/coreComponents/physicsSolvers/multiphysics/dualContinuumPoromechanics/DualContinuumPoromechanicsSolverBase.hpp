@@ -72,7 +72,14 @@ public:
                                         dataRepository::Group * const parent )
     : Base( name, parent )
   {
-    // Additional initialization if needed, e.g., for dual continuum specific parameters
+    this->registerWrapper( viewKeyStruct::fractureVolumeFractionString(), &m_fractureVolumeFraction ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( -1.0 ).
+      setDescription( "Fracture volume fraction v_f = V_f / (V_m+V_f). "
+                      "Default (<0) computes v_f from mesh element volumes. "
+                      "Set explicitly when the mesh does not reflect the "
+                      "physical volume fractions (e.g. dual-continuum models "
+                      "with co-located meshes)." );
   }
 
   // Override postInputInitialization to include checks for dual continuum
@@ -256,6 +263,7 @@ public:
       using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
       DualFlow & dualFlow = *this->flowSolver();
       string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+      localIndex correctionIdx = 0;
       meshLevel.getElemManager().forElementSubRegions< CellElementSubRegion >( matrixRegions,
         [&]( localIndex const, auto & subRegion )
       {
@@ -281,9 +289,31 @@ public:
               subRegion, finiteElement, meanTotalStressIncrement_k, averageMeanTotalStressIncrement_k );
         } );
 
+        // Correct averageMeanTotalStressIncrement_k: replace K_m with K_eff
+        //   stored:    K_m * Δε_v_avg - α_m * (p_eq - p_eq_n)
+        //   corrected: K_eff * Δε_v_avg - α_m * (p_eq - p_eq_n)
+        if( subRegion.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
+        {
+          arrayView1d< real64 const > const K_m = solid.getBulkModulus();
+          arrayView1d< real64 const > const alpha_m = solid.getBiotCoefficient();
+          arrayView1d< real64 const > const K_eff = subRegion.template getReference< array1d< real64 > >(
+            viewKeyStruct::effectiveBulkModulusString() );
+
+          for( localIndex k = 0; k < subRegion.size(); ++k )
+          {
+            real64 const delta_p_eq = m_tempCompositePressure[correctionIdx] - m_tempCompositePressure_n[correctionIdx];
+            real64 const scale = K_eff[k] / K_m[k];
+            averageMeanTotalStressIncrement_k[k] = scale * averageMeanTotalStressIncrement_k[k]
+                                                   + (scale - 1.0) * alpha_m[k] * delta_p_eq;
+            correctionIdx++;
+          }
+        }
+
         this->flowSolver()->updatePorosityAndPermeability( subRegion );
         this->updateBulkDensity( subRegion );
       } );
+      m_tempCompositePressure.clear();
+      m_tempCompositePressure_n.clear();
 
       // Copy matrix avgStressIncr to fracture so the fracture flow
       // solver's fixed-stress porosity update includes the mechanics strain.
@@ -393,15 +423,19 @@ private:
     }
   }
 
-  // Replace matrix pressure on mesh1 with equivalent single-porosity pressure
-  // derived from Mehrabian & Abousleiman (2014), Appendix A, Eqs. A20-A27:
+  // Replace matrix pressure (and pressure_n) on mesh1 with equivalent single-porosity
+  // values so the mechanics kernel — which uses the matrix constitutive model (K_m, α_m)
+  // — produces the correct dual-porosity composite response:
   //
-  //   K_eff   = (v_m/K_m + v_f/K_f)^{-1}                     (Eq. A20, Reuss average)
-  //   α_eff_i = K_eff · v_i · α_i / K_i                      (Eq. A21)
-  //   p_eq    = α_eff_m · p_m + α_eff_f · p_f
+  //   K_eff   = (v_m/K_m + v_f/K_f)^{-1}
+  //   α_eff_i = K_eff · v_i · α_i / K_i
+  //   p_eq    = (α_eff_m·p_m + α_eff_f·p_f) / α_m
   //
-  // p_eq replaces p_m so the mechanics kernel (which multiplies by α_m) computes:
-  //   σ = σ'_drained - α_m · p_eq = σ'_drained - (α_m·α_eff_m·p_m + α_m·α_eff_f·p_f)
+  // Stress:          σ_biot = -α_m·p_eq  = -(α_eff_m·p_m + α_eff_f·p_f)           ✓
+  // Stress increment: α_m·(p_eq-p_eq_n)  = α_eff_m·(p_m-p_m_n)+α_eff_f·(p_f-p_f_n) ✓
+  //
+  // K_eff is stored on the subRegion for post-correction of meanTotalStressIncrement
+  // (whose effective-stress part uses K_m instead of K_eff).
   //
   // The fracture Biot wrapper is zeroed to avoid double-counting.
   void swapToCompositePressure( DomainPartition & domain )
@@ -430,14 +464,14 @@ private:
           dynamic_cast< CellElementSubRegion & >( fracRegion.getSubRegion( subRegIdx ) );
 
         arrayView1d< real64 > const p_m = matSubReg.getField< fields::flow::pressure >();
+        arrayView1d< real64 > const p_m_n = matSubReg.getField< fields::flow::pressure_n >();
         arrayView1d< real64 const > const p_f_wrapper = matSubReg.getReference< array1d< real64 > >(
           viewKeyStruct::fracturePressureString() );
+        arrayView1d< real64 const > const p_f_n = fracSubReg.getField< fields::flow::pressure_n >();
         arrayView1d< real64 > const alpha_f_wrapper = matSubReg.getReference< array1d< real64 > >(
           viewKeyStruct::fractureBiotCoefficientString() );
-
-        // Element volumes for volume fractions
-        arrayView1d< real64 const > const V_m = matSubReg.getElementVolume();
-        arrayView1d< real64 const > const V_f = fracSubReg.getElementVolume();
+        arrayView1d< real64 > const K_eff_wrapper = matSubReg.getReference< array1d< real64 > >(
+          viewKeyStruct::effectiveBulkModulusString() );
 
         // Matrix drained bulk modulus and Biot coefficient
         string const & matSolidName = matSubReg.template getReference< string >(
@@ -455,14 +489,25 @@ private:
         arrayView1d< real64 const > const K_f = fracSolid.getBulkModulus();
         arrayView1d< real64 const > const alpha_f = fracSolid.getBiotCoefficient();
 
+        // Use user-specified volume fraction or compute from mesh element volumes
+        bool const useMeshVolumes = (m_fractureVolumeFraction < 0.0);
+        arrayView1d< real64 const > V_m, V_f;
+        if( useMeshVolumes )
+        {
+          V_m = matSubReg.getElementVolume();
+          V_f = fracSubReg.getElementVolume();
+        }
+
         for( localIndex k = 0; k < matSubReg.size(); ++k )
         {
           m_tempPm.push_back( p_m[k] );
+          m_tempPm_n.push_back( p_m_n[k] );
           m_tempAlphaF.push_back( alpha_f_wrapper[k] );
 
-          real64 const V_total = V_m[k] + V_f[k];
-          real64 const v_m = V_m[k] / V_total;
-          real64 const v_f = V_f[k] / V_total;
+          real64 const v_f = useMeshVolumes
+            ? V_f[k] / (V_m[k] + V_f[k])
+            : m_fractureVolumeFraction;
+          real64 const v_m = 1.0 - v_f;
 
           // K_eff = (v_m/K_m + v_f/K_f)^{-1}  (Reuss average, Eq. A20)
           real64 const K_eff_inv = v_m / K_m[k] + v_f / K_f[k];
@@ -472,8 +517,16 @@ private:
           real64 const alpha_eff_m = K_eff * v_m * alpha_m[k] / K_m[k];
           real64 const alpha_eff_f = K_eff * v_f * alpha_f[k] / K_f[k];
 
-          // p_eq = α_eff_m · p_m + α_eff_f · p_f  (no division by α_m)
-          p_m[k] = alpha_eff_m * p_m[k] + alpha_eff_f * p_f_wrapper[k];
+          // p_eq = (α_eff_m · p_m + α_eff_f · p_f) / α_m
+          // p_eq_n = (α_eff_m · p_m_n + α_eff_f · p_f_n) / α_m
+          real64 const p_eq = (alpha_eff_m * p_m[k] + alpha_eff_f * p_f_wrapper[k]) / alpha_m[k];
+          real64 const p_eq_n = (alpha_eff_m * p_m_n[k] + alpha_eff_f * p_f_n[k]) / alpha_m[k];
+
+          m_tempCompositePressure.push_back( p_eq );
+          m_tempCompositePressure_n.push_back( p_eq_n );
+          K_eff_wrapper[k] = K_eff;
+          p_m[k] = p_eq;
+          p_m_n[k] = p_eq_n;
           alpha_f_wrapper[k] = 0.0;
         }
       } );
@@ -495,17 +548,20 @@ private:
       if( !matrixSubRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) ) return;
 
       arrayView1d< real64 > const p_m = matrixSubRegion.getField< fields::flow::pressure >();
+      arrayView1d< real64 > const p_m_n = matrixSubRegion.getField< fields::flow::pressure_n >();
       arrayView1d< real64 > const alpha_f = matrixSubRegion.getReference< array1d< real64 > >(
         viewKeyStruct::fractureBiotCoefficientString() );
 
       for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
       {
         p_m[k]   = m_tempPm[idx];
+        p_m_n[k] = m_tempPm_n[idx];
         alpha_f[k] = m_tempAlphaF[idx];
         ++idx;
       }
     } );
     m_tempPm.clear();
+    m_tempPm_n.clear();
     m_tempAlphaF.clear();
   }
 
@@ -884,6 +940,11 @@ private:
             .setApplyDefaultValue( -1 )
             .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
             .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
+
+          subRegion.registerWrapper< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() )
+            .setApplyDefaultValue( -1 )
+            .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+            .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
         } );
       }
     }
@@ -964,11 +1025,19 @@ public:
     static constexpr char const * fracturePressureString() { return "fracturePressure"; }
     static constexpr char const * fractureBiotCoefficientString() { return "fractureBiotCoefficient"; }
     static constexpr char const * fractureDofNumberString() { return "fractureDofNumber"; }
+    static constexpr char const * fractureVolumeFractionString() { return "fractureVolumeFraction"; }
+    static constexpr char const * effectiveBulkModulusString() { return "effectiveBulkModulus"; }
   };
+
+  /// User-specified fracture volume fraction; (<0) → computed from mesh volumes
+  real64 m_fractureVolumeFraction;
 
   // TODO: replace with registered fields for GPU compatibility
   std::vector< real64 > m_tempPm;
+  std::vector< real64 > m_tempPm_n;
   std::vector< real64 > m_tempAlphaF;
+  std::vector< real64 > m_tempCompositePressure;    // p_eq during mechanics step
+  std::vector< real64 > m_tempCompositePressure_n;  // p_eq_n during mechanics step
 
 };
 

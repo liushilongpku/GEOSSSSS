@@ -4821,6 +4821,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="cflFactor" type="real64" default="0.5" />
 		<!--dualcontinuumSolverName => Name of the dualcontinuum solver used by the coupled solver-->
 		<xsd:attribute name="dualcontinuumSolverName" type="groupNameRef" use="required" />
+		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). Default (<0) computes v_f from mesh element volumes. Set explicitly when the mesh does not reflect the physical volume fractions (e.g. dual-continuum models with co-located meshes).-->
+		<xsd:attribute name="fractureVolumeFraction" type="real64" default="-1" />
 		<!--initialDt => Initial time-step value required by the solver to the event manager.-->
 		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
 		<!--isThermal => Flag indicating whether the problem is thermal or not. Set isThermal="1" to enable the thermal coupling-->

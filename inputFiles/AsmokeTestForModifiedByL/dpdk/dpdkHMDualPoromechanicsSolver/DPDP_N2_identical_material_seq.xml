@@ -109,6 +109,7 @@
     <SinglePhaseDualContinuumPoromechanics name="poroSolver"
       logLevel="1" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      fractureVolumeFraction="0.01"
       stabilizationType="None" isThermal="0">
       <NonlinearSolverParameters
         couplingType="Sequential" newtonMaxIter="80" newtonTol="1.0e-6"

@@ -46,32 +46,32 @@
       defaultDensity="1000" defaultViscosity="0.001"
       referencePressure="0.0" compressibility="5.734e-10"/>
 
-    <!-- Matrix: mixture effective properties
-         TODO@LSL: The drained effective moduli (K_eff, G_eff) should be
-         computed automatically from the individual constituent properties
-         (K_i, G_i, v_i) using Reuss average. Currently hardcoded.
-         K_eff = 1/(v_m/K_m + v_f/K_f) = 1/(0.97/1.1e9 + 0.03/2.25e7) -->
+    <!-- Matrix: GOM Shale primary porosity (Table 1, intrinsic values)
+         K₁ = 1.1 GPa, ν₁ = 0.22, V₁ = 97%, Φ₁ = 14%, k₁ = 5 nd
+         α₁ = 1 - K₁/K_s = 1 - 1.1/27 = 0.9593
+         G₁ = 3K₁(1-2ν)/(2(1+ν)) = 0.7574 GPa -->
     <ElasticIsotropic name="matrixSolid"
-      defaultDensity="0" defaultBulkModulus="4.51e8" defaultShearModulus="3.11e8"/>
+      defaultDensity="0" defaultBulkModulus="1.1e9" defaultShearModulus="7.574e8"/>
     <BiotPorosity name="matrixPorosity"
-      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.1358"
-      defaultBiotCoefficient="0.3819"/>
-    <!-- Matrix: effective permeability × v_m -->
+      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.14"
+      defaultBiotCoefficient="0.9593"/>
     <ConstantPermeability name="matrixPerm"
-      permeabilityComponents="{ 4.79e-21, 4.79e-21, 4.79e-21 }"/>
+      permeabilityComponents="{ 4.935e-21, 4.935e-21, 4.935e-21 }"/>
     <PorousElasticIsotropic name="matrixRock"
       solidModelName="matrixSolid" porosityModelName="matrixPorosity"
       permeabilityModelName="matrixPerm"/>
 
-    <!-- Fracture: GOM Shale macro-fracture (Table 1) -->
+    <!-- Fracture: GOM Shale macro-fracture (Table 1, intrinsic values)
+         K₃ = 22.5 MPa, ν₃ = 0.22, V₃ = 3%, Φ₃ = 95%, k₃ = 5 md
+         α₃ = 1 - K₃/K_s = 1 - 0.0225/27 = 0.9992
+         G₃ = 3K₃(1-2ν)/(2(1+ν)) = 15.49 MPa -->
     <ElasticIsotropic name="fractureSolid"
-      defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.389e7"/>
+      defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.549e7"/>
     <BiotPorosity name="fracturePorosity"
-      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.0285"
-      defaultBiotCoefficient="0.6014"/>
-    <!-- Fracture: effective permeability × v_f -->
+      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.95"
+      defaultBiotCoefficient="0.9992"/>
     <ConstantPermeability name="fracturePerm"
-      permeabilityComponents="{ 4.79e-16, 4.79e-16, 4.79e-16 }"/>
+      permeabilityComponents="{ 4.935e-15, 4.935e-15, 4.935e-15 }"/>
     <PorousElasticIsotropic name="fractureRock"
       solidModelName="fractureSolid" porosityModelName="fracturePorosity"
       permeabilityModelName="fracturePerm"/>
@@ -109,6 +109,7 @@
     <SinglePhaseDualContinuumPoromechanics name="poroSolver"
       logLevel="1" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      fractureVolumeFraction="0.03"
       stabilizationType="None" isThermal="0">
       <NonlinearSolverParameters
         couplingType="Sequential" newtonMaxIter="80" newtonTol="1.0e-6"
