@@ -131,12 +131,13 @@
       inputVarNames="{ ReferencePosition }"
       coordinateFiles="{ mandel_input_tables/xlin2.geos, mandel_input_tables/ylin2.geos, mandel_input_tables/zlin2.geos }"
       voxelFile="mandel_input_tables/uz.geos"/>
-
+    
+    <!-- 这里修改了加载速率，降低了 -->
     <TableFunction
       name="loadFunction"
       inputVarNames="{ time }"
       coordinateFiles="{ mandel_input_tables/u_ztime.geos}"
-      voxelFile="mandel_input_tables/u_zmeter.geos"/>
+      voxelFile="mandel_input_tables/uz_0.1.geos"/>
 
     <TableFunction name="loadFunction0000000" inputVarNames="{ time }"
       coordinates="{ 0.0000e+00, 1.0000e-12, 1.0800e-01, 1.2553e-01, 1.4591e-01, 1.6959e-01, 1.9712e-01, 2.2912e-01, 2.6631e-01, 3.0954e-01, 3.5978e-01, 4.1818e-01, 4.8606e-01, 5.6496e-01, 6.5666e-01, 7.6326e-01, 8.8715e-01, 1.0312e+00, 1.1985e+00, 1.3931e+00, 1.6192e+00, 1.8820e+00, 2.1875e+00, 2.5426e+00, 2.9554e+00, 3.4351e+00, 3.9927e+00, 4.6408e+00, 5.3941e+00, 6.2697e+00, 7.2874e+00, 8.4703e+00, 9.8452e+00, 1.1443e+01, 1.3301e+01, 1.5460e+01, 1.7969e+01, 2.0886e+01, 2.4276e+01, 2.8217e+01, 3.2797e+01, 3.8121e+01, 4.4309e+01, 5.1501e+01, 5.9861e+01, 6.9578e+01, 8.0872e+01, 9.3999e+01, 1.0926e+02, 1.2699e+02, 1.4761e+02, 1.7157e+02, 1.9941e+02, 2.3178e+02, 2.6941e+02, 3.1314e+02, 3.6397e+02, 4.2305e+02, 4.9172e+02, 5.7153e+02, 6.6431e+02, 7.7214e+02, 8.9747e+02, 1.0432e+03, 1.2125e+03, 1.4093e+03, 1.6381e+03, 1.9039e+03, 2.2130e+03, 2.5722e+03, 2.9898e+03, 3.4751e+03, 4.0391e+03, 4.6948e+03, 5.4568e+03, 6.3426e+03, 7.3722e+03, 8.5688e+03, 9.9597e+03, 1.1576e+04, 1.3456e+04, 1.5640e+04, 1.8178e+04, 2.1129e+04, 2.4559e+04, 2.8545e+04, 3.3179e+04, 3.8565e+04, 4.4824e+04, 5.2100e+04, 6.0558e+04, 7.0387e+04, 8.1813e+04, 9.5093e+04, 1.1053e+05, 1.2847e+05, 1.4932e+05, 1.7356e+05, 2.0174e+05, 2.3448e+05, 2.7254e+05 }"
@@ -215,11 +216,12 @@
     <!-- <FieldSpecification name="zposLoad"
       objectPath="faceManager" targetMesh="mesh1"
       fieldName="traction" component="2" scale="-1.0e6" setNames="{ zpos }"/> -->
+      
+      
     <FieldSpecification name="zposLoad"
       objectPath="nodeManager" targetMesh="mesh1"
-      fieldName="totalDisplacement" component="2" scale="-1.0" setNames="{ zpos }"
+      fieldName="totalDisplacement" component="2" scale="-1" setNames="{ zpos }"
       functionName="loadFunction"/>
-
 
     <FieldSpecification name="boundaryPressureM"
       objectPath="faceManager" targetMesh="mesh1"

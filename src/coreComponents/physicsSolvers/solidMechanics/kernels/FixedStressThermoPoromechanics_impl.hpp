@@ -155,7 +155,11 @@ quadraturePointKernel( localIndex const k,
                                                                   totalStress,
                                                                   stiffness );
 
-  // Add fracture Biot term -α_f·p_f·I to total stress (dual-porosity).
+  // Legacy fracture Biot term -α_f·p_f·I for dual-porosity.
+  // In sequential coupling, this branch is disabled (α_f_wrapper is zeroed in
+  // swapToCompositePressure) because the fracture contribution is already
+  // accounted for through the composite pressure p_eq.
+  // This MAY still be used by the monolithic coupling path — verify before removing.
   // RHS only — p_f is constant during sequential mechanics step, no Jacobian.
   if( m_hasFractureData )
   {
