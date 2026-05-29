@@ -289,22 +289,28 @@ public:
               subRegion, finiteElement, meanTotalStressIncrement_k, averageMeanTotalStressIncrement_k );
         } );
 
-        // Correct averageMeanTotalStressIncrement_k: replace K_m with K_eff
-        //   stored:    K_m * Δε_v_avg - α_m * (p_eq - p_eq_n)
-        //   corrected: K_eff * Δε_v_avg - α_m * (p_eq - p_eq_n)
-        if( subRegion.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
+        // Remove fracture pressure contribution from meanTotalStressIncrement.
+        //
+        // During mechanics, the kernel stored:
+        //   S_stored = K_m·Δε_v - α_m·(p_eq - p_eq_n)
+        //            = K_m·Δε_v - α_eff_m·(p_m-p_m_n) - α_eff_f·(p_f-p_f_n)
+        //
+        // Matrix porosity should only see matrix pressure, not the shared
+        // skeleton coupling from fracture pressure:
+        //   S_matrix = K_m·Δε_v - α_m·(p_m - p_m_n)
+        //
+        // Correction: S_matrix = S_stored + α_m·(Δp_eq - Δp_m)
+        if( subRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) )
         {
-          arrayView1d< real64 const > const K_m = solid.getBulkModulus();
           arrayView1d< real64 const > const alpha_m = solid.getBiotCoefficient();
-          arrayView1d< real64 const > const K_eff = subRegion.template getReference< array1d< real64 > >(
-            viewKeyStruct::effectiveBulkModulusString() );
+          arrayView1d< real64 const > const p_m = subRegion.template getField< fields::flow::pressure >();
+          arrayView1d< real64 const > const p_m_n = subRegion.template getField< fields::flow::pressure_n >();
 
           for( localIndex k = 0; k < subRegion.size(); ++k )
           {
             real64 const delta_p_eq = m_tempCompositePressure[correctionIdx] - m_tempCompositePressure_n[correctionIdx];
-            real64 const scale = K_eff[k] / K_m[k];
-            averageMeanTotalStressIncrement_k[k] = scale * averageMeanTotalStressIncrement_k[k]
-                                                   + (scale - 1.0) * alpha_m[k] * delta_p_eq;
+            real64 const delta_p_m  = p_m[k] - p_m_n[k];
+            averageMeanTotalStressIncrement_k[k] += alpha_m[k] * (delta_p_eq - delta_p_m);
             correctionIdx++;
           }
         }
@@ -978,6 +984,14 @@ private:
     MeshLevel & primaryMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
     MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
     this->flowSolver()->initializePostInitialConditionsPreSubGroups();
+
+    // Set volumeFraction on matrix (v_m) and fracture (v_f) subregions.
+    // The flow solver's mass accumulation (updateMass) does φ * ρ * V_elem,
+    // but the physical pore volume per dual-porosity REV is φ * v * V_elem.
+    // Scaling the element volume by volumeFraction corrects this.
+    bool const useMeshVolumes = (m_fractureVolumeFraction < 0.0);
+
+    GEOS_UNUSED_VAR( primaryMesh, secondaryMesh );
   }
 
   // Override initializePostInitialConditionsPostSubGroups for gravity setup
@@ -1027,6 +1041,7 @@ public:
     static constexpr char const * fractureDofNumberString() { return "fractureDofNumber"; }
     static constexpr char const * fractureVolumeFractionString() { return "fractureVolumeFraction"; }
     static constexpr char const * effectiveBulkModulusString() { return "effectiveBulkModulus"; }
+    static constexpr char const * volumeFractionString() { return "volumeFraction"; }
   };
 
   /// User-specified fracture volume fraction; (<0) → computed from mesh volumes
