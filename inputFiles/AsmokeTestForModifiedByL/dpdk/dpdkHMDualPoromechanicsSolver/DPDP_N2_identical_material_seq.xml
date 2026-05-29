@@ -55,10 +55,10 @@
       defaultDensity="0" defaultBulkModulus="4.51e8" defaultShearModulus="3.11e8"/>
     <BiotPorosity name="matrixPorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.1358"
-      defaultBiotCoefficient="0.5"/>
+      defaultBiotCoefficient="1"/>
     <!-- Matrix: effective permeability × v_m -->
     <ConstantPermeability name="matrixPerm"
-      permeabilityComponents="{ 4.79e-21, 4.79e-21, 4.79e-21 }"/>
+      permeabilityComponents="{ 4.79e-16, 4.79e-16, 4.79e-16 }"/>
     <PorousElasticIsotropic name="matrixRock"
       solidModelName="matrixSolid" porosityModelName="matrixPorosity"
       permeabilityModelName="matrixPerm"/>
@@ -68,10 +68,10 @@
       defaultDensity="0" defaultBulkModulus="4.51e8" defaultShearModulus="3.11e8"/>
     <BiotPorosity name="fracturePorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.1358"
-      defaultBiotCoefficient="0.5"/>
+      defaultBiotCoefficient="1"/>
     <!-- Fracture: effective permeability × v_f -->
     <ConstantPermeability name="fracturePerm"
-      permeabilityComponents="{ 4.79e-21, 4.79e-21, 4.79e-21 }"/>
+      permeabilityComponents="{ 4.79e-16, 4.79e-16, 4.79e-16 }"/>
     <PorousElasticIsotropic name="fractureRock"
       solidModelName="fractureSolid" porosityModelName="fracturePorosity"
       permeabilityModelName="fracturePerm"/>
@@ -111,7 +111,8 @@
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       stabilizationType="None" isThermal="0">
       <NonlinearSolverParameters
-        couplingType="FullyImplicit" newtonMaxIter="80" newtonTol="1.0e-6"
+        couplingType="Sequential" newtonMaxIter="80" newtonTol="1.0e-6"
+        lineSearchAction="None"
         maxTimeStepCuts="2" timeStepCutFactor="0.5"/>
       <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
     </SinglePhaseDualContinuumPoromechanics>
@@ -201,7 +202,7 @@
 
     <FieldSpecification name="xnegconstraint"
       objectPath="nodeManager" targetMesh="mesh1"
-      fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xneg }"/>
+      fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xneg, xneg }"/>
     <FieldSpecification name="yconstraint"
       objectPath="nodeManager" targetMesh="mesh1"
       fieldName="totalDisplacement" component="1" scale="0.0" setNames="{ yneg, ypos }"/>

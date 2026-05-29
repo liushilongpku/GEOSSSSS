@@ -209,9 +209,17 @@
     <FieldSpecification name="znegconstraint"
       objectPath="nodeManager" targetMesh="mesh1"
       fieldName="totalDisplacement" component="2" scale="0.0" setNames="{ zneg }"/>
-    <FieldSpecification name="zposLoad"
+
+
+    <!-- <FieldSpecification name="zposLoad"
       objectPath="faceManager" targetMesh="mesh1"
-      fieldName="traction" component="2" scale="-1.0e6" setNames="{ zpos }"/>
+      fieldName="traction" component="2" scale="-1.0e6" setNames="{ zpos }"/> -->
+    <FieldSpecification name="zposLoad"
+      objectPath="nodeManager" targetMesh="mesh1"
+      fieldName="totalDisplacement" component="2" scale="-1.0" setNames="{ zpos }"
+      functionName="loadFunction"/>
+
+
     <FieldSpecification name="boundaryPressureM"
       objectPath="faceManager" targetMesh="mesh1"
       fieldName="pressure" scale="0.0" setNames="{ xpos }"/>

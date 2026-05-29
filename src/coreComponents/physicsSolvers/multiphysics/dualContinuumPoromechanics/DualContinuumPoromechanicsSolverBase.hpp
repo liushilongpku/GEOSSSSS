@@ -37,6 +37,7 @@
 #include "mesh/utilities/AverageOverQuadraturePointsKernel.hpp"
 #include "codingUtilities/Utilities.hpp"
 #include "common/logger/Logger.hpp"
+#include <vector>
 
 namespace geos
 {
@@ -217,14 +218,37 @@ public:
   {
     if( solverType == static_cast< integer >( SolverType::DualContinuumFlow ) )
     {
-      // Copy p_f from mesh2 to mesh1 wrappers (sequential mode: assembleSystem
-      // not called, so mapFractureDataToMatrix doesn't run)
       copyFracturePressureToMesh1( domain );
+      {
+        // DEBUG: show p_m and p_f before composite swap
+        MeshBody & m1 = domain.getMeshBody( "mesh1" );
+        MeshBody & m2 = domain.getMeshBody( "mesh2" );
+        MeshLevel & ml1 = m1.getMeshLevels().getGroup< MeshLevel >( 0 );
+        MeshLevel & ml2 = m2.getMeshLevels().getGroup< MeshLevel >( 0 );
+        auto & df = *this->flowSolver();
+        auto const & matRegs = df.template getReference< string_array >( "matrixRegionList" );
+        auto const & fracRegs = df.template getReference< string_array >( "fractureRegionList" );
+        if( matRegs.size() > 0 && ml1.getElemManager().getRegion(matRegs[0]).numSubRegions() > 0 )
+        {
+          auto & msr = dynamic_cast<CellElementSubRegion&>(ml1.getElemManager().getRegion(matRegs[0]).getSubRegion(0));
+          auto & fsr = dynamic_cast<CellElementSubRegion&>(ml2.getElemManager().getRegion(fracRegs[0]).getSubRegion(0));
+          printf("[DBG] Flow→Mech: elem0 p_m=%.2f p_f=%.2f\n",
+                 msr.getField<fields::flow::pressure>()[0],
+                 fsr.getField<fields::flow::pressure>()[0]);
+        }
+      }
+      swapToCompositePressure( domain );
       Base::updateBulkDensity( domain );
     }
     else if( solverType == static_cast< integer >( SolverType::SolidMechanics )
              && !this->m_performStressInitialization )
     {
+      // Restore p_m BEFORE the matrix pass so updatePorosityAndPermeability
+      // uses the original matrix pressure, not the composite p_eq.
+      // Otherwise the matrix uses p_eq (which includes p_f) while the
+      // fracture uses p_f, creating a ~0.5·biotSkelInv·(p_m-p_f) difference
+      // in porosity that amplifies into divergence over subsequent steps.
+      restoreCompositePressure( domain );
 
       // Average mean total stress on mesh1 only (mesh2 has no FE)
       MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
@@ -260,6 +284,63 @@ public:
         this->flowSolver()->updatePorosityAndPermeability( subRegion );
         this->updateBulkDensity( subRegion );
       } );
+
+      // Copy matrix avgStressIncr to fracture so the fracture flow
+      // solver's fixed-stress porosity update includes the mechanics strain.
+      {
+        MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+        MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
+        MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+        MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
+        using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+        DualFlow & dualFlow = *this->flowSolver();
+        string_array const & matRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+        string_array const & fracRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
+
+        for( size_t iPair = 0; iPair < matRegions.size(); ++iPair )
+        {
+          ElementRegionBase & matRegion = meshLevel1.getElemManager().getRegion( matRegions[ iPair ] );
+          ElementRegionBase & fracRegion = meshLevel2.getElemManager().getRegion( fracRegions[ iPair ] );
+
+          matRegion.forElementSubRegionsIndex< CellElementSubRegion >(
+            [&]( localIndex const subRegIdx, CellElementSubRegion & matSubReg )
+          {
+            if( subRegIdx >= fracRegion.numSubRegions() ) return;
+            CellElementSubRegion & fracSubReg =
+              dynamic_cast< CellElementSubRegion & >( fracRegion.getSubRegion( subRegIdx ) );
+
+            string const & matSolidName = matSubReg.template getReference< string >(
+              Base::viewKeyStruct::porousMaterialNamesString() );
+            constitutive::CoupledSolidBase & matSolid =
+              this->template getConstitutiveModel< constitutive::CoupledSolidBase >( matSubReg, matSolidName );
+            arrayView1d< real64 const > const matAvgStressIncr = matSolid.getAverageMeanTotalStressIncrement_k();
+
+            string const & fracSolidName =
+              fracSubReg.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
+            constitutive::CoupledSolidBase & fracSolid =
+              this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fracSubReg, fracSolidName );
+            arrayView1d< real64 > const fracAvgStressIncr = fracSolid.getAverageMeanTotalStressIncrement_k();
+
+            for( localIndex k = 0; k < matSubReg.size(); ++k )
+            {
+              fracAvgStressIncr[ k ] = matAvgStressIncr[ k ];
+            }
+
+            // DEBUG before
+            {
+              arrayView2d<real64 const> phi_f = fracSolid.getPorosity();
+              printf("[DBG] frac elem0 BEFORE updatePorosity: phi=%.6e avgStress=%.6e p=%.2f\n",
+                     phi_f[0][0], fracAvgStressIncr[0],
+                     fracSubReg.getField<fields::flow::pressure>()[0]);
+            }
+            this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( fracSubReg );
+            {
+              arrayView2d<real64 const> phi_f = fracSolid.getPorosity();
+              printf("[DBG] frac elem0 AFTER  updatePorosity: phi=%.6e\n", phi_f[0][0]);
+            }
+          } );
+        }
+      }
     }
   }
 
@@ -295,12 +376,137 @@ private:
           matrixSubRegion.getReference< array1d< real64 > >( viewKeyStruct::fracturePressureString() );
         arrayView1d< real64 const > const p_f_mesh2 = fractureSubRegion.getField< fields::flow::pressure >();
 
+        arrayView1d< real64 > const alpha_f_wrapper =
+          matrixSubRegion.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
+        string const & fracturePorousName =
+          fractureSubRegion.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
+        constitutive::CoupledSolidBase const & fractureSolid =
+          this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fractureSubRegion, fracturePorousName );
+        arrayView1d< real64 const > const alpha_f_mesh2 = fractureSolid.getBiotCoefficient();
+
         for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
         {
           p_f_wrapper[ k ] = p_f_mesh2[ k ];
+          alpha_f_wrapper[ k ] = alpha_f_mesh2[ k ];
         }
       } );
     }
+  }
+
+  // Replace matrix pressure on mesh1 with equivalent single-porosity pressure
+  // derived from Mehrabian & Abousleiman (2014), Appendix A, Eqs. A20-A27:
+  //
+  //   K_eff   = (v_m/K_m + v_f/K_f)^{-1}                     (Eq. A20, Reuss average)
+  //   α_eff_i = K_eff · v_i · α_i / K_i                      (Eq. A21)
+  //   p_eq    = α_eff_m · p_m + α_eff_f · p_f
+  //
+  // p_eq replaces p_m so the mechanics kernel (which multiplies by α_m) computes:
+  //   σ = σ'_drained - α_m · p_eq = σ'_drained - (α_m·α_eff_m·p_m + α_m·α_eff_f·p_f)
+  //
+  // The fracture Biot wrapper is zeroed to avoid double-counting.
+  void swapToCompositePressure( DomainPartition & domain )
+  {
+    MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+    MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
+    MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+    MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
+    using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+    DualFlow & dualFlow = *this->flowSolver();
+    string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+    string_array const & fractureRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
+
+    for( size_t i = 0; i < matrixRegions.size(); ++i )
+    {
+      ElementRegionBase & matRegion = meshLevel1.getElemManager().getRegion( matrixRegions[i] );
+      ElementRegionBase & fracRegion = meshLevel2.getElemManager().getRegion( fractureRegions[i] );
+
+      matRegion.forElementSubRegionsIndex< CellElementSubRegion >(
+        [&]( localIndex const subRegIdx, CellElementSubRegion & matSubReg )
+      {
+        if( subRegIdx >= fracRegion.numSubRegions() ) return;
+        if( !matSubReg.hasWrapper( viewKeyStruct::fracturePressureString() ) ) return;
+
+        CellElementSubRegion & fracSubReg =
+          dynamic_cast< CellElementSubRegion & >( fracRegion.getSubRegion( subRegIdx ) );
+
+        arrayView1d< real64 > const p_m = matSubReg.getField< fields::flow::pressure >();
+        arrayView1d< real64 const > const p_f_wrapper = matSubReg.getReference< array1d< real64 > >(
+          viewKeyStruct::fracturePressureString() );
+        arrayView1d< real64 > const alpha_f_wrapper = matSubReg.getReference< array1d< real64 > >(
+          viewKeyStruct::fractureBiotCoefficientString() );
+
+        // Element volumes for volume fractions
+        arrayView1d< real64 const > const V_m = matSubReg.getElementVolume();
+        arrayView1d< real64 const > const V_f = fracSubReg.getElementVolume();
+
+        // Matrix drained bulk modulus and Biot coefficient
+        string const & matSolidName = matSubReg.template getReference< string >(
+          Base::viewKeyStruct::porousMaterialNamesString() );
+        constitutive::CoupledSolidBase & matSolid =
+          this->template getConstitutiveModel< constitutive::CoupledSolidBase >( matSubReg, matSolidName );
+        arrayView1d< real64 const > const K_m = matSolid.getBulkModulus();
+        arrayView1d< real64 const > const alpha_m = matSolid.getBiotCoefficient();
+
+        // Fracture drained bulk modulus and Biot coefficient
+        string const & fracSolidName = fracSubReg.getReference< string >(
+          Base::viewKeyStruct::porousMaterialNamesString() );
+        constitutive::CoupledSolidBase & fracSolid =
+          this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fracSubReg, fracSolidName );
+        arrayView1d< real64 const > const K_f = fracSolid.getBulkModulus();
+        arrayView1d< real64 const > const alpha_f = fracSolid.getBiotCoefficient();
+
+        for( localIndex k = 0; k < matSubReg.size(); ++k )
+        {
+          m_tempPm.push_back( p_m[k] );
+          m_tempAlphaF.push_back( alpha_f_wrapper[k] );
+
+          real64 const V_total = V_m[k] + V_f[k];
+          real64 const v_m = V_m[k] / V_total;
+          real64 const v_f = V_f[k] / V_total;
+
+          // K_eff = (v_m/K_m + v_f/K_f)^{-1}  (Reuss average, Eq. A20)
+          real64 const K_eff_inv = v_m / K_m[k] + v_f / K_f[k];
+          real64 const K_eff = 1.0 / K_eff_inv;
+
+          // α_eff_i = K_eff · v_i · α_i / K_i  (Eq. A21)
+          real64 const alpha_eff_m = K_eff * v_m * alpha_m[k] / K_m[k];
+          real64 const alpha_eff_f = K_eff * v_f * alpha_f[k] / K_f[k];
+
+          // p_eq = α_eff_m · p_m + α_eff_f · p_f  (no division by α_m)
+          p_m[k] = alpha_eff_m * p_m[k] + alpha_eff_f * p_f_wrapper[k];
+          alpha_f_wrapper[k] = 0.0;
+        }
+      } );
+    }
+  }
+
+  void restoreCompositePressure( DomainPartition & domain )
+  {
+    MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+    MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+    using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+    DualFlow & dualFlow = *this->flowSolver();
+    string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+
+    size_t idx = 0;
+    meshLevel1.getElemManager().forElementSubRegions< CellElementSubRegion >( matrixRegions,
+      [&]( localIndex const, CellElementSubRegion & matrixSubRegion )
+    {
+      if( !matrixSubRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) ) return;
+
+      arrayView1d< real64 > const p_m = matrixSubRegion.getField< fields::flow::pressure >();
+      arrayView1d< real64 > const alpha_f = matrixSubRegion.getReference< array1d< real64 > >(
+        viewKeyStruct::fractureBiotCoefficientString() );
+
+      for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
+      {
+        p_m[k]   = m_tempPm[idx];
+        alpha_f[k] = m_tempAlphaF[idx];
+        ++idx;
+      }
+    } );
+    m_tempPm.clear();
+    m_tempAlphaF.clear();
   }
 
   // Override assembleCouplingTerms — poromechanics coupling is handled by derived class.
@@ -683,12 +889,19 @@ private:
     }
   }
 
-  // Save fracture porosity_n with strain after convergence
   virtual void implicitStepComplete( real64 const & time, real64 const & dt,
                                      DomainPartition & domain ) override
   {
-    // Update fracture porosity with converged strain → saved in saveConvergedState
-    updateFracturePorosityFixedStress( domain );
+    // For sequential coupling, fracture porosity was already updated in
+    // mapSolution(SolidMechanics). Calling updateFracturePorosityFixedStress
+    // here would manually overwrite mass_f (absorbing strain into mass_n).
+    // For monolithic coupling, the manual update in assembleSystem is needed.
+    bool const isSequential =
+      this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::Sequential;
+    if( !isSequential )
+    {
+      updateFracturePorosityFixedStress( domain );
+    }
     Base::implicitStepComplete( time, dt, domain );
   }
 
@@ -752,6 +965,10 @@ public:
     static constexpr char const * fractureBiotCoefficientString() { return "fractureBiotCoefficient"; }
     static constexpr char const * fractureDofNumberString() { return "fractureDofNumber"; }
   };
+
+  // TODO: replace with registered fields for GPU compatibility
+  std::vector< real64 > m_tempPm;
+  std::vector< real64 > m_tempAlphaF;
 
 };
 
