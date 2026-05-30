@@ -1,0 +1,137 @@
+<?xml version="1.0" ?>
+
+<Problem>
+
+  <Mesh>
+    <InternalMesh
+      name="mesh"
+      elementTypes="{ C3D8 }"
+      xCoords="{ 0, 0.5, 1.0 }"
+      yCoords="{ 0, 1.0 }"
+      zCoords="{ 0, 1.0 }"
+      nx="{ 10, 10 }"
+      ny="{ 10 }"
+      nz="{ 10 }"
+      cellBlockNames="{ leftBlock, rightBlock }"/>
+  </Mesh>
+
+  <Events maxTime="1.0">
+    <PeriodicEvent
+      name="solverApplications"
+      forceDt="0.1"
+      target="/Solvers/mechSolver"/>
+
+    <PeriodicEvent
+      name="outputs"
+      timeFrequency="0.1"
+      targetExactTimestep="1"
+      target="/Outputs/vtkOutput"/>
+  </Events>
+
+  <NumericalMethods>
+    <FiniteElements>
+      <FiniteElementSpace
+        name="FE1"
+        order="1"/>
+    </FiniteElements>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="leftRegion"
+      cellBlocks="{ leftBlock }"
+      materialList="{ softMat }"/>
+
+    <CellElementRegion
+      name="rightRegion"
+      cellBlocks="{ rightBlock }"
+      materialList="{ stiffMat }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <ElasticIsotropic
+      name="softMat"
+      defaultDensity="2700"
+      defaultYoungModulus="1e9"
+      defaultPoissonRatio="0.25"/>
+
+    <ElasticIsotropic
+      name="stiffMat"
+      defaultDensity="2700"
+      defaultYoungModulus="1e10"
+      defaultPoissonRatio="0.25"/>
+  </Constitutive>
+
+  <Solvers gravityVector="{ 0.0, 0.0, 0.0 }">
+    <SolidMechanicsLagrangianFEM
+      name="mechSolver"
+      timeIntegrationOption="QuasiStatic"
+      discretization="FE1"
+      logLevel="1"
+      targetRegions="{ leftRegion, rightRegion }">
+      <NonlinearSolverParameters
+        newtonTol="1.0e-6"
+        newtonMaxIter="10"
+        lineSearchAction="None"
+        maxTimeStepCuts="2"
+        maxAllowedResidualNorm="1e99"/>
+      <LinearSolverParameters
+        solverType="direct"
+        logLevel="0"/>
+    </SolidMechanicsLagrangianFEM>
+  </Solvers>
+
+  <FieldSpecifications>
+    <!-- Roller BCs: fix x on left/right faces -->
+    <FieldSpecification
+      name="xroller"
+      objectPath="nodeManager"
+      fieldName="totalDisplacement"
+      component="0"
+      scale="0.0"
+      setNames="{ xneg, xpos }"/>
+
+    <!-- Roller BCs: fix y on front/back faces -->
+    <FieldSpecification
+      name="yroller"
+      objectPath="nodeManager"
+      fieldName="totalDisplacement"
+      component="1"
+      scale="0.0"
+      setNames="{ yneg, ypos }"/>
+
+    <!-- Fix bottom face in z -->
+    <FieldSpecification
+      name="zfix"
+      objectPath="nodeManager"
+      fieldName="totalDisplacement"
+      component="2"
+      scale="0.0"
+      setNames="{ zneg }"/>
+
+    <!-- Rigid top boundary with compressive load -->
+    <RigidBoundary
+      name="topPlaten"
+      objectPath="faceManager"
+      setNames="{ zpos }"
+      component="2"
+      scale="-1.0e7"
+      functionName="loadRamp"/>
+  </FieldSpecifications>
+
+  <Functions>
+    <TableFunction
+      name="loadRamp"
+      inputVarNames="{ time }"
+      coordinates="{ 0.0, 1.0 }"
+      values="{ 0.0, 1.0 }"
+      interpolation="linear"/>
+  </Functions>
+
+  <Outputs>
+    <VTK
+      name="vtkOutput"
+      plotFileRoot="rigidBoundaryTest"/>
+  </Outputs>
+
+</Problem>

@@ -27,6 +27,7 @@ set( fieldSpecification_headers
      EquilibriumInitialCondition.hpp
      FieldSpecificationBase.hpp
      FieldSpecificationManager.hpp
+     RigidBoundary.hpp
      SourceFluxBoundaryCondition.hpp
      TractionBoundaryCondition.hpp
      AquiferBoundaryCondition.hpp
@@ -41,6 +42,7 @@ set( fieldSpecification_sources
      EquilibriumInitialCondition.cpp
      FieldSpecificationBase.cpp
      FieldSpecificationManager.cpp
+     RigidBoundary.cpp
      SourceFluxBoundaryCondition.cpp
      TractionBoundaryCondition.cpp
      AquiferBoundaryCondition.cpp

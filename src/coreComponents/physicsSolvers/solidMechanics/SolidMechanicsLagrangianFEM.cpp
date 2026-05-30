@@ -32,6 +32,7 @@
 #include "discretizationMethods/NumericalMethodsManager.hpp"
 #include "fieldSpecification/FieldSpecificationManager.hpp"
 #include "fieldSpecification/TractionBoundaryCondition.hpp"
+#include "fieldSpecification/RigidBoundary.hpp"
 #include "finiteElement/FiniteElementDiscretizationManager.hpp"
 #include "finiteElement/FiniteElementDiscretization.hpp"
 #include "finiteElement/FiniteElementDiscretizationManager.hpp"
@@ -806,6 +807,68 @@ void SolidMechanicsLagrangianFEM::applyChomboPressure( DofManager const & dofMan
 }
 
 
+void SolidMechanicsLagrangianFEM::applyRigidBoundaryBC( real64 const time,
+                                                         DofManager const & dofManager,
+                                                         DomainPartition & domain,
+                                                         arrayView1d< real64 > const & localRhs )
+{
+  FieldSpecificationManager & fsManager = FieldSpecificationManager::getInstance();
+
+  forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
+                                                                MeshLevel & mesh,
+                                                                string_array const & )
+  {
+    FaceManager const & faceManager = mesh.getFaceManager();
+    NodeManager const & nodeManager = mesh.getNodeManager();
+
+    string const dofKey = dofManager.getKey( solidMechanics::totalDisplacement::key() );
+    arrayView1d< globalIndex const > const nodeDofNumber =
+      nodeManager.getReference< globalIndex_array >( dofKey );
+    globalIndex const dofRankOffset = dofManager.rankOffset();
+
+    fsManager.template apply< FaceManager,
+                              RigidBoundary >( time,
+                                               mesh,
+                                               RigidBoundary::catalogName(),
+                                               [&]( RigidBoundary const & bc,
+                                                    string const &,
+                                                    SortedArrayView< localIndex const > const & targetSet,
+                                                    Group &,
+                                                    string const & )
+    {
+      bc.applyLoad( time, nodeDofNumber, dofRankOffset,
+                    faceManager, nodeManager, targetSet, localRhs );
+    } );
+  } );
+}
+
+
+void SolidMechanicsLagrangianFEM::enforceRigidBoundaryConstraint( DomainPartition & domain )
+{
+  FieldSpecificationManager & fsManager = FieldSpecificationManager::getInstance();
+
+  forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
+                                                                MeshLevel & mesh,
+                                                                string_array const & )
+  {
+    FaceManager const & faceManager = mesh.getFaceManager();
+    NodeManager & nodeManager = mesh.getNodeManager();
+
+    fsManager.template apply< FaceManager,
+                              RigidBoundary >( 0.0,
+                                               mesh,
+                                               RigidBoundary::catalogName(),
+                                               [&]( RigidBoundary const & bc,
+                                                    string const &,
+                                                    SortedArrayView< localIndex const > const & targetSet,
+                                                    Group &,
+                                                    string const & )
+    {
+      bc.enforceConstraint( faceManager, nodeManager, targetSet );
+    } );
+  } );
+}
+
 
 void
 SolidMechanicsLagrangianFEM::
@@ -1211,6 +1274,8 @@ SolidMechanicsLagrangianFEM::
 
   applyTractionBC( time_n + dt, dofManager, domain, localRhs );
 
+  applyRigidBoundaryBC( time_n + dt, dofManager, domain, localRhs );
+
   FaceManager const & faceManager = domain.getMeshBody( 0 ).getMeshLevel( m_discretizationName ).getFaceManager();
 
   if( faceManager.hasWrapper( "ChomboPressure" ) )
@@ -1326,6 +1391,9 @@ SolidMechanicsLagrangianFEM::applySystemSolution( DofManager const & dofManager,
                                solidMechanics::totalDisplacement::key(),
                                solidMechanics::totalDisplacement::key(),
                                scalingFactor );
+
+  // Enforce rigid boundary: force all boundary nodes to have the same displacement
+  enforceRigidBoundaryConstraint( domain );
 
   forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
                                                                 MeshLevel & mesh,

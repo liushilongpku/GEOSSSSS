@@ -212,6 +212,10 @@
 					<xsd:selector xpath="PML" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
+				<xsd:unique name="FieldSpecificationsRigidBoundaryUniqueName">
+					<xsd:selector xpath="RigidBoundary" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
 				<xsd:unique name="FieldSpecificationsSourceFluxUniqueName">
 					<xsd:selector xpath="SourceFlux" />
 					<xsd:field xpath="@name" />
@@ -1239,6 +1243,7 @@ Information output from lower logLevels is added with the desired log level
 			<xsd:element name="FieldSpecification" type="FieldSpecificationType" />
 			<xsd:element name="HydrostaticEquilibrium" type="HydrostaticEquilibriumType" />
 			<xsd:element name="PML" type="PMLType" />
+			<xsd:element name="RigidBoundary" type="RigidBoundaryType" />
 			<xsd:element name="SourceFlux" type="SourceFluxType" />
 			<xsd:element name="Traction" type="TractionType" />
 		</xsd:choice>
@@ -1428,6 +1433,32 @@ This keyword is ignored for single-phase flow simulations-->
 		<xsd:attribute name="xMax" type="R1Tensor32" default="{3.40282e+38,3.40282e+38,3.40282e+38}" />
 		<!--xMin => Minimum (x,y,z) coordinates of the inner PML boundaries-->
 		<xsd:attribute name="xMin" type="R1Tensor32" default="{-3.40282e+38,-3.40282e+38,-3.40282e+38}" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="RigidBoundaryType">
+		<!--bcApplicationTableName => Name of table that specifies the on/off application of the boundary condition.-->
+		<xsd:attribute name="bcApplicationTableName" type="groupNameRef" default="" />
+		<!--beginTime => Time at which the boundary condition will start being applied.-->
+		<xsd:attribute name="beginTime" type="real64" default="-1e+99" />
+		<!--component => Constrained coordinate component: 0=x, 1=y, 2=z.-->
+		<xsd:attribute name="component" type="integer" use="required" />
+		<!--direction => Direction to apply boundary condition to.-->
+		<xsd:attribute name="direction" type="R1Tensor" default="{0,0,0}" />
+		<!--endTime => Time at which the boundary condition will stop being applied.-->
+		<xsd:attribute name="endTime" type="real64" default="1e+99" />
+		<!--functionName => Name of function that specifies variation of the boundary condition.-->
+		<xsd:attribute name="functionName" type="groupNameRef" default="" />
+		<!--initialCondition => Boundary condition is applied as an initial condition.-->
+		<xsd:attribute name="initialCondition" type="integer" default="0" />
+		<!--objectPath => Path to the target field-->
+		<xsd:attribute name="objectPath" type="groupNameRef" default="" />
+		<!--scale => Applied pressure (Pa).-->
+		<xsd:attribute name="scale" type="real64" use="required" />
+		<!--setNames => Name of sets that boundary condition is applied to.-->
+		<xsd:attribute name="setNames" type="groupNameRef_array" use="required" />
+		<!--targetMesh => Name of Mesh that boundary condition is applied to.-->
+		<xsd:attribute name="targetMesh" type="groupNameRef" default="" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>

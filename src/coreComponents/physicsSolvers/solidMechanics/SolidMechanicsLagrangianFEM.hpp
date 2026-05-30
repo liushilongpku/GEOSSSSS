@@ -213,6 +213,13 @@ public:
                             DomainPartition & domain,
                             arrayView1d< real64 > const & localRhs );
 
+  void applyRigidBoundaryBC( real64 const time,
+                             DofManager const & dofManager,
+                             DomainPartition & domain,
+                             arrayView1d< real64 > const & localRhs );
+
+  void enforceRigidBoundaryConstraint( DomainPartition & domain );
+
 
   void applyContactConstraint( DofManager const & dofManager,
                                DomainPartition & domain,
