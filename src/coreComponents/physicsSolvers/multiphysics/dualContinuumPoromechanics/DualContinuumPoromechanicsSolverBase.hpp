@@ -224,21 +224,64 @@ public:
   //    update porosity/permeability on mesh1 only.
   virtual void mapSolutionBetweenSolvers( DomainPartition & domain, integer const solverType ) override
   {
+    // ────────────────────────────────────────────────────────
+    // DEBUG helper: print elem[210] state at each transition
+    // ────────────────────────────────────────────────────────
+    auto debugPrint = [&]( string const & tag )
+    {
+      integer const iter = this->getNonlinearSolverParameters().m_numNewtonIterations;
+      if( iter > 2 ) return;  // only first 3 sequential iterations
+      localIndex const k = 210;
+      MeshBody & m1 = domain.getMeshBody( "mesh1" );
+      MeshBody & m2 = domain.getMeshBody( "mesh2" );
+      CellElementSubRegion & mat = dynamic_cast< CellElementSubRegion & >(
+        m1.getMeshLevels().getGroup< MeshLevel >( 0 ).getElemManager().getRegion( "matrixRegion" ).getSubRegion( 0 ) );
+      CellElementSubRegion & frac = dynamic_cast< CellElementSubRegion & >(
+        m2.getMeshLevels().getGroup< MeshLevel >( 0 ).getElemManager().getRegion( "fractureRegion" ).getSubRegion( 0 ) );
+      if( k >= mat.size() ) return;
+      string const & sn = mat.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
+      constitutive::CoupledSolidBase & sm = this->template getConstitutiveModel< constitutive::CoupledSolidBase >( mat, sn );
+      string const & fn = frac.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
+      constitutive::CoupledSolidBase & sf = this->template getConstitutiveModel< constitutive::CoupledSolidBase >( frac, fn );
+      arrayView1d< real64 const > const pm  = mat.getField< fields::flow::pressure >();
+      arrayView1d< real64 const > const pn  = mat.getField< fields::flow::pressure_n >();
+      arrayView1d< real64 const > const pf  = frac.getField< fields::flow::pressure >();
+      arrayView1d< real64 const > const pfn = frac.getField< fields::flow::pressure_n >();
+      arrayView2d< real64 const > const porm = sm.getPorosity();
+      arrayView2d< real64 const > const porf = sf.getPorosity();
+      real64 Keff = 0.0;
+      if( mat.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
+        Keff = mat.getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() )[k];
+      real64 peq = ( k < m_tempCompositePressure.size() ) ? m_tempCompositePressure[k] : 0.0;
+      real64 peq_n = ( k < m_tempCompositePressure_n.size() ) ? m_tempCompositePressure_n[k] : 0.0;
+      GEOS_LOG_RANK_0(
+        "\n── [" << tag << "] SeqIter=" << iter << " elem[" << k << "] ──\n"
+        << "  K_m=" << sm.getBulkModulus()[k] << "  K_f=" << sf.getBulkModulus()[k]
+        << "  K_eff=" << Keff << "\n"
+        << "  α_m=" << sm.getBiotCoefficient()[k] << "  α_f=" << sf.getBiotCoefficient()[k]
+        << "  K_s=" << dynamic_cast< constitutive::BiotPorosity const & >( sm.getBasePorosityModel() ).getGrainBulkModulus()[k] << "\n"
+        << "  p_m=" << pm[k] << "  Δp_m=" << pm[k]-pn[k]
+        << "  p_f=" << pf[k] << "  Δp_f=" << pf[k]-pfn[k] << "\n"
+        << "  p_eq=" << peq << "  Δp_eq=" << peq-peq_n << "\n"
+        << "  φ_m=" << porm[k][0] << "  φ_f=" << porf[k][0] << "\n"
+        << "  S_avg(m)=" << sm.getAverageMeanTotalStressIncrement_k()[k]
+      );
+    };
+
+    debugPrint( solverType == 0 ? "① Flow→mapSolution ENTRY" : "④ Mech→mapSolution ENTRY" );
+
     if( solverType == static_cast< integer >( SolverType::DualContinuumFlow ) )
     {
       copyFracturePressureToMesh1( domain );
       swapToCompositePressure( domain );
+      debugPrint( "② AFTER swapToComposite → Mech will use" );
       Base::updateBulkDensity( domain );
     }
     else if( solverType == static_cast< integer >( SolverType::SolidMechanics )
              && !this->m_performStressInitialization )
     {
-      // Restore p_m BEFORE the matrix pass so updatePorosityAndPermeability
-      // uses the original matrix pressure, not the composite p_eq.
-      // Otherwise the matrix uses p_eq (which includes p_f) while the
-      // fracture uses p_f, creating a ~0.5·biotSkelInv·(p_m-p_f) difference
-      // in porosity that amplifies into divergence over subsequent steps.
       restoreCompositePressure( domain );
+      debugPrint( "⑤ AFTER restoreComposite → p_m restored" );
 
       // Average mean total stress on mesh1 only (mesh2 has no FE)
       MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
@@ -272,18 +315,6 @@ public:
               subRegion, finiteElement, meanTotalStressIncrement_k, averageMeanTotalStressIncrement_k );
         } );
 
-        // Correct meanTotalStressIncrement for both:
-        // (a) fracture pressure contribution (Biot term), and
-        // (b) effective stiffness (K_eff → K_m).
-        //
-        // During mechanics, the kernel used K_eff and p_eq:
-        //   S_stored = K_eff·Δε_v - α_m·(p_eq - p_eq_n)
-        //
-        // Matrix porosity update needs the intrinsic-modulus stress:
-        //   S_matrix = K_m·Δε_v - α_m·(p_m - p_m_n)
-        //
-        // Combined correction:
-        //   S_matrix = (K_m/K_eff)·S_stored + (K_m/K_eff)·α_m·Δp_eq - α_m·Δp_m
         if( subRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) )
         {
           arrayView1d< real64 const > const alpha_m = solid.getBiotCoefficient();
@@ -300,31 +331,68 @@ public:
             real64 const delta_p_m  = p_m[k] - p_m_n[k];
             real64 const ratio      = K_m[k] / K_eff_view[k];
             averageMeanTotalStressIncrement_k[k] = ratio * S_stored + ratio * alpha_m[k] * delta_p_eq - alpha_m[k] * delta_p_m;
+
+            // DEBUG: print first element's correction details
+            if( k == 210 && correctionIdx < static_cast< localIndex >( m_tempCompositePressure.size() ) )
+            {
+              GEOS_LOG_RANK_0(
+                "── [⑥ StressCorrection] elem[" << k << "] ──\n"
+                << "  S_stored=" << S_stored << "  ratio(K_m/K_eff)=" << ratio << "\n"
+                << "  Δp_eq=" << delta_p_eq << "  Δp_m=" << delta_p_m << "\n"
+                << "  S_corrected = " << ratio << "*" << S_stored << " + " << ratio << "*" << alpha_m[k]
+                << "*" << delta_p_eq << " - " << alpha_m[k] << "*" << delta_p_m << "\n"
+                << "  S_corrected = " << averageMeanTotalStressIncrement_k[k]
+              );
+            }
             correctionIdx++;
           }
         }
 
+        // ── Scale S_corrected for effective Biot coefficient ──
+        // The mechanics solve used K_eff → total strain ε_v.
+        // For matrix φ update, need ᾱ_m·ε_v = (K_eff·v_m·α_m/K_m)·ε_v, not α_m·ε_v.
+        // Scale S_corrected *= K_eff·v_m/K_m so that α_m·(S_scaled/K_m) = ᾱ_m·ε_v.
+        {
+          arrayView1d< real64 const > const scale_K = subRegion.template getReference< array1d< real64 > >(
+            viewKeyStruct::effectiveBulkModulusString() );
+          arrayView1d< real64 const > const scale_Km = solid.getBulkModulus();
+          real64 const v_m = 1.0 - m_fractureVolumeFraction;
+          for( localIndex k = 0; k < subRegion.size(); ++k )
+          {
+            averageMeanTotalStressIncrement_k[k] *= ( scale_K[k] * v_m / scale_Km[k] );
+          }
+        }
         this->flowSolver()->updatePorosityAndPermeability( subRegion );
+        {
+          arrayView1d< real64 const > const scale_K = subRegion.template getReference< array1d< real64 > >(
+            viewKeyStruct::effectiveBulkModulusString() );
+          arrayView1d< real64 const > const scale_Km = solid.getBulkModulus();
+          real64 const v_m = 1.0 - m_fractureVolumeFraction;
+          for( localIndex k = 0; k < subRegion.size(); ++k )
+          {
+            averageMeanTotalStressIncrement_k[k] /= ( scale_K[k] * v_m / scale_Km[k] );
+          }
+        }
         this->updateBulkDensity( subRegion );
       } );
       m_tempCompositePressure.clear();
       m_tempCompositePressure_n.clear();
 
+      debugPrint( "⑦ AFTER stress correction + matrix φ update" );
+
       // Copy matrix avgStressIncr to fracture so the fracture flow
       // solver's fixed-stress porosity update includes the mechanics strain.
       {
-        MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
         MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
-        MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
         MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
         using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
-        DualFlow & dualFlow = *this->flowSolver();
-        string_array const & matRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
-        string_array const & fracRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
+        DualFlow & ff = *this->flowSolver();
+        string_array const & matRegions = ff.template getReference< string_array >( "matrixRegionList" );
+        string_array const & fracRegions = ff.template getReference< string_array >( "fractureRegionList" );
 
         for( size_t iPair = 0; iPair < matRegions.size(); ++iPair )
         {
-          ElementRegionBase & matRegion = meshLevel1.getElemManager().getRegion( matRegions[ iPair ] );
+          ElementRegionBase & matRegion = meshLevel.getElemManager().getRegion( matRegions[ iPair ] );
           ElementRegionBase & fracRegion = meshLevel2.getElemManager().getRegion( fracRegions[ iPair ] );
 
           matRegion.forElementSubRegionsIndex< CellElementSubRegion >(
@@ -357,18 +425,52 @@ public:
 
             for( localIndex k = 0; k < matSubReg.size(); ++k )
             {
-              // Recover volumetric strain from matrix corrected stress:
-              //   S_matrix = K_m·Δε_v - α_m·Δp_m  →  Δε_v = (S_m + α_m·Δp_m) / K_m
-              // Then compute fracture stress with fracture moduli:
-              //   S_fracture = K_f·Δε_v - α_f·Δp_f
               real64 const delta_eps_v = (matAvgStressIncr[k] + alpha_m[k] * (p_m[k] - p_m_n[k])) / K_m[k];
               fracAvgStressIncr[k] = K_f[k] * delta_eps_v - alpha_f[k] * (p_f[k] - p_f_n[k]);
+
+              if( k == 210 )
+              {
+                GEOS_LOG_RANK_0(
+                  "── [⑧ FractureStress] elem[" << k << "] ──\n"
+                  << "  Δε_v = (" << matAvgStressIncr[k] << " + " << alpha_m[k] << "*" << p_m[k]-p_m_n[k]
+                  << ") / " << K_m[k] << " = " << delta_eps_v << "\n"
+                  << "  S_f  = " << K_f[k] << "*" << delta_eps_v << " - " << alpha_f[k]
+                  << "*" << p_f[k]-p_f_n[k] << " = " << fracAvgStressIncr[k]
+                );
+              }
             }
 
+            // ── Scale S_f for effective Biot coefficient ──
+            // Same logic as matrix: need ᾱ_f·ε_v = (K_eff·v_f·α_f/K_f)·ε_v
+            // Scale S_f *= K_eff·v_f/K_f so that α_f·(S_f_scaled/K_f) = ᾱ_f·ε_v.
+            // K_eff is read from the matrix subRegion's stored wrapper.
+            if( matSubReg.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
+            {
+              arrayView1d< real64 const > const K_eff_frac =
+                matSubReg.getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() );
+              real64 const v_f = m_fractureVolumeFraction;
+              for( localIndex k = 0; k < matSubReg.size(); ++k )
+              {
+                fracAvgStressIncr[k] *= ( K_eff_frac[k] * v_f / K_f[k] );
+              }
+            }
             this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( fracSubReg );
+            // Restore fracAvgStressIncr (not strictly needed, but for consistency)
+            if( matSubReg.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
+            {
+              arrayView1d< real64 const > const K_eff_frac =
+                matSubReg.getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() );
+              real64 const v_f = m_fractureVolumeFraction;
+              for( localIndex k = 0; k < matSubReg.size(); ++k )
+              {
+                fracAvgStressIncr[k] /= ( K_eff_frac[k] * v_f / K_f[k] );
+              }
+            }
           } );
         }
       }
+
+      debugPrint( "⑨ END: fracture φ updated → ready for next Flow" );
     }
   }
 
