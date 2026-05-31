@@ -136,23 +136,28 @@ void FluxApproximationBase::initializePostInitialConditionsPreSubGroups()
         Group & stencilParentGroup = mesh.getGroup( groupKeyStruct::stencilMeshGroupString() );
         Group & stencilGroup = stencilParentGroup.getGroup( getName() );
         // For each face-based Dirichlet boundary condition on target field, create a boundary stencil
-        // TODO: Apply() should take a MeshLevel directly
+        // Iterate directly over FieldSpecifications to bypass beginTime/endTime filtering:
+        // stencils must exist before the BC activates, but fsManager.apply() would skip
+        // BCs whose beginTime > current time.
         for( auto const & fieldName : m_fieldNames )
         {
-
-          fsManager.apply< FaceManager >( 0.0, // time = 0
-                                          mesh,
-                                          fieldName,
-                                          [&] ( FieldSpecificationBase const &,
-                                                string const & setName,
-                                                SortedArrayView< localIndex const > const & faceSet,
-                                                FaceManager const &,
-                                                string const & )
+          fsManager.forSubGroups< FieldSpecificationBase >( [&] ( FieldSpecificationBase const & fs )
           {
-            if( !stencilGroup.hasWrapper( setName ) )
+            if( fs.getFieldName() == fieldName )
             {
-              registerBoundaryStencil( stencilGroup, setName );
-              computeBoundaryStencil( mesh, setName, faceSet );
+              fs.template apply< FaceManager, FieldSpecificationBase >( mesh,
+                [&] ( FieldSpecificationBase const &,
+                      string const & setName,
+                      SortedArrayView< localIndex const > const & faceSet,
+                      FaceManager const &,
+                      string const & )
+              {
+                if( !stencilGroup.hasWrapper( setName ) )
+                {
+                  registerBoundaryStencil( stencilGroup, setName );
+                  computeBoundaryStencil( mesh, setName, faceSet );
+                }
+              } );
             }
           } );
         }
