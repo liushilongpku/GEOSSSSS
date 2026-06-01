@@ -317,62 +317,34 @@ public:
 
         if( subRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) )
         {
+          // Clean dual-continuum fixed-stress coupling (shared volumetric strain).
+          // The mechanics solved the COMPOSITE medium with effective drained modulus
+          // K_eff and composite pressure p_eq (alpha_m*p_eq = abar_m*p_m + abar_f*p_f),
+          // so the element-averaged mean total stress increment is
+          //   dSigma_v = K_eff*dEps_v - alpha_m*dp_eq,
+          // and the SHARED volumetric strain increment felt by both continua is
+          //   dEps_v = (dSigma_v + alpha_m*dp_eq)/K_eff.
+          // Each continuum i needs its effective-Biot strain coupling abar_i*dEps_v,
+          // abar_i = K_eff*v_i*alpha_i/K_i. GEOS BiotPorosity adds alpha_i*avgStress_i/K_i,
+          // so avgStress_i = v_i*K_eff*dEps_v gives exactly abar_i*dEps_v. The matrix
+          // uses its OWN (restored) K_m, alpha_m here -- symmetric with the fracture,
+          // no K-swap round-trips.
           arrayView1d< real64 const > const alpha_m = solid.getBiotCoefficient();
-          arrayView1d< real64 const > const p_m = subRegion.template getField< fields::flow::pressure >();
-          arrayView1d< real64 const > const p_m_n = subRegion.template getField< fields::flow::pressure_n >();
-          arrayView1d< real64 const > const K_m = solid.getBulkModulus();
           arrayView1d< real64 const > const K_eff_view = subRegion.template getReference< array1d< real64 > >(
             viewKeyStruct::effectiveBulkModulusString() );
-
+          real64 const v_m = 1.0 - m_fractureVolumeFraction;
+          m_tempVolStrainIncr.resize( subRegion.size() );  // shared dEps_v for the fracture loop (single region pair)
           for( localIndex k = 0; k < subRegion.size(); ++k )
           {
-            real64 const S_stored   = averageMeanTotalStressIncrement_k[k];
+            real64 const delta_sigma_v = averageMeanTotalStressIncrement_k[k];
             real64 const delta_p_eq = m_tempCompositePressure[correctionIdx] - m_tempCompositePressure_n[correctionIdx];
-            real64 const delta_p_m  = p_m[k] - p_m_n[k];
-            real64 const ratio      = K_m[k] / K_eff_view[k];
-            averageMeanTotalStressIncrement_k[k] = ratio * S_stored + ratio * alpha_m[k] * delta_p_eq - alpha_m[k] * delta_p_m;
-
-            // DEBUG: print first element's correction details
-            if( k == 210 && correctionIdx < static_cast< localIndex >( m_tempCompositePressure.size() ) )
-            {
-              GEOS_LOG_RANK_0(
-                "── [⑥ StressCorrection] elem[" << k << "] ──\n"
-                << "  S_stored=" << S_stored << "  ratio(K_m/K_eff)=" << ratio << "\n"
-                << "  Δp_eq=" << delta_p_eq << "  Δp_m=" << delta_p_m << "\n"
-                << "  S_corrected = " << ratio << "*" << S_stored << " + " << ratio << "*" << alpha_m[k]
-                << "*" << delta_p_eq << " - " << alpha_m[k] << "*" << delta_p_m << "\n"
-                << "  S_corrected = " << averageMeanTotalStressIncrement_k[k]
-              );
-            }
+            real64 const delta_eps_v = ( delta_sigma_v + alpha_m[k] * delta_p_eq ) / K_eff_view[k];
+            m_tempVolStrainIncr[k] = delta_eps_v;
+            averageMeanTotalStressIncrement_k[k] = v_m * K_eff_view[k] * delta_eps_v;
             correctionIdx++;
           }
         }
-
-        // ── Scale S_corrected for effective Biot coefficient ──
-        // The mechanics solve used K_eff → total strain ε_v.
-        // For matrix φ update, need ᾱ_m·ε_v = (K_eff·v_m·α_m/K_m)·ε_v, not α_m·ε_v.
-        // Scale S_corrected *= K_eff·v_m/K_m so that α_m·(S_scaled/K_m) = ᾱ_m·ε_v.
-        {
-          arrayView1d< real64 const > const scale_K = subRegion.template getReference< array1d< real64 > >(
-            viewKeyStruct::effectiveBulkModulusString() );
-          arrayView1d< real64 const > const scale_Km = solid.getBulkModulus();
-          real64 const v_m = 1.0 - m_fractureVolumeFraction;
-          for( localIndex k = 0; k < subRegion.size(); ++k )
-          {
-            averageMeanTotalStressIncrement_k[k] *= ( scale_K[k] * v_m / scale_Km[k] );
-          }
-        }
         this->flowSolver()->updatePorosityAndPermeability( subRegion );
-        {
-          arrayView1d< real64 const > const scale_K = subRegion.template getReference< array1d< real64 > >(
-            viewKeyStruct::effectiveBulkModulusString() );
-          arrayView1d< real64 const > const scale_Km = solid.getBulkModulus();
-          real64 const v_m = 1.0 - m_fractureVolumeFraction;
-          for( localIndex k = 0; k < subRegion.size(); ++k )
-          {
-            averageMeanTotalStressIncrement_k[k] /= ( scale_K[k] * v_m / scale_Km[k] );
-          }
-        }
         this->updateBulkDensity( subRegion );
       } );
       m_tempCompositePressure.clear();
@@ -402,48 +374,14 @@ public:
             CellElementSubRegion & fracSubReg =
               dynamic_cast< CellElementSubRegion & >( fracRegion.getSubRegion( subRegIdx ) );
 
-            string const & matSolidName = matSubReg.template getReference< string >(
-              Base::viewKeyStruct::porousMaterialNamesString() );
-            constitutive::CoupledSolidBase & matSolid =
-              this->template getConstitutiveModel< constitutive::CoupledSolidBase >( matSubReg, matSolidName );
-            arrayView1d< real64 const > const matAvgStressIncr = matSolid.getAverageMeanTotalStressIncrement_k();
-            arrayView1d< real64 const > const K_m = matSolid.getBulkModulus();
-            arrayView1d< real64 const > const alpha_m = matSolid.getBiotCoefficient();
-
             string const & fracSolidName =
               fracSubReg.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
             constitutive::CoupledSolidBase & fracSolid =
               this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fracSubReg, fracSolidName );
             arrayView1d< real64 > const fracAvgStressIncr = fracSolid.getAverageMeanTotalStressIncrement_k();
-            arrayView1d< real64 const > const K_f = fracSolid.getBulkModulus();
-            arrayView1d< real64 const > const alpha_f = fracSolid.getBiotCoefficient();
 
-            arrayView1d< real64 const > const p_m   = matSubReg.getField< fields::flow::pressure >();
-            arrayView1d< real64 const > const p_m_n = matSubReg.getField< fields::flow::pressure_n >();
-            arrayView1d< real64 const > const p_f   = fracSubReg.getField< fields::flow::pressure >();
-            arrayView1d< real64 const > const p_f_n = fracSubReg.getField< fields::flow::pressure_n >();
-
-            for( localIndex k = 0; k < matSubReg.size(); ++k )
-            {
-              real64 const delta_eps_v = (matAvgStressIncr[k] + alpha_m[k] * (p_m[k] - p_m_n[k])) / K_m[k];
-              fracAvgStressIncr[k] = K_f[k] * delta_eps_v - alpha_f[k] * (p_f[k] - p_f_n[k]);
-
-              if( k == 210 )
-              {
-                GEOS_LOG_RANK_0(
-                  "── [⑧ FractureStress] elem[" << k << "] ──\n"
-                  << "  Δε_v = (" << matAvgStressIncr[k] << " + " << alpha_m[k] << "*" << p_m[k]-p_m_n[k]
-                  << ") / " << K_m[k] << " = " << delta_eps_v << "\n"
-                  << "  S_f  = " << K_f[k] << "*" << delta_eps_v << " - " << alpha_f[k]
-                  << "*" << p_f[k]-p_f_n[k] << " = " << fracAvgStressIncr[k]
-                );
-              }
-            }
-
-            // ── Scale S_f for effective Biot coefficient ──
-            // Same logic as matrix: need ᾱ_f·ε_v = (K_eff·v_f·α_f/K_f)·ε_v
-            // Scale S_f *= K_eff·v_f/K_f so that α_f·(S_f_scaled/K_f) = ᾱ_f·ε_v.
-            // K_eff is read from the matrix subRegion's stored wrapper.
+            // Fracture receives the SAME shared volumetric strain increment dEps_v as
+            // the matrix.  avgStress_f = v_f*K_eff*dEps_v  =>  alpha_f*avgStress_f/K_f = abar_f*dEps_v.
             if( matSubReg.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
             {
               arrayView1d< real64 const > const K_eff_frac =
@@ -451,21 +389,12 @@ public:
               real64 const v_f = m_fractureVolumeFraction;
               for( localIndex k = 0; k < matSubReg.size(); ++k )
               {
-                fracAvgStressIncr[k] *= ( K_eff_frac[k] * v_f / K_f[k] );
+                real64 const delta_eps_v = ( k < static_cast< localIndex >( m_tempVolStrainIncr.size() ) )
+                                           ? m_tempVolStrainIncr[k] : 0.0;
+                fracAvgStressIncr[k] = v_f * K_eff_frac[k] * delta_eps_v;
               }
             }
             this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( fracSubReg );
-            // Restore fracAvgStressIncr (not strictly needed, but for consistency)
-            if( matSubReg.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
-            {
-              arrayView1d< real64 const > const K_eff_frac =
-                matSubReg.getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() );
-              real64 const v_f = m_fractureVolumeFraction;
-              for( localIndex k = 0; k < matSubReg.size(); ++k )
-              {
-                fracAvgStressIncr[k] /= ( K_eff_frac[k] * v_f / K_f[k] );
-              }
-            }
           } );
         }
       }
@@ -1196,6 +1125,7 @@ public:
   std::vector< real64 > m_tempKm;                   // original K_m before swap
   std::vector< real64 > m_tempGm;                   // original G_m before swap
   std::vector< real64 > m_tempCompositePressure;    // p_eq during mechanics step
+  std::vector< real64 > m_tempVolStrainIncr;        // shared dEps_v fed to both continua
   std::vector< real64 > m_tempCompositePressure_n;  // p_eq_n during mechanics step
 
 };

@@ -810,6 +810,7 @@ void SolidMechanicsLagrangianFEM::applyChomboPressure( DofManager const & dofMan
 void SolidMechanicsLagrangianFEM::applyRigidBoundaryBC( real64 const time,
                                                          DofManager const & dofManager,
                                                          DomainPartition & domain,
+                                                         CRSMatrixView< real64, globalIndex const > const & localMatrix,
                                                          arrayView1d< real64 > const & localRhs )
 {
   FieldSpecificationManager & fsManager = FieldSpecificationManager::getInstance();
@@ -836,8 +837,11 @@ void SolidMechanicsLagrangianFEM::applyRigidBoundaryBC( real64 const time,
                                                     Group &,
                                                     string const & )
     {
-      bc.applyLoad( time, nodeDofNumber, dofRankOffset,
-                    faceManager, nodeManager, targetSet, localRhs );
+      // Apply the platen load AND the rigid (equal-displacement) constraint
+      // directly into the linear system so Newton converges for non-uniform
+      // fields.  Replaces the legacy post-solve projection in applySystemSolution.
+      bc.applyRigidConstraint( time, nodeDofNumber, dofRankOffset,
+                               faceManager, nodeManager, targetSet, localMatrix, localRhs );
     } );
   } );
 }
@@ -1274,7 +1278,7 @@ SolidMechanicsLagrangianFEM::
 
   applyTractionBC( time_n + dt, dofManager, domain, localRhs );
 
-  applyRigidBoundaryBC( time_n + dt, dofManager, domain, localRhs );
+  applyRigidBoundaryBC( time_n + dt, dofManager, domain, localMatrix, localRhs );
 
   FaceManager const & faceManager = domain.getMeshBody( 0 ).getMeshLevel( m_discretizationName ).getFaceManager();
 
@@ -1392,8 +1396,11 @@ SolidMechanicsLagrangianFEM::applySystemSolution( DofManager const & dofManager,
                                solidMechanics::totalDisplacement::key(),
                                scalingFactor );
 
-  // Enforce rigid boundary: force all boundary nodes to have the same displacement
-  enforceRigidBoundaryConstraint( domain );
+  // NOTE: the rigid-platen (equal-displacement) constraint is now enforced as a
+  // penalty inside the linear system (RigidBoundary::applyRigidConstraint, called
+  // from applyBoundaryConditions).  The previous post-solve projection here moved
+  // the iterate off equilibrium every Newton step and prevented convergence for
+  // non-uniform fields, so it has been removed.
 
   forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
                                                                 MeshLevel & mesh,

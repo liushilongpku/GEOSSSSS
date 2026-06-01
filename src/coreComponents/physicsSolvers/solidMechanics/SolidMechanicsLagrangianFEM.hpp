@@ -216,6 +216,7 @@ public:
   void applyRigidBoundaryBC( real64 const time,
                              DofManager const & dofManager,
                              DomainPartition & domain,
+                             CRSMatrixView< real64, globalIndex const > const & localMatrix,
                              arrayView1d< real64 > const & localRhs );
 
   void enforceRigidBoundaryConstraint( DomainPartition & domain );

@@ -45,7 +45,23 @@ public:
                   SortedArrayView< localIndex const > const & targetSet,
                   arrayView1d< real64 > const & localRhs ) const;
 
+  /// Apply the rigid-platen load AND enforce the equal-displacement (rigid
+  /// frictionless platen) constraint directly in the linear system, via a
+  /// penalty that ties every boundary-node component-DOF to the (lagged)
+  /// weighted-mean boundary displacement.  Unlike enforceConstraint(), this is
+  /// assembled into the Jacobian/residual so Newton converges (the post-solve
+  /// projection used previously prevented convergence for non-uniform fields).
+  void applyRigidConstraint( real64 const time,
+                             arrayView1d< globalIndex const > const nodeDofNumber,
+                             globalIndex const dofRankOffset,
+                             FaceManager const & faceManager,
+                             NodeManager const & nodeManager,
+                             SortedArrayView< localIndex const > const & targetSet,
+                             CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                             arrayView1d< real64 > const & localRhs ) const;
+
   /// Force all boundary nodes to have the same displacement (modifies displacement field directly).
+  /// Legacy post-solve projection; retained for reference but no longer used in the implicit solve.
   void enforceConstraint( FaceManager const & faceManager,
                           NodeManager & nodeManager,
                           SortedArrayView< localIndex const > const & targetSet ) const;

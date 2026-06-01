@@ -1,0 +1,206 @@
+<?xml version="1.0" ?>
+<!--
+  DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
+  Based on: Mehrabian & Abousleiman (2014) generalized Biot theory
+  Displacement BC from analytical N=2 solution (displacement_N2.csv)
+  Matrix: GOM Shale matrix (K_m=1.1e9, k_m=4.93e-21)
+  Fracture: GOM Shale macro-fracture (K_f=2.25e7, k_f=4.93e-18)
+-->
+<Problem>
+  <NumericalMethods>
+    <FiniteElements><FiniteElementSpace name="FE1" order="1"/></FiniteElements>
+    <FiniteVolume><TwoPointFluxApproximation name="singlePhaseTPFA"/></FiniteVolume>
+  </NumericalMethods>
+
+  <Mesh>
+    <InternalMesh name="mesh1" elementTypes="{ C3D8 }"
+      xCoords="{ 0.0, 0.03 }" yCoords="{ 0.0, 0.03 }" zCoords="{ 0.0, 0.03 }"
+      nx="{ 20 }" ny="{ 1 }" nz="{ 20 }" cellBlockNames="{ matrixBlock }"/>
+    <InternalMesh name="mesh2" elementTypes="{ C3D8 }"
+      xCoords="{ 0.0, 0.03 }" yCoords="{ 0.0, 0.03 }" zCoords="{ 0.0, 0.03 }"
+      nx="{ 20 }" ny="{ 1 }" nz="{ 20 }" cellBlockNames="{ fractureBlock }"/>
+  </Mesh>
+
+  <Geometry>
+    <Box name="xneg" xMin="{ -1e-3, -1e-3, -1e-3 }" xMax="{ 1e-3, 30.1e-3, 30.1e-3 }"/>
+    <Box name="xpos" xMin="{ 29e-3, -1e-3, -1e-3 }" xMax="{ 31e-3, 30.1e-3, 30.1e-3 }"/>
+    <Box name="yneg" xMin="{ -1e-3, -1e-3, -1e-3 }" xMax="{ 30.1e-3, 1e-3, 30.1e-3 }"/>
+    <Box name="ypos" xMin="{ -1e-3, 29e-3, -1e-3 }" xMax="{ 30.1e-3, 31e-3, 30.1e-3 }"/>
+    <Box name="zneg" xMin="{ -1e-3, -1e-3, -1e-3 }" xMax="{ 30.1e-3, 30.1e-3, 1e-3 }"/>
+    <Box name="zpos" xMin="{ -1e-3, -1e-3, 29e-3 }" xMax="{ 30.1e-3, 30.1e-3, 31e-3 }"/>
+  </Geometry>
+
+  <ElementRegions>
+    <CellElementRegion name="matrixRegion" meshBody="mesh1"
+      cellBlocks="{ matrixBlock }" materialList="{ matrixRock, water }"/>
+    <CellElementRegion name="fractureRegion" meshBody="mesh2"
+      cellBlocks="{ fractureBlock }" materialList="{ fractureRock, water }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CompressibleSinglePhaseFluid name="water"
+      defaultDensity="1000" defaultViscosity="0.001"
+      referencePressure="0.0" compressibility="5.734e-10"/>
+
+    <ElasticIsotropic name="matrixSolid"
+      defaultDensity="0" defaultBulkModulus="1.1e9" defaultShearModulus="7.574e8"/>
+    <BiotPorosity name="matrixPorosity"
+      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.14"
+      defaultBiotCoefficient="0.9593"/>
+    <ConstantPermeability name="matrixPerm"
+      permeabilityComponents="{ 4.935e-21, 4.935e-21, 4.935e-21 }"/>
+    <PorousElasticIsotropic name="matrixRock"
+      solidModelName="matrixSolid" porosityModelName="matrixPorosity"
+      permeabilityModelName="matrixPerm"/>
+
+    <ElasticIsotropic name="fractureSolid"
+      defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.549e7"/>
+    <BiotPorosity name="fracturePorosity"
+      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.95"
+      defaultBiotCoefficient="0.9992"/>
+    <ConstantPermeability name="fracturePerm"
+      permeabilityComponents="{ 4.935e-15, 4.935e-15, 4.935e-15 }"/>
+    <PorousElasticIsotropic name="fractureRock"
+      solidModelName="fractureSolid" porosityModelName="fracturePorosity"
+      permeabilityModelName="fracturePerm"/>
+  </Constitutive>
+
+  <Solvers gravityVector="{ 0.0, 0.0, 0.0 }">
+    <SinglePhaseFVM name="matrixFlow" logLevel="1"
+      discretization="singlePhaseTPFA" targetRegions="{ mesh1/matrixRegion }">
+      <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
+      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+    </SinglePhaseFVM>
+    <SinglePhaseFVM name="fractureFlow" logLevel="1"
+      discretization="singlePhaseTPFA" targetRegions="{ mesh2/fractureRegion }">
+      <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
+      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+    </SinglePhaseFVM>
+    <SolidMechanicsLagrangianFEM name="solidMech" logLevel="1"
+      discretization="FE1" targetRegions="{ mesh1/matrixRegion }"
+      timeIntegrationOption="QuasiStatic" contactRelationName="tractionlessContact"/>
+
+    <DualContinuumFVM name="dualFlow" logLevel="1"
+      flowSolverName="matrixFlow" flowSolverName1="fractureFlow"
+      matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      transferCoefficient="0.0">
+      <DualContinuumCrossFlow
+        interporosityExchangeCoefficient="1.67e-22"
+        fractureSpacingLx="1.0" fractureSpacingLy="1.0" fractureSpacingLz="1.0"
+        gravityDrainageFlag="0"
+        matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
+      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+    </DualContinuumFVM>
+
+    <SinglePhaseDualContinuumPoromechanics name="poroSolver"
+      logLevel="1" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      fractureVolumeFraction="0.03"
+      stabilizationType="None" isThermal="0">
+      <NonlinearSolverParameters
+        couplingType="Sequential" newtonMaxIter="5" newtonTol="1.0e-4"
+        lineSearchAction="None"
+        subcycling="1"
+        sequentialConvergenceCriterion="SolutionIncrements"
+        maxTimeStepCuts="2" timeStepCutFactor="0.5"/>
+      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+    </SinglePhaseDualContinuumPoromechanics>
+  </Solvers>
+
+
+
+  <FieldSpecifications>
+
+  <FieldSpecification name="initPressureM" initialCondition="1"
+    setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions"
+    fieldName="pressure" scale="0"/>
+  <FieldSpecification name="initPressureF" initialCondition="1"
+    setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions"
+    fieldName="pressure" scale="0"/>
+
+  <FieldSpecification name="initial_sigma_x" initialCondition="1"
+    setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions"
+    fieldName="matrixSolid_stress" component="0" scale="0"/>
+  <FieldSpecification name="initial_sigma_y" initialCondition="1"
+    setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions"
+    fieldName="matrixSolid_stress" component="1" scale="0.0"/>
+  <FieldSpecification name="initial_sigma_z" initialCondition="1"
+    setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions"
+    fieldName="matrixSolid_stress" component="2" scale="0"/>
+
+
+    <FieldSpecification name="xnegconstraint"
+      objectPath="nodeManager" targetMesh="mesh1"
+      fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xneg }"/>
+    <FieldSpecification name="yconstraint"
+      objectPath="nodeManager" targetMesh="mesh1"
+      fieldName="totalDisplacement" component="1" scale="0.0" setNames="{ yneg, ypos }"/>
+    <FieldSpecification name="znegconstraint"
+      objectPath="nodeManager" targetMesh="mesh1"
+      fieldName="totalDisplacement" component="2" scale="0.0" setNames="{ zneg }"/>
+
+    <!-- Rigid top boundary with 1 MPa compressive pressure, ramped over 0.01s -->
+    <RigidBoundary name="zposLoad"
+      objectPath="faceManager" targetMesh="mesh1"
+      component="2" scale="-1.0e6" setNames="{ zpos }"/>
+<FieldSpecification name="boundaryPressureM"
+      objectPath="faceManager" targetMesh="mesh1"
+      fieldName="pressure" scale="0.0" setNames="{ xpos }"
+      />
+    <FieldSpecification name="boundaryPressureF"
+      objectPath="faceManager" targetMesh="mesh2"
+      fieldName="pressure" scale="0.0" setNames="{ xpos }"
+      />
+  </FieldSpecifications>
+
+  <!-- τ=3 → t=308412s, log-spaced phases for plotting -->
+<!--  <Events maxTime="308412.0"> -->
+<!-- run 300s to test if the solver can handle the load in fracture -->
+    <Events maxTime="300.0">
+
+    <PeriodicEvent name="vtk0" timeFrequency="0.01" beginTime="0.0" endTime="0.1" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="vtk1" timeFrequency="0.1" beginTime="0.1" endTime="10.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="vtk2" timeFrequency="10.0" beginTime="10.0" endTime="1000.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="vtk3" timeFrequency="300.0" beginTime="1000.0" endTime="10000.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="vtk4" timeFrequency="3000.0" beginTime="10000.0" endTime="100000.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="vtk5" timeFrequency="30000.0" beginTime="100000.0" endTime="308412.0" target="/Outputs/vtkOutput"/>
+
+    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" forceDt="0.001" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase1" beginTime="0.01" endTime="0.1" forceDt="0.01" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase2" beginTime="0.1" endTime="1.0" forceDt="0.1" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase3" beginTime="1.0" endTime="10.0" forceDt="1.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase4" beginTime="10.0" endTime="100.0" forceDt="10" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase5" beginTime="100.0" endTime="1000.0" forceDt="100" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase6" beginTime="1000.0" endTime="10000.0" forceDt="300" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase7" beginTime="10000.0" endTime="100000.0" forceDt="3000" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase8" beginTime="100000.0" endTime="308412.0" forceDt="10000" target="/Solvers/poroSolver"/>
+
+    <PeriodicEvent name="pressureMatrixEvent" target="/Tasks/pressureMatrixCollection"/>
+    <PeriodicEvent name="pressureMatrixOutputEvent" targetExactTimestep="0" target="/Outputs/pressureMatrixHistory"/>
+    <PeriodicEvent name="pressureFractureEvent" target="/Tasks/pressureFractureCollection"/>
+    <PeriodicEvent name="pressureFractureOutputEvent" targetExactTimestep="0" target="/Outputs/pressureFractureHistory"/>
+    <PeriodicEvent name="displacementEvent" target="/Tasks/displacementCollection"/>
+    <PeriodicEvent name="displacementOutputEvent" targetExactTimestep="0" target="/Outputs/displacementHistory"/>
+  </Events>
+
+  <Tasks>
+    <PackCollection name="pressureMatrixCollection"
+      objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock" fieldName="pressure"/>
+    <PackCollection name="pressureFractureCollection"
+      objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock" fieldName="pressure"/>
+    <PackCollection name="displacementCollection"
+      objectPath="mesh1/nodeManager" fieldName="totalDisplacement"/>
+  </Tasks>
+
+  <Outputs>
+    <VTK name="vtkOutput"/>
+    <TimeHistory name="pressureMatrixHistory"
+      sources="{ /Tasks/pressureMatrixCollection }" filename="pressure_matrix_history"/>
+    <TimeHistory name="pressureFractureHistory"
+      sources="{ /Tasks/pressureFractureCollection }" filename="pressure_fracture_history"/>
+    <TimeHistory name="displacementHistory"
+      sources="{ /Tasks/displacementCollection }" filename="displacement_history"/>
+  </Outputs>
+</Problem>

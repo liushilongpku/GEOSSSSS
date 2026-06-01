@@ -130,6 +130,149 @@ void RigidBoundary::applyLoad( real64 const time,
 }
 
 
+void RigidBoundary::applyRigidConstraint( real64 const time,
+                                          arrayView1d< globalIndex const > const nodeDofNumber,
+                                          globalIndex const dofRankOffset,
+                                          FaceManager const & faceManager,
+                                          NodeManager const & nodeManager,
+                                          SortedArrayView< localIndex const > const & targetSet,
+                                          CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                                          arrayView1d< real64 > const & localRhs ) const
+{
+  // Penalty factor relative to the assembled diagonal stiffness.  Large enough
+  // to tie the boundary DOFs together, small enough to keep the system well
+  // conditioned for the iterative linear solver.
+  constexpr real64 penaltyFactor = 1.0e4;
+
+  arrayView1d< real64 const > const faceArea  = faceManager.faceArea();
+  ArrayOfArraysView< localIndex const > const faceToNodeMap = faceManager.nodeList().toViewConst();
+  arrayView1d< integer const > const ghostRank = nodeManager.ghostRank();
+  solidMechanics::arrayViewConst2dLayoutTotalDisplacement const disp =
+    nodeManager.getField< solidMechanics::totalDisplacement >();
+
+  int const component = getComponent();
+
+  // ---- applied pressure magnitude (constant or function of time) ----
+  real64 pressureMagnitude = 0.0;
+  if( getFunctionName().empty() )
+  {
+    pressureMagnitude = getScale();
+  }
+  else
+  {
+    FunctionManager const & functionManager = FunctionManager::getInstance();
+    FunctionBase const & function = functionManager.getGroup< FunctionBase >( getFunctionName() );
+    GEOS_ERROR_IF( function.isFunctionOfTime() != 2,
+                   getDataContext() << ": Only functions of time are supported." );
+    pressureMagnitude = getScale() * function.evaluate( &time );
+  }
+
+  // ---- tributary node weights and total area ----
+  std::map< localIndex, real64 > nodeWeight;
+  real64 localTotalArea = 0.0;
+  for( localIndex i = 0; i < targetSet.size(); ++i )
+  {
+    localIndex const kf = targetSet[ i ];
+    localIndex const numNodes = faceToNodeMap.sizeOfArray( kf );
+    localTotalArea += faceArea[ kf ];
+    real64 const nodeContrib = faceArea[ kf ] / numNodes;
+    for( localIndex a = 0; a < numNodes; ++a )
+    {
+      nodeWeight[ faceToNodeMap( kf, a ) ] += nodeContrib;
+    }
+  }
+  real64 const globalTotalArea = MpiWrapper::allReduce( localTotalArea, MpiWrapper::Reduction::Sum );
+  GEOS_ERROR_IF( globalTotalArea <= 0.0, getDataContext() << ": RigidBoundary has zero total area." );
+
+  // total owned weight (for load distribution)
+  real64 localTotalWeight = 0.0;
+  for( auto const & [nodeIdx, weight] : nodeWeight )
+  {
+    if( ghostRank[ nodeIdx ] < 0 )
+      localTotalWeight += weight;
+  }
+  real64 const globalTotalWeight = MpiWrapper::allReduce( localTotalWeight, MpiWrapper::Reduction::Sum );
+  GEOS_ERROR_IF( globalTotalWeight <= 0.0, getDataContext() << ": RigidBoundary has zero total weight." );
+
+  real64 const totalForce = pressureMagnitude * globalTotalArea;
+
+  // (1) distributed external load on each owned boundary node
+  for( auto const & [nodeIdx, weight] : nodeWeight )
+  {
+    if( ghostRank[ nodeIdx ] >= 0 )
+      continue;
+    globalIndex const dof = nodeDofNumber[ nodeIdx ] + component;
+    localIndex const localRow = LvArray::integerConversion< localIndex >( dof - dofRankOffset );
+    if( localRow >= 0 && localRow < localMatrix.numRows() )
+      localRhs[ localRow ] += totalForce * weight / globalTotalWeight;
+  }
+
+  // (2) rigid (equal-displacement) constraint as a face-local graph-Laplacian
+  //     penalty.  For each boundary face, drive its node component-DOFs toward
+  //     the face mean: r_a += -beta*(u_a - mean_face), with Jacobian
+  //     d r_a / d u_b = -beta*(delta_ab - 1/n) for nodes a,b of the face.
+  //     The uniform (collective) mode is in the null space of this penalty, so
+  //     the platen is still free to translate under the applied load, while
+  //     within-face differences are suppressed; shared nodes chain faces
+  //     together to enforce global platen uniformity.  All coupled DOFs (a,b)
+  //     belong to the same element, so the entries already exist in the
+  //     sparsity pattern.  localMatrix == -K, so penalty terms are added with a
+  //     leading minus sign to match the residual Jacobian convention.
+  for( localIndex i = 0; i < targetSet.size(); ++i )
+  {
+    localIndex const kf = targetSet[ i ];
+    localIndex const numNodes = faceToNodeMap.sizeOfArray( kf );
+    if( numNodes < 2 )
+      continue;
+
+    // face-mean displacement (current iterate) and a representative penalty scale
+    real64 faceMeanDisp = 0.0;
+    for( localIndex a = 0; a < numNodes; ++a )
+      faceMeanDisp += disp( faceToNodeMap( kf, a ), component );
+    faceMeanDisp /= numNodes;
+
+    for( localIndex a = 0; a < numNodes; ++a )
+    {
+      localIndex const nodeA = faceToNodeMap( kf, a );
+      if( ghostRank[ nodeA ] >= 0 )
+        continue;
+      globalIndex const dofA = nodeDofNumber[ nodeA ] + component;
+      localIndex const rowA = LvArray::integerConversion< localIndex >( dofA - dofRankOffset );
+      if( rowA < 0 || rowA >= localMatrix.numRows() )
+        continue;
+
+      arraySlice1d< globalIndex const > const columns = localMatrix.getColumns( rowA );
+      arraySlice1d< real64 > const entries = localMatrix.getEntries( rowA );
+      localIndex const numEntries = localMatrix.numNonZeros( rowA );
+
+      // penalty magnitude scaled by the assembled diagonal stiffness of this row
+      real64 diagonal = 0.0;
+      for( localIndex j = 0; j < numEntries; ++j )
+      {
+        if( columns[ j ] == dofA ) { diagonal = entries[ j ]; break; }
+      }
+      real64 const beta = penaltyFactor * LvArray::math::abs( diagonal );
+      if( beta <= 0.0 )
+        continue;
+
+      // residual: r_a += -beta*(u_a - faceMean)
+      localRhs[ rowA ] += -beta * ( disp( nodeA, component ) - faceMeanDisp );
+
+      // Jacobian: add -beta*(delta_ab - 1/n) to (rowA, dof_b) for each face node b
+      for( localIndex b = 0; b < numNodes; ++b )
+      {
+        globalIndex const dofB = nodeDofNumber[ faceToNodeMap( kf, b ) ] + component;
+        real64 const coeff = -beta * ( ( a == b ? 1.0 : 0.0 ) - 1.0 / numNodes );
+        for( localIndex j = 0; j < numEntries; ++j )
+        {
+          if( columns[ j ] == dofB ) { entries[ j ] += coeff; break; }
+        }
+      }
+    }
+  }
+}
+
+
 void RigidBoundary::enforceConstraint( FaceManager const & faceManager,
                                        NodeManager & nodeManager,
                                        SortedArrayView< localIndex const > const & targetSet ) const
