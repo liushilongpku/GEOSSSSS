@@ -226,3 +226,34 @@ coupling `abar_i*eps` is already handled (Fix 3). Acceptance test: matrix platea
 0.89 vs `dpdp_mandel_analytical.py`. Implementation point: the dual-continuum flow
 accumulation/coupling assembly (alongside `DualContinuumCrossFlow`, which already
 assembles the 2-dof inter-continuum Jacobian for Gamma).
+
+---
+
+## Fix 6 — multi-porosity storage matrix implemented in GEOS (matrix 1.39 -> 0.93)
+
+Implemented the effective storage matrix M_bar in the dual-continuum flow accumulation:
+- `DualContinuumCrossFlow`: new optional `fractureVolumeFraction` (v_f) input + accessor;
+  `DualContinuumFlowSolverBase::getFractureVolumeFraction()` delegates to it.
+- `SinglePhaseDualContinuum::assembleCouplingTerms`: when v_f>0, after the Gamma
+  cross-flow it adds the cross-storage correction per matrix/fracture element pair:
+    row_i += rho_i V [ (1/Mbar_ii - 1/M_i)(p_i-p_i_n) + (1/Mbar_ij)(p_j-p_j_n) ]
+  with 1/Mbar_ii = v_i(1/M_i + alpha_i^2/K_i) - abar_i^2/Kbar, 1/Mbar_ij = -abar_i abar_j/Kbar,
+  abar_i = Kbar v_i alpha_i/K_i, Kbar = (v_m/K_m + v_f/K_f)^-1, c_f from the fluid dDensity/density.
+  Both the diagonal correction and the off-diagonal (matrix<->fracture pressure) Jacobian/
+  residual contributions are assembled (entries already in the sparsity from the Gamma block).
+
+Input: add `fractureVolumeFraction="0.03"` to the `<DualContinuumCrossFlow>` block
+(done in DPDP_N2_dispdriven*.xml).
+
+Validation (DPDP_N2_dispdriven_correctLF.xml, t0=10.5 s) vs analytical + digitized Fig5c:
+  tau   matrix: GEOS / analytical / paper      fracture: GEOS / paper
+  0.3   0.967 / 0.967 / 0.970                  0.470 / 0.302
+  1     0.930 / 0.888 / 0.910                  0.008 / 0.012
+  10-100 0.937-0.940 / ~0.89 / 0.91-0.92       ~0    / ~0
+The matrix plateau is now ~0.93 (was 1.39, ~55% high) -> matches the paper's ~0.91.
+See analitical_result/GEOS_crossStorage_vs_analytical_vs_digitized.png.
+
+Residual minor gaps (secondary): the early Mandel-Cryer bump is slightly damped in GEOS
+(1.01 vs 1.07) and the late matrix drainage (tau>300) lags a little -- attributable to the
+flux volume-weighting (kappa_i = v_i k_i) not yet applied (cancels in the timescale but
+shifts the tail). The dominant storage error is resolved.

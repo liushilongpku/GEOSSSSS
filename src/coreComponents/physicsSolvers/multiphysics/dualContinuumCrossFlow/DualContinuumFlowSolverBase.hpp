@@ -221,6 +221,12 @@ public:
     return m_crossFlow.getInterporosityExchangeCoefficient();
   }
 
+  /// Fracture volume fraction v_f (from DualContinuumCrossFlow); <0 = unset
+  real64 getFractureVolumeFraction() const
+  {
+    return m_crossFlow.getFractureVolumeFraction();
+  }
+
   // Support for PoromechanicsSolver expectations (delegated to primary/secondary solvers)
   integer isThermal() const
   {

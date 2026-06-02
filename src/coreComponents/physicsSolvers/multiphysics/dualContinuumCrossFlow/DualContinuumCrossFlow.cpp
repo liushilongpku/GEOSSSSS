@@ -62,6 +62,14 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
     setDescription( "Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}]. "
                     "When > 0, bypasses the Kazemi shape-factor formula and uses "
                     "transmissibility = Gamma * mu * V_element." );
+
+  registerWrapper( viewKeyStruct::fractureVolumeFractionString(),
+                   &m_fractureVolumeFraction ).
+    setApplyDefaultValue( -1.0 ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Fracture (secondary continuum) volume fraction v_f used by the "
+                    "multi-porosity effective storage matrix. <0 disables the "
+                    "cross-storage correction (legacy per-continuum storage)." );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )

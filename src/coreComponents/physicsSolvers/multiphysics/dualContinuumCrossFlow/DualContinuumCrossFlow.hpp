@@ -66,6 +66,10 @@ public:
     /// transmissibility = Gamma * mu * V_element.
     static constexpr char const * interporosityExchangeCoefficientString()
     { return "interporosityExchangeCoefficient"; }
+    /// Fracture (secondary continuum) volume fraction v_f; matrix v_m = 1 - v_f.
+    /// Needed for the multi-porosity effective storage matrix M_bar.
+    static constexpr char const * fractureVolumeFractionString()
+    { return "fractureVolumeFraction"; }
   };
 
   DualContinuumStencil & getStencil(){return m_stencil;};
@@ -74,6 +78,10 @@ public:
   /// Get the direct interporosity exchange coefficient
   real64 getInterporosityExchangeCoefficient() const
   { return m_interporosityExchangeCoefficient; }
+
+  /// Get the fracture volume fraction (v_f); <0 means "unset"
+  real64 getFractureVolumeFraction() const
+  { return m_fractureVolumeFraction; }
 
 private:
   real64 m_fracSpacingLx;
@@ -85,6 +93,9 @@ private:
 
   /// Direct interporosity exchange coefficient [Pa^{-1} s^{-1}]; 0 = use Kazemi
   real64 m_interporosityExchangeCoefficient = 0.0;
+
+  /// Fracture volume fraction v_f (-1 = unset -> cross-storage disabled)
+  real64 m_fractureVolumeFraction = -1.0;
 
   DualContinuumStencil m_stencil;
 };
