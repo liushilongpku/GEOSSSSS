@@ -670,3 +670,36 @@ RESULT (DPDP_N2_dispdriven_fim_eff.xml, full t=3e5 s, 514 cycles, ZERO cuts, ~3 
 
 Infra: DualContinuumCrossFlow now takes intrinsicMatrix/FractureBiot+BulkModulus so the storage uses
 true intrinsic params while the monolithic mechanics uses effective Kbar/Gbar/abar materials.
+
+---
+
+## Fix 16 (2026-06-04): Paper-exact storage matrix (Mehrabian Appendix A2, eq A25) — cm term is a HACK
+
+Read the Mehrabian 2014 PDF Appendix A2. The poroelastic coefficient matrix (eq A25), relating
+[eps; zeta_1..zeta_N] to [sigma; p_1..p_N], is:
+  a_11 = sum_k v_k/K_k                       (= 1/Kbar, effective compressibility)
+  a_1i = a_i1 = -v_i*alpha_i/K_i             (generalized Biot-Willis; stress<->fluid coupling)
+  a_ii = v_i*alpha_i/(B_i*K_i)               (diagonal storage; = v_i(1/M_i + alpha_i^2/K_i))
+  a_ij = 0  for i != j, i,j >= 2             (eq A23: NO direct p_i<->zeta_j storage coupling!)
+
+So in (sigma, p) form the porosity networks couple ONLY through the total stress sigma; there is NO
+inter-network storage off-diagonal. Converting to the strain (eps_v) form that the FIM mechanics
+provides, the off-diagonal becomes -abar_i*abar_j/Kbar, which is EXACTLY canceled by the mechanics
+Schur complement (+abar_i*abar_j/Kbar via the shared eps_v), recovering a_ij=0.
+
+=> The +abar_i*cm_j off-diagonal term added in Fix 15 is NOT in the paper; it is an empirical
+   compensation. The principled constant-strain storage is: diagonal 1/Mbar_ii = a_ii - abar_i^2/Kbar
+   (my SbarMM, NO cm), off-diagonal -abar_i*abar_j/Kbar (my original corrOff, NO cm).
+
+WHY the principled formula (exp C, no cm) gave matrix -> 0.70 (over-drop): the mechanics Schur
+off-diagonal (p_m<->p_f through mesh1 displacement) does NOT fully cancel the -abar_m*abar_f/Kbar
+storage off-diagonal, because the displacement-driven Mandel BCs (prescribed plate + rollers)
+suppress the displacement's free response to p_f. So net off-diagonal stays negative -> matrix sheds
+too much. The cm hack weakens the storage off-diagonal (-5.09e-10 -> -3.0e-10) to partially
+compensate; the empirical sweet spot for plateau 0.90 is ~-4.07e-10.
+
+PRINCIPLED FIX (not done, the real remaining work): make the mechanics Schur provide the full
+abar_m*abar_f/Kbar off-diagonal cancellation, OR assemble the storage in the (sigma, p) form (paper
+a_ij=0) using the element mean total stress instead of strain. The current committed cm-hack matches
+the fracture exactly (from kappa weighting, which IS correct physics) and the matrix early peak +
+late decay, with the matrix plateau ~1.11 vs analytical 0.90.
