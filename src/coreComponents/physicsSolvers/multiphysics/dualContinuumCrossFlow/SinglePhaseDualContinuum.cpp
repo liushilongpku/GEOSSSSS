@@ -143,7 +143,7 @@ namespace geos
       // matrix shed pressure as the fracture drains (Mandel-Cryer).  Enabled when
       // the fracture volume fraction v_f is provided on DualContinuumCrossFlow.
       real64 const v_f = this->getFractureVolumeFraction();
-      if( v_f > 0.0 )
+      if( v_f > 0.0 && this->getEnableCrossStorageCorrection() )
       {
         real64 const v_m = 1.0 - v_f;
         string_array const & matRegions  = this->template getReference< string_array >( "matrixRegionList" );

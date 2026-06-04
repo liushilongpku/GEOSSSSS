@@ -227,6 +227,15 @@ public:
     return m_crossFlow.getFractureVolumeFraction();
   }
 
+  /// The multi-porosity cross-storage correction in assembleCouplingTerms is a
+  /// SEQUENTIAL-only construct: it adds a residual term with an incomplete (non-linearized)
+  /// Jacobian and inflates the matrix pressure-storage diagonal, which makes a FullyImplicit
+  /// Newton diverge. For FIM the matrix storage comes from the monolithic kernel and the
+  /// matrix<->fracture cross-storage is added as a consistent term instead. The coupled
+  /// poromechanics solver disables this flag when couplingType=FullyImplicit.
+  void setEnableCrossStorageCorrection( bool const flag ) { m_enableCrossStorageCorrection = flag; }
+  bool getEnableCrossStorageCorrection() const { return m_enableCrossStorageCorrection; }
+
   // Support for PoromechanicsSolver expectations (delegated to primary/secondary solvers)
   integer isThermal() const
   {
@@ -854,6 +863,7 @@ private:
   //std::shared_ptr< DualContinuumCrossFlow > m_crossFlow;
   DualContinuumCrossFlow m_crossFlow;
   real64 m_transferCoefficient;
+  bool m_enableCrossStorageCorrection = true;  // sequential-only; disabled for FullyImplicit coupling
   
   // TracAI: Added to store dual continuum region pairs from XML
   string_array m_matrixRegionList;

@@ -102,6 +102,14 @@ public:
       this->solidMechanicsSolver()->enableFixedStressPoromechanicsUpdate();
       this->flowSolver()->enableFixedStressPoromechanicsUpdate();
     }
+    else
+    {
+      // FullyImplicit: the sequential-only cross-storage correction has an inconsistent
+      // Jacobian and inflates the matrix pressure-storage diagonal (~5x here), which makes
+      // the monolithic Newton diverge. Disable it; the FIM matrix storage comes from the
+      // monolithic kernel, and the matrix<->fracture cross-storage is added consistently.
+      this->flowSolver()->setEnableCrossStorageCorrection( false );
+    }
   }
 
   // Override setupDofs to handle dual continuum DOFs
