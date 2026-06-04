@@ -235,10 +235,13 @@
     <PeriodicEvent name="vtk4" timeFrequency="3000.0" beginTime="10000.0" endTime="100000.0" target="/Outputs/vtkOutput"/>
     <PeriodicEvent name="vtk5" timeFrequency="30000.0" beginTime="100000.0" endTime="308412.0" target="/Outputs/vtkOutput"/>
 
-    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" forceDt="0.001" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase1" beginTime="0.01" endTime="0.1" forceDt="0.01" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase2" beginTime="0.1" endTime="1.0" forceDt="0.1" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase3" beginTime="1.0" endTime="10.0" forceDt="1.0" target="/Solvers/poroSolver"/>
+    <!-- Mandel-Cryer overshoot peaks near tau~0.05 (t~0.5s).  The single-pass
+         fixed-stress split under-resolves this transient, so the overshoot is
+         only captured with fine dt through the window 0.01 s < t < 2 s. -->
+    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" forceDt="0.0005" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase1" beginTime="0.01" endTime="0.1" forceDt="0.002" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase2" beginTime="0.1" endTime="2.0" forceDt="0.01" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase3" beginTime="2.0" endTime="10.0" forceDt="0.1" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase4" beginTime="10.0" endTime="100.0" forceDt="10" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase5" beginTime="100.0" endTime="1000.0" forceDt="100" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase6" beginTime="1000.0" endTime="10000.0" forceDt="300" target="/Solvers/poroSolver"/>

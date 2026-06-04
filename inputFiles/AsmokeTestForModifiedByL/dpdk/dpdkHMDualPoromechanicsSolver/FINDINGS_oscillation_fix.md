@@ -257,3 +257,37 @@ Residual minor gaps (secondary): the early Mandel-Cryer bump is slightly damped 
 (1.01 vs 1.07) and the late matrix drainage (tau>300) lags a little -- attributable to the
 flux volume-weighting (kappa_i = v_i k_i) not yet applied (cancels in the timescale but
 shifts the tail). The dominant storage error is resolved.
+
+------------------------------------------------------------------------------
+Fix 7 -- Mandel-Cryer overshoot recovered via time-step refinement (input-only)
+------------------------------------------------------------------------------
+Symptom: GEOS matrix pressure was nearly monotonic (peak only 1.015) while the
+analytical / Fig5c show a Mandel-Cryer overshoot peaking ~1.07 near tau~0.05.
+
+Root cause: NOT the coupling. Verified empirically:
+  - enabling sequential subcycling (subcycling=1, ResidualNorm/NumberOfNonlinearIterations)
+    did NOT change the peak (1.010-1.015) -> splitting iteration is not the cause;
+  - the prescribed platen displacement (loadFunction0000000) matches the analytical
+    u_z(top) to <1% in shape (both rise ~50.4% undrained->drained), so the BC is correct.
+The overshoot peaks at tau~0.05 == t~0.5 s, but the deck used forceDt=0.1 s in [0.1,1.0],
+i.e. only ~4 coarse steps across the peak. The single-pass fixed-stress split under-resolves
+that transient and flattens it into a near-monotonic decay.
+
+Fix (input only, no code): refine the solver time-stepping through the overshoot window:
+  phase0 0-0.01     forceDt 0.0005
+  phase1 0.01-0.1   forceDt 0.002
+  phase2 0.1-2.0    forceDt 0.01
+  phase3 2.0-10.0   forceDt 0.1     (coarser phases unchanged afterwards)
+Result (DPDP_N2_dispdriven_correctLF.xml): matrix peak 1.015 -> 1.066, matching the
+paper's digitized peak (1.065) and close to the analytical (1.079). See
+analitical_result/GEOS_vs_analytical_vs_digitized_full.png.
+
+Side effect now exposed: with the overshoot built up, the matrix intermediate plateau sits
+~1.05 (vs paper 0.91) and drainage onset is delayed (tau~3e3 vs ~1e3); the fracture overshoot
+(~1.06) is still not reproduced. These are matrix/fracture drainage-timescale issues
+(the kappa_i = v_i k_i flux weighting, Fix-6 note) -- deeper than a dt change, deferred.
+
+NB the subcycling experiment also surfaced a bug: with sequentialConvergenceCriterion=
+ResidualNorm the outer-loop re-assembled SOLID residual is stuck at a constant ~3.8 (vs the
+solid's own solve ~1e-14), so ResidualNorm never converges for this setup; only
+NumberOfNonlinearIterations completes. Not on the critical path since subcycling is unneeded.
