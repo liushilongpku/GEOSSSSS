@@ -94,6 +94,13 @@ public:
       setApplyDefaultValue( 1 ).
       setDescription( "Assemble the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) "
                       "in the FullyImplicit path. Requires the cross-mesh node<->elem sparsity." );
+
+    this->registerWrapper( viewKeyStruct::enableFimCrossStorageString(), &m_enableFimCrossStorage ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( 1 ).
+      setDescription( "Enable the multi-porosity (Mehrabian S_ij) cross-storage correction in the "
+                      "FullyImplicit path (adds the matrix<->fracture off-diagonal storage that "
+                      "drives the Mandel-Cryer matrix decay)." );
   }
 
   // Override postInputInitialization to include checks for dual continuum
@@ -117,11 +124,13 @@ public:
     }
     else
     {
-      // FullyImplicit: the sequential-only cross-storage correction has an inconsistent
-      // Jacobian and inflates the matrix pressure-storage diagonal (~5x here), which makes
-      // the monolithic Newton diverge. Disable it; the FIM matrix storage comes from the
-      // monolithic kernel, and the matrix<->fracture cross-storage is added consistently.
-      this->flowSolver()->setEnableCrossStorageCorrection( false );
+      // FullyImplicit: the multi-porosity (Mehrabian S_ij) cross-storage correction adds the
+      // v-weighted diagonal + the matrix<->fracture off-diagonal storage that lets the matrix
+      // shed pressure as the fracture drains (the Mandel-Cryer decay). Its Jacobian is assembled
+      // consistently and the lambda~=-1 oscillation it used to trigger is now damped by the FIM
+      // Newton under-relaxation (scalingForSystemSolution). Keep it on for FIM, gated by
+      // m_enableFimCrossStorage so it can be toggled for debugging.
+      this->flowSolver()->setEnableCrossStorageCorrection( m_enableFimCrossStorage != 0 );
     }
   }
 
@@ -1280,6 +1289,7 @@ public:
     static constexpr char const * fractureVolumeFractionString() { return "fractureVolumeFraction"; }
     static constexpr char const * fimNewtonRelaxationString() { return "fimNewtonRelaxation"; }
     static constexpr char const * enableFractureMechanicsCouplingString() { return "enableFractureMechanicsCoupling"; }
+    static constexpr char const * enableFimCrossStorageString() { return "enableFimCrossStorage"; }
     static constexpr char const * effectiveBulkModulusString() { return "effectiveBulkModulus"; }
     static constexpr char const * volumeFractionString() { return "volumeFraction"; }
   };
@@ -1305,6 +1315,9 @@ public:
   // (lambda~=-1) pressure-block oscillation. 0.5 is near-optimal (midpoint = exact solution);
   // 1.0 disables relaxation.
   real64 m_fimNewtonRelaxation = 0.5;
+
+  // Toggle the multi-porosity (Mehrabian S_ij) cross-storage correction in the FIM path.
+  integer m_enableFimCrossStorage = 1;
 
 };
 

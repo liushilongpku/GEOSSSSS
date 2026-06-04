@@ -605,3 +605,68 @@ analytical ~1.07) because the storage-matrix (Mehrabian S_ij) + effective-Biot p
 corrections live in mapSolutionBetweenSolvers (Sequential-only) and the SinglePhaseDualContinuum
 cross-storage block is gated OFF for FIM (postInputInitialization setEnableCrossStorageCorrection
 (false)). Porting those into the monolithic FIM assembly is the next increment (Increment 2/4).
+
+---
+
+## Fix 14 (2026-06-04): FIM accuracy experiments toward analytical (matrix monitor elem 180, x~0, mid-z; norm by p0=4.55e5)
+
+Built infrastructure: DualContinuumCrossFlow now takes intrinsicMatrixBiot/BulkModulus +
+intrinsicFractureBiot/BulkModulus so the multi-porosity M_bar storage can be built from the TRUE
+intrinsic params even when the constitutive materials are set to EFFECTIVE-medium values (so the
+monolithic mechanics uses Kbar/Gbar/abar). SinglePhaseDualContinuum cross-storage now: Sbar from
+intrinsic params, subtract the kernel's 1/M (material biot). enableFimCrossStorage toggle on the
+dual-poromechanics solver. New decks DPDP_N2_dispdriven_fim_eff.xml(+_noKupf).
+
+MEASURED matrix p/p0 (late plateau / qualitative):
+  Sequential correctLF (REFERENCE):           rises 1.0 -> peak 1.066 @ t~2 -> ~1.05   (matches analytical)
+  FIM intrinsic mech, NO storage:              -> 1.66 (monotonic, too high)
+  FIM intrinsic mech + Sbar storage (exp A):   -> 0.80 (monotonic)
+  FIM effective mech, NO storage (exp B):      -> 2.59 (too high)
+  FIM effective mech + Sbar storage (exp C):   1.0 -> drops 0.70 -> recovers 0.82
+  FIM eff + Sbar, NO K_upf/K_pfu (exp D):      spikes 2.30 @t=0 -> 0.70 -> 0.82
+
+KEY FINDINGS:
+  - K_upf/K_pfu is REQUIRED: without it the matrix spikes to 2.3 at t=0 (momentum missing alpha_f*p_f).
+  - Effective vs intrinsic coefficients barely move the FIM late plateau (~0.80 either way) -> the
+    effective-coefficient swap is NOT the main lever for the 0.80-vs-1.066 gap.
+  - FIM matrix moves the WRONG direction early (drops as the fracture drains) whereas Sequential and
+    analytical RISE (Mandel-Cryer). The off-diagonal storage Sbar_mf*dpF (Sbar_mf<0, dpF<0) lowers the
+    matrix accumulation demand -> matrix sheds instead of loading. So the monolithic FIM is not
+    reproducing the load-transfer that drives the Mandel-Cryer rise, even with the same Sbar storage
+    that works in Sequential. The difference is the mechanics path: Sequential uses composite-pressure
+    + effective avgStress fed per-continuum (mapSolutionBetweenSolvers); FIM uses the monolithic
+    kernel with sigma = sigma_eff - abar_m p_m - abar_f p_f directly.
+
+STATUS: FIM convergence is FIXED + committed. FIM accuracy still undershoots (0.80 vs 1.066); the
+remaining gap is a mechanics/storage coupling-direction issue in the monolithic path, NOT convergence.
+
+---
+
+## Fix 15 (2026-06-04): FIM accuracy BREAKTHROUGH toward analytical (two missing-physics fixes)
+
+Starting from Fix 14 (FIM effective-medium matrix stuck ~0.80, wrong direction), found and fixed
+TWO missing pieces of physics. Plot: analitical_result/GEOS_FIM_effective_vs_analytical.png.
+
+1) MISSING FLUID TERM in the multi-porosity storage off-diagonal. The Mehrabian storage is
+   S_ij = 1/Mbar_ij + abar_i*cm_j (cm_j = phi_j*cf_j, the fluid-compressibility term). The code had
+   only 1/Mbar_ij = -abar_i*abar_j/Kbar for the off-diagonal, which was too strong and made the
+   matrix DROP to 0.70 as the fracture drained. Adding +abar_i*cm_j (split per row: matrix row uses
+   abar_m*cm_f, fracture row uses abar_f*cm_m) flipped the matrix to the correct RISE direction
+   (-> ~1.1). Diagonal also gets +abar_i*cm_i (negligible, phi_m small). In SinglePhaseDualContinuum
+   assembleCouplingTerms: corrOffMF / corrOffFM now separate.
+
+2) FLUX WEIGHTING kappa_i = v_i*k_i. GEOS used the full intrinsic fracture perm, but the fracture
+   occupies only v_f=3% of the bulk, so its Darcy flux contribution is v_f*k_f. The fracture was
+   draining ~30x too early. Setting fracturePerm = v_f*k_f_intrinsic = 0.03*4.935e-15 = 1.4805e-16
+   in the deck moved the fracture drainage onto the analytical timescale.
+
+RESULT (DPDP_N2_dispdriven_fim_eff.xml, full t=3e5 s, 514 cycles, ZERO cuts, ~3 min):
+  - FRACTURE: GEOS now matches paper/analytical almost EXACTLY (overshoot ~1.05, drains tau~0.1-0.5).
+  - MATRIX: correct early rise to ~1.05-1.07 @ tau~0.05 (analytical 1.07) and correct late decay
+    (tau~1000-3000). REMAINING gap: intermediate plateau ~1.11 vs analytical 0.90 -- GEOS does not
+    dip from the peak down to the lower plateau. Likely the interporosity transfer (matrix shedding
+    into the drained fracture at intermediate times) is too weak, OR a residual storage-coefficient
+    refinement. This is the next lever.
+
+Infra: DualContinuumCrossFlow now takes intrinsicMatrix/FractureBiot+BulkModulus so the storage uses
+true intrinsic params while the monolithic mechanics uses effective Kbar/Gbar/abar materials.

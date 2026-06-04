@@ -70,6 +70,19 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
     setDescription( "Fracture (secondary continuum) volume fraction v_f used by the "
                     "multi-porosity effective storage matrix. <0 disables the "
                     "cross-storage correction (legacy per-continuum storage)." );
+
+  registerWrapper( viewKeyStruct::intrinsicMatrixBiotString(), &m_intrinsicMatrixBiot ).
+    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Intrinsic matrix Biot coefficient for the FIM M_bar storage; <0 = use material." );
+  registerWrapper( viewKeyStruct::intrinsicMatrixBulkModulusString(), &m_intrinsicMatrixBulkModulus ).
+    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Intrinsic matrix drained bulk modulus for the FIM M_bar storage; <0 = use material." );
+  registerWrapper( viewKeyStruct::intrinsicFractureBiotString(), &m_intrinsicFractureBiot ).
+    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Intrinsic fracture Biot coefficient for the FIM M_bar storage; <0 = use material." );
+  registerWrapper( viewKeyStruct::intrinsicFractureBulkModulusString(), &m_intrinsicFractureBulkModulus ).
+    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Intrinsic fracture drained bulk modulus for the FIM M_bar storage; <0 = use material." );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )

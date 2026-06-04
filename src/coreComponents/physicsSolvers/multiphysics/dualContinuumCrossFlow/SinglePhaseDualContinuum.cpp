@@ -146,6 +146,14 @@ namespace geos
       if( v_f > 0.0 && this->getEnableCrossStorageCorrection() )
       {
         real64 const v_m = 1.0 - v_f;
+        // Intrinsic (true physical) Biot + drained bulk modulus for the M_bar storage. When the
+        // constitutive materials are set to EFFECTIVE-medium values (so the monolithic mechanics
+        // kernel uses Kbar/Gbar/abar), these let us still build the correct multi-porosity storage
+        // from the true intrinsic parameters. <0 => fall back to the material value (legacy).
+        real64 const intrMatA = this->getIntrinsicMatrixBiot();
+        real64 const intrMatK = this->getIntrinsicMatrixBulkModulus();
+        real64 const intrFracA = this->getIntrinsicFractureBiot();
+        real64 const intrFracK = this->getIntrinsicFractureBulkModulus();
         string_array const & matRegions  = this->template getReference< string_array >( "matrixRegionList" );
         string_array const & fracRegions = this->template getReference< string_array >( "fractureRegionList" );
         ElementRegionManager const & matEM  = matrixMeshPtr->getElemManager();
@@ -197,17 +205,36 @@ namespace geos
 
             for( localIndex k = 0; k < matSR.size(); ++k )
             {
-              real64 const Kbar = 1.0/( v_m/Km[k] + v_f/Kf[k] );
-              real64 const abm  = Kbar*v_m*aM[k]/Km[k];
-              real64 const abf  = Kbar*v_f*aF[k]/Kf[k];
+              // Intrinsic params for the analytical storage (fall back to material if unset)
+              real64 const aMI = ( intrMatA  > 0.0 ) ? intrMatA  : aM[k];
+              real64 const aFI = ( intrFracA > 0.0 ) ? intrFracA : aF[k];
+              real64 const KmI = ( intrMatK  > 0.0 ) ? intrMatK  : Km[k];
+              real64 const KfI = ( intrFracK > 0.0 ) ? intrFracK : Kf[k];
+
+              real64 const Kbar = 1.0/( v_m/KmI + v_f/KfI );
+              real64 const abm  = Kbar*v_m*aMI/KmI;
+              real64 const abf  = Kbar*v_f*aFI/KfI;
               real64 const cfM  = dDensM[k][0][0]/densM[k][0];
               real64 const cfF  = dDensF[k][0][0]/densF[k][0];
-              real64 const invMm = (aM[k]-phiM[k])/KsM[k] + phiM[k]*cfM;
-              real64 const invMf = (aF[k]-phiF[k])/KsF[k] + phiF[k]*cfF;
-              // 1/Mbar_ii = a_ii - abar_i^2/Kbar, a_ii = v_i(1/M_i + alpha_i^2/K_i)
-              real64 const corrDiagM = v_m*(invMm + aM[k]*aM[k]/Km[k]) - abm*abm/Kbar - invMm;
-              real64 const corrDiagF = v_f*(invMf + aF[k]*aF[k]/Kf[k]) - abf*abf/Kbar - invMf;
-              real64 const corrOff   = -abm*abf/Kbar;
+              // Analytical constant-strain storage built from INTRINSIC params:
+              //   1/Mbar_ii = v_i(1/M_i^intr + alpha_i^2/K_i) - abar_i^2/Kbar,  abar_i = Kbar v_i alpha_i/K_i.
+              real64 const invMmI = (aMI-phiM[k])/KsM[k] + phiM[k]*cfM;
+              real64 const invMfI = (aFI-phiF[k])/KsF[k] + phiF[k]*cfF;
+              // S_ii = 1/Mbar_ii + abar_i*cm_i, cm_i = phi_i*cf_i (consistent with the off-diagonal).
+              real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar + abm*phiM[k]*cfM;
+              real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar + abf*phiF[k]*cfF;
+              // Subtract what the monolithic kernel / secondary solver ALREADY put on the diagonal,
+              // which uses the (possibly effective) MATERIAL Biot: 1/M_i^mat.
+              real64 const invMmMat = (aM[k]-phiM[k])/KsM[k] + phiM[k]*cfM;
+              real64 const invMfMat = (aF[k]-phiF[k])/KsF[k] + phiF[k]*cfF;
+              real64 const corrDiagM = SbarMM - invMmMat;
+              real64 const corrDiagF = SbarFF - invMfMat;
+              // Mehrabian multi-porosity off-diagonal storage S_ij = 1/Mbar_ij + abar_i*cm_j,
+              // with 1/Mbar_ij = -abar_i*abar_j/Kbar (symmetric) and fluid term cm_j = phi_j*cf_j.
+              // The two off-diagonals differ by the fluid term: S_mf uses abar_m*cm_f, S_fm uses
+              // abar_f*cm_m.
+              real64 const corrOffMF = -abm*abf/Kbar + abm*phiF[k]*cfF;  // matrix row, vs p_f
+              real64 const corrOffFM = -abm*abf/Kbar + abf*phiM[k]*cfM;  // fracture row, vs p_m
               real64 const dpM = pM[k]-pMn[k];
               real64 const dpF = pF[k]-pFn[k];
 
@@ -215,18 +242,18 @@ namespace geos
               {
                 localIndex const row = LvArray::integerConversion< localIndex >( dofM[k]-rankOffset );
                 real64 const rv = densM[k][0]*vol[k];
-                localRhs[row] += rv*( corrDiagM*dpM + corrOff*dpF );
+                localRhs[row] += rv*( corrDiagM*dpM + corrOffMF*dpF );
                 globalIndex cols[2] = { dofM[k], dofF[k] };
-                real64 vals[2] = { rv*corrDiagM, rv*corrOff };
+                real64 vals[2] = { rv*corrDiagM, rv*corrOffMF };
                 localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 2 );
               }
               if( ghostF[k] < 0 )
               {
                 localIndex const row = LvArray::integerConversion< localIndex >( dofF[k]-rankOffset );
                 real64 const rv = densF[k][0]*vol[k];
-                localRhs[row] += rv*( corrDiagF*dpF + corrOff*dpM );
+                localRhs[row] += rv*( corrDiagF*dpF + corrOffFM*dpM );
                 globalIndex cols[2] = { dofF[k], dofM[k] };
-                real64 vals[2] = { rv*corrDiagF, rv*corrOff };
+                real64 vals[2] = { rv*corrDiagF, rv*corrOffFM };
                 localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 2 );
               }
             }

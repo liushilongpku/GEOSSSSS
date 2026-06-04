@@ -227,6 +227,12 @@ public:
     return m_crossFlow.getFractureVolumeFraction();
   }
 
+  /// Intrinsic-parameter accessors for the FIM multi-porosity storage (<0 = use material value)
+  real64 getIntrinsicMatrixBiot() const { return m_crossFlow.getIntrinsicMatrixBiot(); }
+  real64 getIntrinsicMatrixBulkModulus() const { return m_crossFlow.getIntrinsicMatrixBulkModulus(); }
+  real64 getIntrinsicFractureBiot() const { return m_crossFlow.getIntrinsicFractureBiot(); }
+  real64 getIntrinsicFractureBulkModulus() const { return m_crossFlow.getIntrinsicFractureBulkModulus(); }
+
   /// The multi-porosity cross-storage correction in assembleCouplingTerms is a
   /// SEQUENTIAL-only construct: it adds a residual term with an incomplete (non-linearized)
   /// Jacobian and inflates the matrix pressure-storage diagonal, which makes a FullyImplicit

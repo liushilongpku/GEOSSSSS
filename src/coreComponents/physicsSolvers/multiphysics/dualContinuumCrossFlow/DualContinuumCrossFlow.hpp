@@ -70,6 +70,14 @@ public:
     /// Needed for the multi-porosity effective storage matrix M_bar.
     static constexpr char const * fractureVolumeFractionString()
     { return "fractureVolumeFraction"; }
+    /// Intrinsic (true physical) matrix/fracture Biot coefficient and drained bulk modulus.
+    /// When > 0 these are used to compute the multi-porosity storage M_bar in the FIM path,
+    /// independently of the (possibly effective-medium) constitutive material values that the
+    /// monolithic mechanics kernel consumes. <0 means "use the material value".
+    static constexpr char const * intrinsicMatrixBiotString() { return "intrinsicMatrixBiot"; }
+    static constexpr char const * intrinsicMatrixBulkModulusString() { return "intrinsicMatrixBulkModulus"; }
+    static constexpr char const * intrinsicFractureBiotString() { return "intrinsicFractureBiot"; }
+    static constexpr char const * intrinsicFractureBulkModulusString() { return "intrinsicFractureBulkModulus"; }
   };
 
   DualContinuumStencil & getStencil(){return m_stencil;};
@@ -82,6 +90,12 @@ public:
   /// Get the fracture volume fraction (v_f); <0 means "unset"
   real64 getFractureVolumeFraction() const
   { return m_fractureVolumeFraction; }
+
+  /// Intrinsic-parameter accessors for the FIM multi-porosity storage (<0 = use material value)
+  real64 getIntrinsicMatrixBiot() const { return m_intrinsicMatrixBiot; }
+  real64 getIntrinsicMatrixBulkModulus() const { return m_intrinsicMatrixBulkModulus; }
+  real64 getIntrinsicFractureBiot() const { return m_intrinsicFractureBiot; }
+  real64 getIntrinsicFractureBulkModulus() const { return m_intrinsicFractureBulkModulus; }
 
 private:
   real64 m_fracSpacingLx;
@@ -96,6 +110,13 @@ private:
 
   /// Fracture volume fraction v_f (-1 = unset -> cross-storage disabled)
   real64 m_fractureVolumeFraction = -1.0;
+
+  /// Intrinsic matrix/fracture Biot + drained bulk modulus for the FIM M_bar storage
+  /// (-1 = unset -> use the constitutive material value)
+  real64 m_intrinsicMatrixBiot = -1.0;
+  real64 m_intrinsicMatrixBulkModulus = -1.0;
+  real64 m_intrinsicFractureBiot = -1.0;
+  real64 m_intrinsicFractureBulkModulus = -1.0;
 
   DualContinuumStencil m_stencil;
 };
