@@ -534,3 +534,74 @@ assembly proven byte-identical to stock. K_upf/K_pfu formulation derived & verif
 Single remaining blocker to a converging FIM matrix+fracture base: the node<->elem cross-mesh
 sparsity above. Then Increment 2 (effective coeffs) + Increment 4 (off-diagonal storage S_mf) +
 validation vs analytical.
+
+---
+
+## Fix 12 (2026-06-04): Cross-mesh sparsity DONE; FIM blocker re-localized to monolithic scaling
+
+DONE — the node<->elem cross-mesh coupling that was the "single remaining blocker" above:
+- `DofManager::addCouplingDualContinuumMechanics` — flags `m_isdpdkMech`, stores the disp/fractureP
+  field-index pair, calls `addCoupling`.
+- `countRowLengthsDualContinuumMechanics` / `setSparsityPatternDualContinuumMechanics` — for each
+  matrix-mesh element, connect its nodes' 3 displacement DOFs to the co-located fracture-mesh
+  element's p_f DOF (both directions). Triggered in `setSparsityPattern`'s count + fill passes via
+  `m_isdpdkMech && {row,col} == {dispIdx, fracPIdx}`.
+- `DualContinuumPoromechanicsSolverBase::setupCoupling` calls it; `assembleSystem` re-enables K_upf
+  (`assembleFractureMechanicsCoupling`) and adds K_pfu (`assembleFractureToMechanicsCoupling`,
+  `d(phi_f rho V)/dU = rho_ref*alpha_f*gradN` into the fracture-mass row at displacement cols).
+  Both gated behind `m_enableFractureMechanicsCoupling` (default false).
+- K_upf sign VERIFIED correct as `+alpha_f*p_f*gradN` (matches stock
+  `R_mom = -int symGrad(N):totalStress`, `totalStress = effStress - alpha*p*I`). The earlier
+  "flip to -=" idea was wrong.
+
+All builds clean. Sequential (`DPDP_N2_dispdriven_correctLF.xml`) NOT regressed — still converges
+and overshoots. New `DPDP_N2_dispdriven_fim.xml` = `couplingType="FullyImplicit"`.
+
+BUT FIM STILL DOES NOT CONVERGE, and the cause is NOT the sparsity / coupling. Re-localized:
+- Coupling OFF: Rsolid drops once (4.31 -> 3.44) then FREEZES exactly while flow residuals are tiny
+  (matrix 2e-5, fracture 1e-3) and the linear solve hits 1e-12; delta -> 0.
+- Coupling ON: same freeze but worse (Rsolid 3.44 -> 61) because K_upf injects a large fracture-
+  pressure force the under-resolved displacement can't balance.
+- `SolidMechanicsLagrangianFEM::calculateResidualNorm` reads `localRhs` directly, normalized by
+  `m_maxForce+1`. So Rsolid=3.44 means the assembled momentum residual really is ~3.44*(maxForce+1),
+  i.e. NONZERO, yet the monolithic GMRES returns delta_u ~ 0. The mechanics rows (forces ~1e5-1e6)
+  and flow mass rows differ by many orders of magnitude; the global 2-norm GMRES minimizes is
+  dominated by one block, so the displacement correction is under-resolved => Rsolid stalls. This is
+  the same "ResidualNorm criterion stuck ~3.8" symptom from Fix 7.
+
+NEXT (FIM): fix the monolithic block scaling / conditioning (row/field scaling or a
+block/Schur-style preconditioner so the mechanics block is properly resolved), validate Rsolid->0
+in ONE step on a single timestep with coupling OFF, THEN flip `m_enableFractureMechanicsCoupling`
+on and re-test. Until then, Sequential remains the working path.
+
+---
+
+## Fix 13 (2026-06-04): FIM CONVERGENCE FIXED — it was a lambda~=-1 oscillation, not scaling
+
+The Fix 12 guess ("monolithic block scaling") was WRONG. Instrumenting the state across Newton
+iterations (max incremental displacement + max p_m + max p_f each assembleSystem) revealed the truth:
+FIM was NOT freezing — it was in a **period-2 (lambda~=-1) limit cycle**. Displacement converged
+(maxIncDisp settled), but p_m ping-ponged 455000 <-> 506049 and p_f 487998 <-> 498763 every Newton
+iteration. The residual norm only *looked* frozen because both cycle states have equal norm. A direct
+linear solver showed the identical cycle, ruling out conditioning. The cycle midpoint
+((455000+506049)/2 = 480524) is the EXACT solution => the full Newton step overshoots by ~2x
+(lambda~=-1).
+
+FIX = fixed Newton under-relaxation in the FIM path: override scalingForSystemSolution to multiply
+the step by m_fimNewtonRelaxation (default 0.5) when couplingType==FullyImplicit. lambda_eff =
+1 - relax*2 ~= 0 for the oscillatory mode. Confirmed by line search too: a 0.5 step instantly
+collapsed R from 3.44 to 5e-8 (landing on the midpoint). Both new XML params on
+SinglePhaseDualContinuumPoromechanics:
+  - fimNewtonRelaxation (default 0.5; 0.7 also stable and ~1.6x faster; 1.0 disables)
+  - enableFractureMechanicsCoupling (default 1; toggles K_upf/K_pfu)
+
+RESULT: DPDP_N2_dispdriven_fim.xml (couplingType=FullyImplicit, fimNewtonRelaxation=0.7, K_upf/K_pfu
+ON) runs the FULL Mandel timescale to t=3e5 s (514 cycles) in ~4.5 min with ZERO timestep cuts, ZERO
+nonconvergence, with BOTH gmres and direct linear solvers. Residual decreases monotonically
+(~0.5-0.7 contraction/iter). Sequential path unaffected (relaxation only applies in FIM mode).
+
+REMAINING (physics accuracy, NOT convergence): FIM matrix pressure over-pressurizes (peak ~1.66 vs
+analytical ~1.07) because the storage-matrix (Mehrabian S_ij) + effective-Biot partitioning
+corrections live in mapSolutionBetweenSolvers (Sequential-only) and the SinglePhaseDualContinuum
+cross-storage block is gated OFF for FIM (postInputInitialization setEnableCrossStorageCorrection
+(false)). Porting those into the monolithic FIM assembly is the next increment (Increment 2/4).

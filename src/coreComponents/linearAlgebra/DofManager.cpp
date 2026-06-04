@@ -28,6 +28,7 @@
 #include "linearAlgebra/interfaces/InterfaceTypes.hpp"
 #include "linearAlgebra/utilities/ReverseCutHillMcKeeOrdering.hpp"
 #include "mesh/mpiCommunications/CommunicationTools.hpp"
+#include "mesh/CellElementSubRegion.hpp"
 #include "mesh/DomainPartition.hpp"
 #include "mesh/ElementRegionManager.hpp"
 #include "mesh/MeshLevel.hpp"
@@ -633,6 +634,25 @@ void DofManager::addCouplingDualContinuum(const string_array & matrixRegionList,
   addCoupling(rowFieldName, colFieldName, connectivity, supports, symmetric);
 }
 
+void DofManager::addCouplingDualContinuumMechanics( const string_array & matrixRegionList,
+                                                    const string_array & fractureRegionList,
+                                                    string const & dispFieldName,
+                                                    string const & fractureFlowFieldName,
+                                                    Connector const connectivity,
+                                                    stdVector< FieldSupport > const & supports,
+                                                    bool const symmetric )
+{
+  // Flag the cross-mesh mechanics<->fracture-flow coupling and remember the field pair so the
+  // sparsity build can emit the node<->elem (displacement<->fracture-pressure) entries.
+  m_isdpdkMech = true;
+  m_matrixRegionList = matrixRegionList;
+  m_fractureRegionList = fractureRegionList;
+  m_dpdkMechRowFieldIdx = getFieldIndex( dispFieldName );
+  m_dpdkMechColFieldIdx = getFieldIndex( fractureFlowFieldName );
+
+  addCoupling( dispFieldName, fractureFlowFieldName, connectivity, supports, symmetric );
+}
+
 
 
 void DofManager::addCoupling( string const & rowFieldName,
@@ -1045,6 +1065,137 @@ void DofManager::setSparsityPatternDualContinuum(SparsityPatternView< globalInde
   } );
 }
 
+void DofManager::setSparsityPatternDualContinuumMechanics( SparsityPatternView< globalIndex > const & pattern,
+                                                           integer const rowFieldIndex,
+                                                           integer const colFieldIndex,
+                                                           string matrixRegionName,
+                                                           string fractureRegionName ) const
+{
+  FieldDescription const & rowFieldDescription = m_fields[rowFieldIndex];
+  FieldDescription const & colFieldDescription = m_fields[colFieldIndex];
+
+  bool const rowIsNode = rowFieldDescription.location == FieldLocation::Node;
+  bool const colIsNode = colFieldDescription.location == FieldLocation::Node;
+  bool const rowIsElem = rowFieldDescription.location == FieldLocation::Elem;
+  bool const colIsElem = colFieldDescription.location == FieldLocation::Elem;
+  if( !( ( rowIsNode && colIsElem ) || ( rowIsElem && colIsNode ) ) )
+  {
+    return;
+  }
+
+  FieldDescription const & dispField = rowIsNode ? rowFieldDescription : colFieldDescription;
+  FieldDescription const & fracPField = rowIsNode ? colFieldDescription : rowFieldDescription;
+
+  globalIndex const rankDofOffset = rankOffset();
+  integer const numCompDisp = dispField.numComponents;
+  integer const numCompFrac = fracPField.numComponents;
+  localIndex const numLocalRows = pattern.numRows();
+
+  auto const findMesh = [&]( FieldDescription const & fld, string const & regionName ) -> MeshLevel const *
+  {
+    for( FieldSupport const & sup : fld.support )
+    {
+      for( string const & rn : sup.regionNames )
+      {
+        if( rn == regionName )
+        {
+          MeshBody & mb = m_domain->getMeshBody( sup.meshBodyName );
+          return &mb.getMeshLevel( sup.meshLevelName );
+        }
+      }
+    }
+    return nullptr;
+  };
+
+  MeshLevel const * matrixMesh = findMesh( dispField, matrixRegionName );
+  MeshLevel const * fractureMesh = findMesh( fracPField, fractureRegionName );
+  if( matrixMesh == nullptr || fractureMesh == nullptr )
+  {
+    return;
+  }
+
+  arrayView1d< globalIndex const > fracPDof;
+  arrayView1d< integer const > fracGhostRank;
+  fractureMesh->getElemManager().forElementSubRegions( stdVector< string >{ fractureRegionName },
+                                                       [&]( localIndex const, ElementSubRegionBase const & subRegion )
+  {
+    fracPDof = subRegion.getReference< array1d< globalIndex > >( fracPField.key );
+    fracGhostRank = subRegion.ghostRank();
+  } );
+
+  arrayView1d< globalIndex const > const dispDof =
+    matrixMesh->getNodeManager().getReference< array1d< globalIndex > >( dispField.key );
+  arrayView1d< integer const > const nodeGhostRank = matrixMesh->getNodeManager().ghostRank();
+
+  matrixMesh->getElemManager().forElementSubRegions< CellElementSubRegion >(
+    stdVector< string >{ matrixRegionName },
+    [&]( localIndex const, CellElementSubRegion const & subRegion )
+  {
+    arrayView2d< localIndex const, cells::NODE_MAP_USD > const elemsToNodes = subRegion.nodeList();
+    localIndex const numNodesPerElem = elemsToNodes.size( 1 );
+    for( localIndex ei = 0; ei < subRegion.size(); ++ei )
+    {
+      globalIndex const pfDof = fracPDof[ei];
+      if( rowIsElem )
+      {
+        // Fracture-pressure rows, displacement columns.
+        if( fracGhostRank[ei] < 0 )
+        {
+          array1d< globalIndex > colDofs;
+          colDofs.reserve( numNodesPerElem * numCompDisp );
+          for( localIndex a = 0; a < numNodesPerElem; ++a )
+          {
+            globalIndex const dDof = dispDof[elemsToNodes[ei][a]];
+            if( dDof >= 0 )
+            {
+              for( integer c = 0; c < numCompDisp; ++c )
+              {
+                colDofs.emplace_back( dDof + c );
+              }
+            }
+          }
+          for( integer c = 0; c < numCompFrac; ++c )
+          {
+            localIndex const localRow = pfDof - rankDofOffset + c;
+            if( localRow >= 0 && localRow < numLocalRows )
+            {
+              pattern.insertNonZeros( localRow, colDofs.begin(), colDofs.end() );
+            }
+          }
+        }
+      }
+      else
+      {
+        // Displacement rows, fracture-pressure columns.
+        array1d< globalIndex > colDofs( numCompFrac );
+        for( integer c = 0; c < numCompFrac; ++c )
+        {
+          colDofs[c] = pfDof + c;
+        }
+        for( localIndex a = 0; a < numNodesPerElem; ++a )
+        {
+          localIndex const nodeIdx = elemsToNodes[ei][a];
+          if( nodeGhostRank[nodeIdx] < 0 )
+          {
+            globalIndex const dDof = dispDof[nodeIdx];
+            if( dDof >= 0 )
+            {
+              for( integer c = 0; c < numCompDisp; ++c )
+              {
+                localIndex const localRow = dDof - rankDofOffset + c;
+                if( localRow >= 0 && localRow < numLocalRows )
+                {
+                  pattern.insertNonZeros( localRow, colDofs.begin(), colDofs.end() );
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } );
+}
+
 void DofManager::setSparsityPatternOneBlock( SparsityPatternView< globalIndex > const & pattern,
                                              integer const rowFieldIndex,
                                              integer const colFieldIndex ) const
@@ -1291,6 +1442,121 @@ void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex
   });
 }
 
+void DofManager::countRowLengthsDualContinuumMechanics( const arrayView1d< localIndex > & rowLengths,
+                                                        integer rowFieldIndex,
+                                                        integer colFieldIndex,
+                                                        string matrixRegionName,
+                                                        string fractureRegionName ) const
+{
+  GEOS_ASSERT( rowFieldIndex >= 0 );
+  GEOS_ASSERT( colFieldIndex >= 0 );
+
+  FieldDescription const & rowFieldDescription = m_fields[rowFieldIndex];
+  FieldDescription const & colFieldDescription = m_fields[colFieldIndex];
+
+  // This block couples a Node-based displacement field with an Elem-based fracture-pressure
+  // field. Exactly one field must be Node and the other Elem; otherwise it is not such a pair.
+  bool const rowIsNode = rowFieldDescription.location == FieldLocation::Node;
+  bool const colIsNode = colFieldDescription.location == FieldLocation::Node;
+  bool const rowIsElem = rowFieldDescription.location == FieldLocation::Elem;
+  bool const colIsElem = colFieldDescription.location == FieldLocation::Elem;
+  if( !( ( rowIsNode && colIsElem ) || ( rowIsElem && colIsNode ) ) )
+  {
+    return;
+  }
+
+  FieldDescription const & dispField = rowIsNode ? rowFieldDescription : colFieldDescription;
+  FieldDescription const & fracPField = rowIsNode ? colFieldDescription : rowFieldDescription;
+
+  globalIndex const rankDofOffset = rankOffset();
+  integer const numCompDisp = dispField.numComponents;
+  integer const numCompFrac = fracPField.numComponents;
+
+  // Resolve the matrix mesh (where displacement lives) and the fracture mesh (where p_f lives)
+  // from each field's support, matching on the requested region name.
+  auto const findMesh = [&]( FieldDescription const & fld, string const & regionName ) -> MeshLevel const *
+  {
+    for( FieldSupport const & sup : fld.support )
+    {
+      for( string const & rn : sup.regionNames )
+      {
+        if( rn == regionName )
+        {
+          MeshBody & mb = m_domain->getMeshBody( sup.meshBodyName );
+          return &mb.getMeshLevel( sup.meshLevelName );
+        }
+      }
+    }
+    return nullptr;
+  };
+
+  MeshLevel const * matrixMesh = findMesh( dispField, matrixRegionName );
+  MeshLevel const * fractureMesh = findMesh( fracPField, fractureRegionName );
+  if( matrixMesh == nullptr || fractureMesh == nullptr )
+  {
+    return;
+  }
+
+  // Gather the fracture-pressure DOF numbers per (co-located) fracture element.
+  arrayView1d< globalIndex const > fracPDof;
+  arrayView1d< integer const > fracGhostRank;
+  fractureMesh->getElemManager().forElementSubRegions( stdVector< string >{ fractureRegionName },
+                                                       [&]( localIndex const, ElementSubRegionBase const & subRegion )
+  {
+    fracPDof = subRegion.getReference< array1d< globalIndex > >( fracPField.key );
+    fracGhostRank = subRegion.ghostRank();
+  } );
+
+  arrayView1d< globalIndex const > const dispDof =
+    matrixMesh->getNodeManager().getReference< array1d< globalIndex > >( dispField.key );
+  arrayView1d< integer const > const nodeGhostRank = matrixMesh->getNodeManager().ghostRank();
+
+  matrixMesh->getElemManager().forElementSubRegions< CellElementSubRegion >(
+    stdVector< string >{ matrixRegionName },
+    [&]( localIndex const, CellElementSubRegion const & subRegion )
+  {
+    arrayView2d< localIndex const, cells::NODE_MAP_USD > const elemsToNodes = subRegion.nodeList();
+    localIndex const numNodesPerElem = elemsToNodes.size( 1 );
+    for( localIndex ei = 0; ei < subRegion.size(); ++ei )
+    {
+      if( rowIsElem )
+      {
+        // Fracture-pressure rows gain capacity for all element-node displacement DOFs.
+        if( fracGhostRank[ei] < 0 )
+        {
+          globalIndex const pfDof = fracPDof[ei];
+          if( pfDof >= rankDofOffset && pfDof - rankDofOffset < rowLengths.size() )
+          {
+            for( integer c = 0; c < numCompFrac; ++c )
+            {
+              rowLengths[pfDof - rankDofOffset + c] += numNodesPerElem * numCompDisp;
+            }
+          }
+        }
+      }
+      else
+      {
+        // Displacement rows gain capacity for the co-located fracture-pressure DOF.
+        for( localIndex a = 0; a < numNodesPerElem; ++a )
+        {
+          localIndex const nodeIdx = elemsToNodes[ei][a];
+          if( nodeGhostRank[nodeIdx] < 0 )
+          {
+            globalIndex const dDof = dispDof[nodeIdx];
+            if( dDof >= rankDofOffset && dDof - rankDofOffset < rowLengths.size() )
+            {
+              for( integer c = 0; c < numCompDisp; ++c )
+              {
+                rowLengths[dDof - rankDofOffset + c] += numCompFrac;
+              }
+            }
+          }
+        }
+      }
+    }
+  } );
+}
+
 void DofManager::countRowLengthsOneBlock( arrayView1d< localIndex > const & rowLengths,
                                           integer const rowFieldIndex,
                                           integer const colFieldIndex ) const
@@ -1446,6 +1712,23 @@ void DofManager::setSparsityPattern( SparsityPattern< globalIndex > & pattern ) 
                                         m_fractureRegionList[RegionIndex] );
         }
       }
+
+      // Cross-mesh dual-continuum mechanics<->fracture-flow block (displacement Node <-> p_f Elem).
+      bool const isDualContinuumMechPair =
+        m_isdpdkMech &&
+        ( ( blockRow == m_dpdkMechRowFieldIdx && blockCol == m_dpdkMechColFieldIdx ) ||
+          ( blockRow == m_dpdkMechColFieldIdx && blockCol == m_dpdkMechRowFieldIdx ) );
+      if( isDualContinuumMechPair )
+      {
+        for( size_t RegionIndex = 0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
+        {
+          countRowLengthsDualContinuumMechanics( rowSizes,
+                                                 blockRow,
+                                                 blockCol,
+                                                 m_matrixRegionList[RegionIndex],
+                                                 m_fractureRegionList[RegionIndex] );
+        }
+      }
     }
   }
 
@@ -1472,6 +1755,23 @@ void DofManager::setSparsityPattern( SparsityPattern< globalIndex > & pattern ) 
                                           blockCol,
                                           m_matrixRegionList[RegionIndex],
                                           m_fractureRegionList[RegionIndex] );
+        }
+      }
+
+      // Cross-mesh dual-continuum mechanics<->fracture-flow block (displacement Node <-> p_f Elem).
+      bool const isDualContinuumMechPair =
+        m_isdpdkMech &&
+        ( ( blockRow == m_dpdkMechRowFieldIdx && blockCol == m_dpdkMechColFieldIdx ) ||
+          ( blockRow == m_dpdkMechColFieldIdx && blockCol == m_dpdkMechRowFieldIdx ) );
+      if( isDualContinuumMechPair )
+      {
+        for( size_t RegionIndex = 0; RegionIndex < m_matrixRegionList.size(); ++RegionIndex )
+        {
+          setSparsityPatternDualContinuumMechanics( pattern.toView(),
+                                                    blockRow,
+                                                    blockCol,
+                                                    m_matrixRegionList[RegionIndex],
+                                                    m_fractureRegionList[RegionIndex] );
         }
       }
     }

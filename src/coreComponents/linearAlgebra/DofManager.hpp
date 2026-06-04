@@ -219,6 +219,17 @@ public:
                                 Connector connectivity,
                                 stdVector< FieldSupport > const & regions = {},
                                 bool symmetric = true);
+
+  /// Register a dual-continuum mechanics<->fracture-flow coupling: displacement (Node, matrix
+  /// mesh) <-> fracture pressure (Elem, fracture mesh), co-located across meshes. Builds the
+  /// cross-mesh node<->elem sparsity that the standard within-mesh addCoupling cannot.
+  void addCouplingDualContinuumMechanics( const string_array & matrixRegionList,
+                                          const string_array & fractureRegionList,
+                                          string const & dispFieldName,
+                                          string const & fractureFlowFieldName,
+                                          Connector connectivity,
+                                          stdVector< FieldSupport > const & regions = {},
+                                          bool symmetric = true );
   /**
    * @brief Add coupling between two fields.
    *
@@ -599,6 +610,15 @@ private:
                                      geos::integer colFieldIndex,
                                      string matrixRegionList,
                                      string fractureRegionList) const;
+
+  /// Cross-mesh node<->elem coupling row counts for the dual-continuum mechanics<->fracture-flow
+  /// block (displacement DOFs of matrix-mesh element nodes <-> co-located fracture-mesh element
+  /// pressure DOF). Mirrors countRowLengthsDualContinuum but for a Node<->Elem field pair.
+  void countRowLengthsDualContinuumMechanics( const arrayView1d< geos::localIndex > & rowLengths,
+                                              geos::integer rowFieldIndex,
+                                              geos::integer colFieldIndex,
+                                              string matrixRegionName,
+                                              string fractureRegionName ) const;
   /**
    * @brief Populate the sparsity pattern for a coupling block between given fields.
    * @param pattern the sparsity to be filled
@@ -616,6 +636,17 @@ private:
                                        integer colFieldIndex,
                                        string matrixRegionName,
                                        string fractureRegionName) const;
+
+  /// Cross-mesh node<->elem sparsity for the dual-continuum mechanics<->fracture-flow block:
+  /// connects the displacement DOFs of each matrix-mesh element's nodes to the co-located
+  /// fracture-mesh element's pressure DOF (and vice versa). One field is Node (displacement),
+  /// the other Elem (fracture pressure); the call direction (row=disp or row=fractureP) is
+  /// inferred from the field locations.
+  void setSparsityPatternDualContinuumMechanics( SparsityPatternView< globalIndex > const & pattern,
+                                                 integer rowFieldIndex,
+                                                 integer colFieldIndex,
+                                                 string matrixRegionName,
+                                                 string fractureRegionName ) const;
 
   void setSparsityPatternFromStencil( SparsityPatternView< globalIndex > const & pattern,
                                       integer fieldIndex ) const;
@@ -669,6 +700,12 @@ private:
   /// Flag indicating that DOFs have been reordered rank-wise.
   bool m_reordered = false;
   bool m_isdpdk = false;
+
+  /// Flag indicating a cross-mesh dual-continuum mechanics<->fracture-flow coupling is present.
+  bool m_isdpdkMech = false;
+  /// Field indices of the mechanics<->fracture-flow coupling pair (-1 if unset).
+  integer m_dpdkMechRowFieldIdx = -1;
+  integer m_dpdkMechColFieldIdx = -1;
 
   /// Temporary storage for dual-continuum coupling regions
   string_array m_matrixRegionList;

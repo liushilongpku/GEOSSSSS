@@ -81,6 +81,19 @@ public:
                       "Set explicitly when the mesh does not reflect the "
                       "physical volume fractions (e.g. dual-continuum models "
                       "with co-located meshes)." );
+
+    this->registerWrapper( viewKeyStruct::fimNewtonRelaxationString(), &m_fimNewtonRelaxation ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( 0.5 ).
+      setDescription( "FullyImplicit Newton step under-relaxation factor (0,1]. The monolithic "
+                      "dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton "
+                      "oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable." );
+
+    this->registerWrapper( viewKeyStruct::enableFractureMechanicsCouplingString(), &m_enableFractureMechanicsCoupling ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( 1 ).
+      setDescription( "Assemble the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) "
+                      "in the FullyImplicit path. Requires the cross-mesh node<->elem sparsity." );
   }
 
   // Override postInputInitialization to include checks for dual continuum
@@ -132,10 +145,20 @@ public:
                             PRIMARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
                             DofManager::Connector::Elem );
 
-    // 裂缝的流固耦合关系 — K_upf disabled for numerical stability
-    // dofManager.addCoupling( fields::solidMechanics::totalDisplacement::key(),
-    //                         SECONDARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
-    //                         DofManager::Connector::Elem );
+    // Fracture (secondary mesh) mechanics<->flow coupling: the displacement DOFs (Node, mesh1)
+    // and the fracture-pressure DOFs (Elem, mesh2) live on different, co-located meshes, so the
+    // ordinary within-mesh addCoupling cannot create the u<->p_f sparsity. Use the dedicated
+    // cross-mesh node<->elem coupling so the K_upf / K_pfu Jacobian entries are not dropped.
+    string_array const & matrixRegionList =
+      this->flowSolver()->template getReference< string_array >( "matrixRegionList" );
+    string_array const & fractureRegionList =
+      this->flowSolver()->template getReference< string_array >( "fractureRegionList" );
+
+    dofManager.addCouplingDualContinuumMechanics( matrixRegionList,
+                                                  fractureRegionList,
+                                                  fields::solidMechanics::totalDisplacement::key(),
+                                                  SECONDARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
+                                                  DofManager::Connector::Elem );
   }
 
   // TODO@LSL: Monolithic poromechanics kernel for the MATRIX continuum (u + p_m).
@@ -208,9 +231,17 @@ public:
     updateFracturePorosityFixedStress( domain );
 
     // ---- Step 2: Fracture-mechanics coupling (K_upf) ----
-    // K_upf disabled: fracture pressure→displacement coupling is numerically unstable.
-    // Displacement→fracture coupling (K_pfu) is implicit through porosity/mass update.
-    // assembleFractureMechanicsCoupling( domain, dofManager, localMatrix, localRhs );
+    // Fracture pressure -> displacement residual (+alpha_f * p_f * gradN), consistent with the
+    // GEOS total-stress convention. The cross-mesh u<->p_f sparsity is now provided by
+    // DofManager::addCouplingDualContinuumMechanics, so these entries are no longer dropped.
+    if( m_enableFractureMechanicsCoupling )
+      assembleFractureMechanicsCoupling( domain, dofManager, localMatrix, localRhs );
+
+    // ---- Step 2b: Mechanics->fracture-mass coupling (K_pfu) ----
+    // Displacement -> fracture mass Jacobian (d(phi_f rho V)/dU = rho alpha_f gradN). Makes the
+    // monolithic Newton consistent instead of relying on the Picard-style porosity refresh alone.
+    if( m_enableFractureMechanicsCoupling )
+      assembleFractureToMechanicsCoupling( domain, dofManager, localMatrix, localRhs );
 
     // ---- Step 3: Matrix face-based flux terms ----
     this->flowSolver()->primarySolver()->assembleFluxTerms(
@@ -223,6 +254,24 @@ public:
     // ---- Step 4: Cross-flow coupling (K_pmpf, K_pfpm) ----
     this->flowSolver()->assembleCouplingTerms(
       time_n, dt, domain, dofManager, localMatrix, localRhs );
+  }
+
+  // FIM Newton under-relaxation. The monolithic dual-porosity pressure blocks produce a
+  // period-2 (lambda~=-1) Newton oscillation: the full step overshoots the solution by ~2x and
+  // the iteration ping-pongs between two states whose midpoint is the exact solution. A fixed
+  // step scaling of m_fimNewtonRelaxation (~0.5) collapses that mode in one step (lambda_eff =
+  // 1 - relax*2 ~= 0) and keeps all other modes contracting. Applied only in FullyImplicit mode.
+  virtual real64
+  scalingForSystemSolution( DomainPartition & domain,
+                            DofManager const & dofManager,
+                            arrayView1d< real64 const > const & localSolution ) override
+  {
+    real64 const baseScaling = Base::scalingForSystemSolution( domain, dofManager, localSolution );
+    if( this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::FullyImplicit )
+    {
+      return baseScaling * m_fimNewtonRelaxation;
+    }
+    return baseScaling;
   }
 
   // Override mapSolutionBetweenSolvers to handle dual-mesh sequential coupling.
@@ -847,6 +896,116 @@ private:
     } ); // forDiscretizationOnMeshTargets
   }
 
+  // Assemble K_pfu: displacement contribution to the fracture mass-balance Jacobian.
+  // The fracture porosity follows the fixed-stress rule phi_f = phi_f,n + alpha_f*dEps_v + ...,
+  // so the fracture fluid mass M_f = phi_f*rho_f*V depends on the matrix volumetric strain:
+  //   dM_f/dU_{a,dim} = rho_f * alpha_f * (dN_a/dx_dim) * detJxW   (sum over quadrature points).
+  // This is the off-diagonal that makes the monolithic Newton consistent; the corresponding
+  // residual is already produced by updateFracturePorosityFixedStress + the fracture mass assembly.
+  void assembleFractureToMechanicsCoupling( DomainPartition & domain,
+                                            DofManager const & dofManager,
+                                            CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                                            arrayView1d< real64 > const & localRhs )
+  {
+    GEOS_UNUSED_VAR( localRhs );
+    if( domain.getMeshBodies().numSubGroups() < 2 ) return;
+
+    this->template forDiscretizationOnMeshTargets<>(
+      domain.getMeshBodies(),
+      [&]( string const & meshBodyName, MeshLevel & mesh, string_array const & regionNames )
+    {
+      if( meshBodyName != "mesh1" ) return;
+
+      string const dispDofKey = dofManager.getKey( fields::solidMechanics::totalDisplacement::key() );
+      NodeManager const & nodeManager = mesh.getNodeManager();
+      if( !nodeManager.hasWrapper( dispDofKey ) ) return;
+
+      globalIndex const rankOffset = dofManager.rankOffset();
+
+      mesh.getElemManager().forElementSubRegions< CellElementSubRegion >(
+        regionNames,
+        [&]( localIndex const, CellElementSubRegion & subRegion )
+      {
+        if( !subRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) ) return;
+
+        arrayView1d< real64 const > const fractureBiotCoeff =
+          subRegion.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
+        arrayView1d< globalIndex const > const fractureDofNumber =
+          subRegion.getReference< array1d< globalIndex > >( viewKeyStruct::fractureDofNumberString() );
+
+        finiteElement::FiniteElementBase & subRegionFE =
+          subRegion.template getReference< finiteElement::FiniteElementBase >(
+            this->solidMechanicsSolver()->getDiscretizationName() );
+
+        finiteElement::FiniteElementDispatchHandler< BASE_FE_TYPES >::
+        dispatch3D( subRegionFE, [&]( auto const finiteElement )
+        {
+          using FE_TYPE = decltype( finiteElement );
+          constexpr localIndex numNodesPerElem = FE_TYPE::maxSupportPoints;
+          constexpr integer numDofPerNode = 3;
+
+          // Reference fluid density for the fixed-stress mass linearization (matches the
+          // rho_ref used in updateFracturePorosityFixedStress / fracture mass assembly).
+          real64 constexpr rho_ref = 1000.0;
+
+          arrayView2d< real64 const, nodes::REFERENCE_POSITION_USD > const X = nodeManager.referencePosition();
+          arrayView2d< localIndex const, cells::NODE_MAP_USD > const elemsToNodes = subRegion.nodeList().toViewConst();
+          arrayView1d< globalIndex const > const dofNumber = nodeManager.getReference< globalIndex_array >( dispDofKey );
+          typename FE_TYPE::template MeshData< CellElementSubRegion > meshData;
+          finiteElement::FiniteElementBase::initialize< FE_TYPE >(
+            nodeManager, mesh.getEdgeManager(), mesh.getFaceManager(), subRegion, meshData );
+
+          forAll< parallelDevicePolicy<> >( subRegion.size(),
+            [=] GEOS_HOST_DEVICE ( localIndex const k )
+          {
+            typename FE_TYPE::StackVariables feStack;
+            finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
+            localIndex const numSupportPoints = finiteElement.template numSupportPoints< FE_TYPE >( feStack );
+
+            globalIndex localColDofIndex[ numNodesPerElem * numDofPerNode ];
+            for( localIndex a = 0; a < numSupportPoints; ++a )
+            {
+              localIndex const nodeIndex = elemsToNodes( k, a );
+              for( integer dim = 0; dim < numDofPerNode; ++dim )
+                localColDofIndex[ numDofPerNode * a + dim ] = dofNumber[ nodeIndex ] + dim;
+            }
+
+            real64 dFracMass_dU[ numNodesPerElem * numDofPerNode ] = {};
+            real64 const alpha_f = fractureBiotCoeff[ k ];
+
+            for( integer q = 0; q < FE_TYPE::numQuadraturePoints; ++q )
+            {
+              real64 dNdX[ numNodesPerElem ][ 3 ], xLocal[ numNodesPerElem ][ 3 ];
+              for( localIndex a = 0; a < numSupportPoints; ++a )
+              {
+                localIndex const nodeIndex = elemsToNodes( k, a );
+                for( integer dim = 0; dim < numDofPerNode; ++dim )
+                  xLocal[ a ][ dim ] = X[ nodeIndex ][ dim ];
+              }
+              real64 const detJxW = finiteElement.template getGradN< FE_TYPE >( k, q, xLocal, feStack, dNdX );
+
+              for( localIndex a = 0; a < numSupportPoints; ++a )
+              {
+                for( integer dim = 0; dim < numDofPerNode; ++dim )
+                {
+                  dFracMass_dU[ numDofPerNode * a + dim ] += rho_ref * alpha_f * dNdX[ a ][ dim ] * detJxW;
+                }
+              }
+            }
+
+            // Row = fracture mass DOF; columns = element displacement DOFs.
+            localIndex const fracRow =
+              LvArray::integerConversion< localIndex >( fractureDofNumber[ k ] - rankOffset );
+            if( fracRow < 0 || fracRow >= localMatrix.numRows() ) return;
+
+            localMatrix.template addToRowBinarySearchUnsorted< parallelDeviceAtomic >(
+              fracRow, localColDofIndex, dFracMass_dU, numSupportPoints * numDofPerNode );
+          } ); // forAll
+        } ); // dispatch3D
+      } ); // forElementSubRegions
+    } ); // forDiscretizationOnMeshTargets
+  }
+
   // Update fracture porosity with matrix strain increment using fixed-stress formula.
   // Displacement→fracture-pressure coupling is implicit through porosity→mass in flow assembly.
   // Update fracture porosity using matrix volumetric strain increment.
@@ -1119,6 +1278,8 @@ public:
     static constexpr char const * fractureBiotCoefficientString() { return "fractureBiotCoefficient"; }
     static constexpr char const * fractureDofNumberString() { return "fractureDofNumber"; }
     static constexpr char const * fractureVolumeFractionString() { return "fractureVolumeFraction"; }
+    static constexpr char const * fimNewtonRelaxationString() { return "fimNewtonRelaxation"; }
+    static constexpr char const * enableFractureMechanicsCouplingString() { return "enableFractureMechanicsCoupling"; }
     static constexpr char const * effectiveBulkModulusString() { return "effectiveBulkModulus"; }
     static constexpr char const * volumeFractionString() { return "volumeFraction"; }
   };
@@ -1135,6 +1296,15 @@ public:
   std::vector< real64 > m_tempCompositePressure;    // p_eq during mechanics step
   std::vector< real64 > m_tempVolStrainIncr;        // shared dEps_v fed to both continua
   std::vector< real64 > m_tempCompositePressure_n;  // p_eq_n during mechanics step
+
+  // Toggle for the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) in the FIM
+  // path. Used to isolate the effect of those terms during convergence debugging.
+  integer m_enableFractureMechanicsCoupling = 1;
+
+  // Fixed Newton step relaxation applied in FullyImplicit (FIM) mode to damp the period-2
+  // (lambda~=-1) pressure-block oscillation. 0.5 is near-optimal (midpoint = exact solution);
+  // 1.0 disables relaxation.
+  real64 m_fimNewtonRelaxation = 0.5;
 
 };
 
