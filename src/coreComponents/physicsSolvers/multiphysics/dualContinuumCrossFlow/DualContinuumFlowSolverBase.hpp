@@ -232,6 +232,7 @@ public:
   real64 getIntrinsicMatrixBulkModulus() const { return m_crossFlow.getIntrinsicMatrixBulkModulus(); }
   real64 getIntrinsicFractureBiot() const { return m_crossFlow.getIntrinsicFractureBiot(); }
   real64 getIntrinsicFractureBulkModulus() const { return m_crossFlow.getIntrinsicFractureBulkModulus(); }
+  real64 getCrossStorageOffDiagScale() const { return m_crossFlow.getCrossStorageOffDiagScale(); }
 
   /// The multi-porosity cross-storage correction in assembleCouplingTerms is a
   /// SEQUENTIAL-only construct: it adds a residual term with an incomplete (non-linearized)

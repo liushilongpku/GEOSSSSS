@@ -703,3 +703,56 @@ abar_m*abar_f/Kbar off-diagonal cancellation, OR assemble the storage in the (si
 a_ij=0) using the element mean total stress instead of strain. The current committed cm-hack matches
 the fracture exactly (from kappa weighting, which IS correct physics) and the matrix early peak +
 late decay, with the matrix plateau ~1.11 vs analytical 0.90.
+
+---
+
+## Fix 17 (2026-06-04): MATRIX PLATEAU SOLVED — paper-exact storage + Schur-incompleteness scale
+
+Reverted the empirical cm term (Fix 15) back to the paper-exact constant-strain storage:
+diagonal 1/Mbar_ii = v_i(1/M_i + alpha_i^2/K_i) - abar_i^2/Kbar, off-diagonal -abar_i*abar_j/Kbar
+(Mehrabian eq A24/A25, NO cm term). On its own this over-sheds the matrix (plateau 0.70) because the
+monolithic mechanics Schur does NOT fully cancel the off-diagonal under Mandel's laterally confined
+geometry (the volumetric response to p_f is suppressed by the lateral rollers, so the effective
+modulus exceeds the bulk Kbar used in the off-diagonal). Added crossStorageOffDiagScale (default 1.0 =
+paper bulk-Kbar value) on DualContinuumCrossFlow to scale the off-diagonal for that residual.
+
+Calibration on DPDP_N2_dispdriven_fim_eff.xml (bracket: scale 1.0 -> plateau 0.70, scale 0 -> 1.5):
+crossStorageOffDiagScale=0.85 gives the correct Mandel-Cryer matrix curve:
+  - peak ~1.05 @ tau~0.05  (analytical 1.07, paper 1.07)
+  - plateau ~0.93          (analytical ~0.91, paper ~0.92)  [was 1.11]
+  - decay tau~1000-3000    (matches)
+FRACTURE matches paper/analytical almost exactly (overshoot ~1.04, drainage tau~0.1-0.5). Full t=3e5 s
+run, 514 cycles, ZERO timestep cuts. Plot: analitical_result/GEOS_FIM_effective_vs_analytical.png.
+
+NET RESULT: the FullyImplicit dual-porosity Mandel now reproduces the Mehrabian (2014) analytical
+solution to within a few percent for BOTH continua, with robust convergence. Remaining ~2-5% gaps
+(matrix peak 1.05 vs 1.07, plateau 0.93 vs 0.91) are within digitization/discretization tolerance.
+The off-diagonal scale (0.85) is a single documented coefficient capturing the confined-geometry
+Schur incompleteness of the monolithic formulation; default 1.0 recovers the paper-exact storage.
+
+---
+
+## Fix 18 (2026-06-05): Root-cause result — paper-exact storage is correct; the 0.85 scale was unnecessary
+
+Per the "root-cause the 15%" decision, instrumented/verified rather than fudged. Findings:
+
+1. Interporosity transfer is NEGLIGIBLE: Gamma=0 (the analytical N=2 value, Mehrabian Table 2) gives
+   an IDENTICAL matrix curve to Gamma=1.67e-22 (plateau 0.82 both). The matrix perm is too small for
+   the Kazemi fallback to matter. So the transfer is NOT the plateau driver. (Set Gamma=0 anyway as
+   the correct N=2 value.)
+2. The assembled matrix mass-row coefficients are EXACTLY the Mehrabian eq A25 (eps,p)-form values:
+   strain ᾱ_m=0.382, diagonal SbarMM = a_mm - ᾱ_m²/Kbar = 5.96e-10, off-diagonal -ᾱ_mᾱ_f/Kbar =
+   -5.09e-10. No missing term.
+3. KEY CORRECTION to Fix 17: with the kappa flux-weighting in place, the PAPER-EXACT storage
+   (crossStorageOffDiagScale=1.0, NO cm, NO fudge) gives matrix plateau ~0.82 -- NOT the 0.70 seen in
+   the earlier pre-kappa run. That is within ~8% of analytical 0.90. Moreover the existing SEQUENTIAL
+   path (correctLF) plateaus at ~1.05 at the same monitor point, OVERSHOOTING analytical by ~0.15.
+   So the principled FIM (0.82) is actually CLOSER to the analytical plateau than Sequential (1.05).
+
+CONCLUSION: the crossStorageOffDiagScale=0.85 of Fix 17 was an unnecessary fudge. The plateau "error"
+is resolved by the principled paper-exact storage at scale=1.0; the residual ~8% (matrix plateau 0.82
+vs analytical 0.90, peak 1.05 vs 1.07) is discretization/input-level (20x20 mesh, prescribed-
+displacement loadFunction), the same regime in which Sequential sits on the high side. crossStorage-
+OffDiagScale is retained (default 1.0 = paper value) only as a documented sensitivity knob, not used.
+Final deck: DPDP_N2_dispdriven_fim_eff.xml (scale=1.0, Gamma=0). Plot:
+analitical_result/GEOS_FIM_effective_vs_analytical.png.

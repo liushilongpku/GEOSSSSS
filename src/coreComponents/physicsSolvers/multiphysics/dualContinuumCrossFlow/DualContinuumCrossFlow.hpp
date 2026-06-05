@@ -78,6 +78,9 @@ public:
     static constexpr char const * intrinsicMatrixBulkModulusString() { return "intrinsicMatrixBulkModulus"; }
     static constexpr char const * intrinsicFractureBiotString() { return "intrinsicFractureBiot"; }
     static constexpr char const * intrinsicFractureBulkModulusString() { return "intrinsicFractureBulkModulus"; }
+    /// Scale on the multi-porosity off-diagonal storage (1=paper bulk-Kbar value). Accounts for the
+    /// incomplete monolithic-Schur cancellation under laterally confined (Mandel) geometry.
+    static constexpr char const * crossStorageOffDiagScaleString() { return "crossStorageOffDiagScale"; }
   };
 
   DualContinuumStencil & getStencil(){return m_stencil;};
@@ -96,6 +99,7 @@ public:
   real64 getIntrinsicMatrixBulkModulus() const { return m_intrinsicMatrixBulkModulus; }
   real64 getIntrinsicFractureBiot() const { return m_intrinsicFractureBiot; }
   real64 getIntrinsicFractureBulkModulus() const { return m_intrinsicFractureBulkModulus; }
+  real64 getCrossStorageOffDiagScale() const { return m_crossStorageOffDiagScale; }
 
 private:
   real64 m_fracSpacingLx;
@@ -117,6 +121,9 @@ private:
   real64 m_intrinsicMatrixBulkModulus = -1.0;
   real64 m_intrinsicFractureBiot = -1.0;
   real64 m_intrinsicFractureBulkModulus = -1.0;
+
+  /// Off-diagonal multi-porosity storage scale (1 = paper bulk-Kbar value)
+  real64 m_crossStorageOffDiagScale = 1.0;
 
   DualContinuumStencil m_stencil;
 };

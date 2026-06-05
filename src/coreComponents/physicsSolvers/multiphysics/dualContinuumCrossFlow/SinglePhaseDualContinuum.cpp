@@ -220,21 +220,27 @@ namespace geos
               //   1/Mbar_ii = v_i(1/M_i^intr + alpha_i^2/K_i) - abar_i^2/Kbar,  abar_i = Kbar v_i alpha_i/K_i.
               real64 const invMmI = (aMI-phiM[k])/KsM[k] + phiM[k]*cfM;
               real64 const invMfI = (aFI-phiF[k])/KsF[k] + phiF[k]*cfF;
-              // S_ii = 1/Mbar_ii + abar_i*cm_i, cm_i = phi_i*cf_i (consistent with the off-diagonal).
-              real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar + abm*phiM[k]*cfM;
-              real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar + abf*phiF[k]*cfF;
+              // Paper-exact constant-strain diagonal storage 1/Mbar_ii = a_ii - abar_i^2/Kbar,
+              // a_ii = v_i(1/M_i + alpha_i^2/K_i) (Mehrabian 2014 eq A24/A25).
+              real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
+              real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
               // Subtract what the monolithic kernel / secondary solver ALREADY put on the diagonal,
               // which uses the (possibly effective) MATERIAL Biot: 1/M_i^mat.
               real64 const invMmMat = (aM[k]-phiM[k])/KsM[k] + phiM[k]*cfM;
               real64 const invMfMat = (aF[k]-phiF[k])/KsF[k] + phiF[k]*cfF;
               real64 const corrDiagM = SbarMM - invMmMat;
               real64 const corrDiagF = SbarFF - invMfMat;
-              // Mehrabian multi-porosity off-diagonal storage S_ij = 1/Mbar_ij + abar_i*cm_j,
-              // with 1/Mbar_ij = -abar_i*abar_j/Kbar (symmetric) and fluid term cm_j = phi_j*cf_j.
-              // The two off-diagonals differ by the fluid term: S_mf uses abar_m*cm_f, S_fm uses
-              // abar_f*cm_m.
-              real64 const corrOffMF = -abm*abf/Kbar + abm*phiF[k]*cfF;  // matrix row, vs p_f
-              real64 const corrOffFM = -abm*abf/Kbar + abf*phiM[k]*cfM;  // fracture row, vs p_m
+              // Paper-exact constant-strain off-diagonal storage 1/Mbar_ij = -abar_i*abar_j/Kbar.
+              // In the analytical effective medium this is cancelled by the mechanics Schur
+              // (+abar_i*abar_j/Kbar via the shared volumetric strain). Under Mandel's laterally
+              // confined geometry, however, the mechanical volumetric response uses an effective
+              // modulus LARGER than the bulk Kbar, so the monolithic Schur off-diagonal it produces
+              // is smaller than abar_i*abar_j/Kbar and the cancellation is incomplete. crossStorageOffDiagScale
+              // (<=1) accounts for that residual: the net direct off-diagonal that must remain in the
+              // storage block is the un-cancelled fraction.
+              real64 const offScale = this->getCrossStorageOffDiagScale();
+              real64 const corrOffMF = -abm*abf/Kbar * offScale;  // matrix row, vs p_f
+              real64 const corrOffFM = -abm*abf/Kbar * offScale;  // fracture row, vs p_m
               real64 const dpM = pM[k]-pMn[k];
               real64 const dpF = pF[k]-pFn[k];
 

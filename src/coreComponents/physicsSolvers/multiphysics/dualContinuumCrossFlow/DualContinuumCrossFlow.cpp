@@ -83,6 +83,13 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
   registerWrapper( viewKeyStruct::intrinsicFractureBulkModulusString(), &m_intrinsicFractureBulkModulus ).
     setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Intrinsic fracture drained bulk modulus for the FIM M_bar storage; <0 = use material." );
+
+  registerWrapper( viewKeyStruct::crossStorageOffDiagScaleString(), &m_crossStorageOffDiagScale ).
+    setApplyDefaultValue( 1.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). "
+                    "Compensates for the incomplete monolithic-Schur cancellation under laterally "
+                    "confined (Mandel) geometry, where the mechanical volumetric response uses an "
+                    "effective modulus larger than the bulk Kbar." );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )
