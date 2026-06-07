@@ -277,6 +277,14 @@ public:
     return m_biotCoefficient.toViewConst();
   }
 
+  /// Writable Biot-coefficient view for in-place homogenization (used by the dual-continuum
+  /// poromechanics useIntrinsicInput path; updateBiotCoefficientAndAssignModuli does NOT
+  /// overwrite it when an explicit defaultBiotCoefficient>0 was provided).
+  arrayView1d< real64 > const getBiotCoefficientWritable()
+  {
+    return m_biotCoefficient.toView();
+  }
+
   arrayView1d< real64 const > const getGrainBulkModulus() const
   {
     return m_grainBulkModulus.toViewConst();

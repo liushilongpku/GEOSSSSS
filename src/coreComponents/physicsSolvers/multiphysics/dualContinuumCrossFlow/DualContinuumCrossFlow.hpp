@@ -101,6 +101,15 @@ public:
   real64 getIntrinsicFractureBulkModulus() const { return m_intrinsicFractureBulkModulus; }
   real64 getCrossStorageOffDiagScale() const { return m_crossStorageOffDiagScale; }
 
+  /// Setters used by the useIntrinsicInput path: the dual-poromechanics solver reads the
+  /// intrinsic moduli/Biot off the constitutive models and pushes them here so the FIM
+  /// multi-porosity storage (Step 4b) uses the intrinsic values while the mechanics kernel
+  /// uses the homogenized effective ones.
+  void setIntrinsicMatrixBiot( real64 const v ) { m_intrinsicMatrixBiot = v; }
+  void setIntrinsicMatrixBulkModulus( real64 const v ) { m_intrinsicMatrixBulkModulus = v; }
+  void setIntrinsicFractureBiot( real64 const v ) { m_intrinsicFractureBiot = v; }
+  void setIntrinsicFractureBulkModulus( real64 const v ) { m_intrinsicFractureBulkModulus = v; }
+
 private:
   real64 m_fracSpacingLx;
   real64 m_fracSpacingLy;

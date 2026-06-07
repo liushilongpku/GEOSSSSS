@@ -234,6 +234,12 @@ public:
   real64 getIntrinsicFractureBulkModulus() const { return m_crossFlow.getIntrinsicFractureBulkModulus(); }
   real64 getCrossStorageOffDiagScale() const { return m_crossFlow.getCrossStorageOffDiagScale(); }
 
+  /// Setters used by the useIntrinsicInput path (auto-derived intrinsics for FIM storage)
+  void setIntrinsicMatrixBiot( real64 const v ) { m_crossFlow.setIntrinsicMatrixBiot( v ); }
+  void setIntrinsicMatrixBulkModulus( real64 const v ) { m_crossFlow.setIntrinsicMatrixBulkModulus( v ); }
+  void setIntrinsicFractureBiot( real64 const v ) { m_crossFlow.setIntrinsicFractureBiot( v ); }
+  void setIntrinsicFractureBulkModulus( real64 const v ) { m_crossFlow.setIntrinsicFractureBulkModulus( v ); }
+
   /// The multi-porosity cross-storage correction in assembleCouplingTerms is a
   /// SEQUENTIAL-only construct: it adds a residual term with an incomplete (non-linearized)
   /// Jacobian and inflates the matrix pressure-storage diagonal, which makes a FullyImplicit
