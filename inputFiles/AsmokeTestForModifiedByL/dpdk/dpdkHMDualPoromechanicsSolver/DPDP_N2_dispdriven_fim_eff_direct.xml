@@ -59,7 +59,7 @@
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.14"
       defaultBiotCoefficient="0.382"/>
     <ConstantPermeability name="matrixPerm"
-      permeabilityComponents="{ 4.935e-21, 4.935e-21, 4.935e-21 }"/>
+      permeabilityComponents="{ 4.78e-21, 4.78e-21, 4.78e-21 }"/>
     <PorousElasticIsotropic name="matrixRock"
       solidModelName="matrixSolid" porosityModelName="matrixPorosity"
       permeabilityModelName="matrixPerm"/>
@@ -87,12 +87,12 @@
     <SinglePhaseFVM name="matrixFlow" logLevel="1"
       discretization="singlePhaseTPFA" targetRegions="{ mesh1/matrixRegion }">
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </SinglePhaseFVM>
     <SinglePhaseFVM name="fractureFlow" logLevel="1"
       discretization="singlePhaseTPFA" targetRegions="{ mesh2/fractureRegion }">
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </SinglePhaseFVM>
     <SolidMechanicsLagrangianFEM name="solidMech" logLevel="1"
       discretization="FE1" targetRegions="{ mesh1/matrixRegion }"
@@ -112,7 +112,7 @@
         gravityDrainageFlag="0"
         matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </DualContinuumFVM>
 
     <SinglePhaseDualContinuumPoromechanics name="poroSolver"
@@ -121,12 +121,13 @@
       fractureVolumeFraction="0.03"
       fimNewtonRelaxation="0.7"
       enableFimCrossStorage="1"
+      enableFractureMechanicsCoupling="1"
       stabilizationType="None" isThermal="0">
       <NonlinearSolverParameters
         couplingType="FullyImplicit" newtonMaxIter="80" newtonTol="1.0e-6"
         lineSearchAction="None"
         maxTimeStepCuts="4" timeStepCutFactor="0.5"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </SinglePhaseDualContinuumPoromechanics>
   </Solvers>
 

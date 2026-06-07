@@ -3166,6 +3166,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="DualContinuumCrossFlowType">
+		<!--crossStorageOffDiagScale => Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). Compensates for the incomplete monolithic-Schur cancellation under laterally confined (Mandel) geometry, where the mechanical volumetric response uses an effective modulus larger than the bulk Kbar.-->
+		<xsd:attribute name="crossStorageOffDiagScale" type="real64" default="1" />
 		<!--fractureRegionList => List of fracture regions-->
 		<xsd:attribute name="fractureRegionList" type="string_array" use="required" />
 		<!--fractureSpacingLx => Fracture spacing in X direction-->
@@ -3174,10 +3176,20 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="fractureSpacingLy" type="real64" use="required" />
 		<!--fractureSpacingLz => Fracture spacing in Z direction-->
 		<xsd:attribute name="fractureSpacingLz" type="real64" use="required" />
+		<!--fractureVolumeFraction => Fracture (secondary continuum) volume fraction v_f used by the multi-porosity effective storage matrix. <0 disables the cross-storage correction (legacy per-continuum storage).-->
+		<xsd:attribute name="fractureVolumeFraction" type="real64" default="-1" />
 		<!--gravityDrainageFlag => flag of gravity drainage-->
 		<xsd:attribute name="gravityDrainageFlag" type="integer" default="0" />
 		<!--interporosityExchangeCoefficient => Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}]. When > 0, bypasses the Kazemi shape-factor formula and uses transmissibility = Gamma * mu * V_element.-->
 		<xsd:attribute name="interporosityExchangeCoefficient" type="real64" default="0" />
+		<!--intrinsicFractureBiot => Intrinsic fracture Biot coefficient for the FIM M_bar storage; <0 = use material.-->
+		<xsd:attribute name="intrinsicFractureBiot" type="real64" default="-1" />
+		<!--intrinsicFractureBulkModulus => Intrinsic fracture drained bulk modulus for the FIM M_bar storage; <0 = use material.-->
+		<xsd:attribute name="intrinsicFractureBulkModulus" type="real64" default="-1" />
+		<!--intrinsicMatrixBiot => Intrinsic matrix Biot coefficient for the FIM M_bar storage; <0 = use material.-->
+		<xsd:attribute name="intrinsicMatrixBiot" type="real64" default="-1" />
+		<!--intrinsicMatrixBulkModulus => Intrinsic matrix drained bulk modulus for the FIM M_bar storage; <0 = use material.-->
+		<xsd:attribute name="intrinsicMatrixBulkModulus" type="real64" default="-1" />
 		<!--matrixRegionList => List of matrix regions-->
 		<xsd:attribute name="matrixRegionList" type="string_array" use="required" />
 	</xsd:complexType>
@@ -4852,6 +4864,12 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="cflFactor" type="real64" default="0.5" />
 		<!--dualcontinuumSolverName => Name of the dualcontinuum solver used by the coupled solver-->
 		<xsd:attribute name="dualcontinuumSolverName" type="groupNameRef" use="required" />
+		<!--enableFimCrossStorage => Enable the multi-porosity (Mehrabian S_ij) cross-storage correction in the FullyImplicit path (adds the matrix<->fracture off-diagonal storage that drives the Mandel-Cryer matrix decay).-->
+		<xsd:attribute name="enableFimCrossStorage" type="integer" default="1" />
+		<!--enableFractureMechanicsCoupling => Assemble the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) in the FullyImplicit path. Requires the cross-mesh node<->elem sparsity.-->
+		<xsd:attribute name="enableFractureMechanicsCoupling" type="integer" default="1" />
+		<!--fimNewtonRelaxation => FullyImplicit Newton step under-relaxation factor (0,1]. The monolithic dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable.-->
+		<xsd:attribute name="fimNewtonRelaxation" type="real64" default="0.5" />
 		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). Default (<0) computes v_f from mesh element volumes. Set explicitly when the mesh does not reflect the physical volume fractions (e.g. dual-continuum models with co-located meshes).-->
 		<xsd:attribute name="fractureVolumeFraction" type="real64" default="-1" />
 		<!--initialDt => Initial time-step value required by the solver to the event manager.-->

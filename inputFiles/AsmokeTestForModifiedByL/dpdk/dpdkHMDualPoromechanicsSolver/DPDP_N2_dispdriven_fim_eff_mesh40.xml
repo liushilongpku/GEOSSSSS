@@ -19,10 +19,10 @@
   <Mesh>
     <InternalMesh name="mesh1" elementTypes="{ C3D8 }"
       xCoords="{ 0.0, 0.03 }" yCoords="{ 0.0, 0.03 }" zCoords="{ 0.0, 0.03 }"
-      nx="{ 20 }" ny="{ 1 }" nz="{ 20 }" cellBlockNames="{ matrixBlock }"/>
+      nx="{ 40 }" ny="{ 1 }" nz="{ 40 }" cellBlockNames="{ matrixBlock }"/>
     <InternalMesh name="mesh2" elementTypes="{ C3D8 }"
       xCoords="{ 0.0, 0.03 }" yCoords="{ 0.0, 0.03 }" zCoords="{ 0.0, 0.03 }"
-      nx="{ 20 }" ny="{ 1 }" nz="{ 20 }" cellBlockNames="{ fractureBlock }"/>
+      nx="{ 40 }" ny="{ 1 }" nz="{ 40 }" cellBlockNames="{ fractureBlock }"/>
   </Mesh>
 
   <Geometry>
@@ -84,21 +84,21 @@
   </Constitutive>
 
   <Solvers gravityVector="{ 0.0, 0.0, 0.0 }">
-    <SinglePhaseFVM name="matrixFlow" logLevel="1"
+    <SinglePhaseFVM name="matrixFlow" logLevel="0"
       discretization="singlePhaseTPFA" targetRegions="{ mesh1/matrixRegion }">
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
       <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
     </SinglePhaseFVM>
-    <SinglePhaseFVM name="fractureFlow" logLevel="1"
+    <SinglePhaseFVM name="fractureFlow" logLevel="0"
       discretization="singlePhaseTPFA" targetRegions="{ mesh2/fractureRegion }">
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
       <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
     </SinglePhaseFVM>
-    <SolidMechanicsLagrangianFEM name="solidMech" logLevel="1"
+    <SolidMechanicsLagrangianFEM name="solidMech" logLevel="0"
       discretization="FE1" targetRegions="{ mesh1/matrixRegion }"
       timeIntegrationOption="QuasiStatic" contactRelationName="tractionlessContact"/>
 
-    <DualContinuumFVM name="dualFlow" logLevel="1"
+    <DualContinuumFVM name="dualFlow" logLevel="0"
       flowSolverName="matrixFlow" flowSolverName1="fractureFlow"
       matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
@@ -116,7 +116,7 @@
     </DualContinuumFVM>
 
     <SinglePhaseDualContinuumPoromechanics name="poroSolver"
-      logLevel="1" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
+      logLevel="0" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       fractureVolumeFraction="0.03"
       fimNewtonRelaxation="0.7"

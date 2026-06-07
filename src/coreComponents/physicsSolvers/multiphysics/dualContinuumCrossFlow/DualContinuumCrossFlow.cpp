@@ -88,8 +88,11 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
     setApplyDefaultValue( 1.0 ).setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). "
                     "Compensates for the incomplete monolithic-Schur cancellation under laterally "
-                    "confined (Mandel) geometry, where the mechanical volumetric response uses an "
-                    "effective modulus larger than the bulk Kbar." );
+                    "confined (Mandel) geometry, where the discrete Q1 mechanical volumetric response "
+                    "is stiffer than the continuum oedometric modulus. MEASURED value 0.911 for the "
+                    "GOM-shale N=2 Mandel case (nu=0.22): the discrete modulus is ~1.21x oedometric, "
+                    "mesh-independent (10x10==20x20); see SinglePhaseDualContinuum.cpp for the full "
+                    "derivation and why it cannot be computed from Kbar/Gbar/nu in closed form." );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )
