@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：排水过程专项测试；迭代耦合、位移驱动。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory

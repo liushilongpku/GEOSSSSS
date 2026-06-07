@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：FIM 有效介质 + direct，10x10；改为应力(刚性压板 RigidBoundary)加载而非位移驱动。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory

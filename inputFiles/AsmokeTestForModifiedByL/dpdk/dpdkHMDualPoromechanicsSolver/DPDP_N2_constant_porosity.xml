@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：常孔隙度诊断算例（K_s→∞ 消去晶粒压缩储存项 (α-φ)/K_s·Δp），用于隔离储存项贡献；迭代耦合。 -->
 <!--
   DPDP Mandel N=2 — CONSTANT POROSITY TEST (K_s → ∞)
   K_s = 1e99 → eliminates (α-φ₀)/K_s·Δp grain-compressibility term.

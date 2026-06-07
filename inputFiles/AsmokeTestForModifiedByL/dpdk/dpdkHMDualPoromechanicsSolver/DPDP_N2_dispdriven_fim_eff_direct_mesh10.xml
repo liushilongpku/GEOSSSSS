@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：FIM 有效介质 + direct，10x10（最快；用于 scale 扫描与网格无关性验证）。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory

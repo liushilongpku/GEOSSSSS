@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：纯弹性(单物理场)测试，验证 RigidBoundary 刚性压板边界条件；0.03^3 块体，四周滚支+顶部刚性压板。 -->
 <!-- Pure-elastic single-physics test for the RigidBoundary BC.
      A 0.03^3 block, rollers on xneg/yneg/ypos/zneg, rigid platen with
      -1 MPa load on zpos. No flow: isolates the BC from poromechanical

@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<!-- 用途：位移驱动、全隐式单体耦合(FIM)、内禀材料；FIM 收敛性测试。 -->
+<!-- 用途：对照实验：迭代耦合(Sequential)直接套用有效介质参数；该路径会重复处理 K̄ 导致矩阵过压，已知失败。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory
@@ -52,10 +52,10 @@
          α₁ = 1 - K₁/K_s = 1 - 1.1/27 = 0.9593
          G₁ = 3K₁(1-2ν)/(2(1+ν)) = 0.7574 GPa -->
     <ElasticIsotropic name="matrixSolid"
-      defaultDensity="0" defaultBulkModulus="1.1e9" defaultShearModulus="7.574e8"/>
+      defaultDensity="0" defaultBulkModulus="4.514e8" defaultShearModulus="3.108e8"/>
     <BiotPorosity name="matrixPorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.14"
-      defaultBiotCoefficient="0.9593"/>
+      defaultBiotCoefficient="0.382"/>
     <ConstantPermeability name="matrixPerm"
       permeabilityComponents="{ 4.935e-21, 4.935e-21, 4.935e-21 }"/>
     <PorousElasticIsotropic name="matrixRock"
@@ -70,9 +70,9 @@
       defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.549e7"/>
     <BiotPorosity name="fracturePorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.95"
-      defaultBiotCoefficient="0.9992"/>
+      defaultBiotCoefficient="0.601"/>
     <ConstantPermeability name="fracturePerm"
-      permeabilityComponents="{ 4.935e-15, 4.935e-15, 4.935e-15 }"/>
+      permeabilityComponents="{ 1.4805e-16, 1.4805e-16, 1.4805e-16 }"/>
     <PorousElasticIsotropic name="fractureRock"
       solidModelName="fractureSolid" porosityModelName="fracturePorosity"
       permeabilityModelName="fracturePerm"/>
@@ -99,7 +99,9 @@
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       transferCoefficient="0.0">
       <DualContinuumCrossFlow
-        interporosityExchangeCoefficient="1.67e-22" fractureVolumeFraction="0.03"
+        interporosityExchangeCoefficient="0.0" fractureVolumeFraction="0.03"
+        intrinsicMatrixBiot="0.9593" intrinsicMatrixBulkModulus="1.1e9"
+        intrinsicFractureBiot="0.9992" intrinsicFractureBulkModulus="2.25e7"
         fractureSpacingLx="1.0" fractureSpacingLy="1.0" fractureSpacingLz="1.0"
         gravityDrainageFlag="0"
         matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
@@ -111,12 +113,11 @@
       logLevel="1" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       fractureVolumeFraction="0.03"
-      fimNewtonRelaxation="0.7"
       stabilizationType="None" isThermal="0">
       <NonlinearSolverParameters
-        couplingType="FullyImplicit" newtonMaxIter="80" newtonTol="1.0e-6"
+        couplingType="Sequential" newtonMaxIter="80" newtonTol="1.0e-6"
         lineSearchAction="None"
-        maxTimeStepCuts="4" timeStepCutFactor="0.5"/>
+        maxTimeStepCuts="2" timeStepCutFactor="0.5"/>
       <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
     </SinglePhaseDualContinuumPoromechanics>
   </Solvers>

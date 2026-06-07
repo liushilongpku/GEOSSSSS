@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<!-- 用途：位移驱动、全隐式单体耦合(FIM)、内禀材料；FIM 收敛性测试。 -->
+<!-- 用途：FIM、内禀材料 + κ=v_f·k_f 体积加权（对照有效介质方案）。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory
@@ -72,7 +72,7 @@
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.95"
       defaultBiotCoefficient="0.9992"/>
     <ConstantPermeability name="fracturePerm"
-      permeabilityComponents="{ 4.935e-15, 4.935e-15, 4.935e-15 }"/>
+      permeabilityComponents="{ 1.4805e-16, 1.4805e-16, 1.4805e-16 }"/>
     <PorousElasticIsotropic name="fractureRock"
       solidModelName="fractureSolid" porosityModelName="fracturePorosity"
       permeabilityModelName="fracturePerm"/>

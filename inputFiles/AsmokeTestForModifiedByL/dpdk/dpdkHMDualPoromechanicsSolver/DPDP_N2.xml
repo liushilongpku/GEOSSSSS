@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：基础 N=2 双孔隙双渗透 Mandel 验证算例（迭代耦合 Sequential，内禀材料 K_m=1.1e9）；其余 dispdriven/fim 变体由此派生。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory

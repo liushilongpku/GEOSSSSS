@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：位移驱动 + 修正后的加载函数（u_z 晚期=2.70e-5，修正早先 2.21e-5 之误）；迭代耦合参考算例。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory

@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：FIM 有效介质，gmres，40x40（细网格收敛检查）。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory

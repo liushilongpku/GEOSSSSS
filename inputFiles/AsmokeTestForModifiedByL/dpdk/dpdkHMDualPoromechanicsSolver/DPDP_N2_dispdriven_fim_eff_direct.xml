@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：同 fim_eff，但用 direct(SuperLU_dist) 求解器，20x20（更稳健、MPI 友好）。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory

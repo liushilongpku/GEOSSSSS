@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：非均质纯弹性测试，验证 RigidBoundary 惩罚约束；左半(x<0.015)比右半软 100 倍，2D 网格。 -->
 <!-- Heterogeneous pure-elastic test for the RigidBoundary penalty constraint.
      Left half (x<0.015) is 100x softer than the right half. Under a rigid
      platen with a -1 MPa load on top, a *free* surface would settle much more

@@ -1,4 +1,5 @@
 <?xml version="1.0" ?>
+<!-- 用途：应力驱动 Mandel（刚性压板 1 MPa）的修正变体；迭代耦合。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory
