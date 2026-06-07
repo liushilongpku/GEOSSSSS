@@ -128,7 +128,7 @@
       <NonlinearSolverParameters
         couplingType="FullyImplicit" newtonMaxIter="80" newtonTol="1.0e-6"
         lineSearchAction="None"
-        maxTimeStepCuts="4" timeStepCutFactor="0.5"/>
+        maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
       <LinearSolverParameters solverType="direct" directParallel="1"/>
     </SinglePhaseDualContinuumPoromechanics>
   </Solvers>
@@ -149,6 +149,10 @@
     <TableFunction name="loadFunction0000000" inputVarNames="{ time }"
       coordinates="{ 0.000000e+00, 1.000000e-12, 1.080000e-01, 1.255188e-01, 1.458794e-01, 1.695427e-01, 1.970444e-01, 2.290073e-01, 2.661548e-01, 3.093282e-01, 3.595047e-01, 4.178204e-01, 4.855956e-01, 5.643647e-01, 6.559111e-01, 7.623073e-01, 8.859622e-01, 1.029675e+00, 1.196700e+00, 1.390819e+00, 1.616425e+00, 1.878628e+00, 2.183362e+00, 2.537528e+00, 2.949144e+00, 3.427529e+00, 3.983513e+00, 4.629684e+00, 5.380671e+00, 6.253476e+00, 7.267861e+00, 8.446790e+00, 9.816955e+00, 1.140938e+01, 1.326011e+01, 1.541105e+01, 1.791089e+01, 2.081624e+01, 2.419287e+01, 2.811723e+01, 3.267816e+01, 3.797893e+01, 4.413954e+01, 5.129948e+01, 5.962083e+01, 6.929201e+01, 8.053196e+01, 9.359515e+01, 1.087773e+02, 1.264223e+02, 1.469294e+02, 1.707630e+02, 1.984627e+02, 2.306556e+02, 2.680705e+02, 3.115546e+02, 3.620923e+02, 4.208278e+02, 4.890908e+02, 5.684268e+02, 6.606321e+02, 7.677941e+02, 8.923390e+02, 1.037087e+03, 1.205314e+03, 1.400829e+03, 1.628060e+03, 1.892149e+03, 2.199077e+03, 2.555793e+03, 2.970371e+03, 3.452199e+03, 4.012185e+03, 4.663006e+03, 5.419399e+03, 6.298487e+03, 7.320172e+03, 8.507587e+03, 9.887614e+03, 1.149150e+04, 1.335555e+04, 1.552197e+04, 1.803981e+04, 2.096607e+04, 2.436700e+04, 2.831961e+04, 3.291337e+04, 3.825229e+04, 4.445724e+04, 5.166871e+04, 6.004996e+04, 6.979075e+04, 8.111160e+04, 9.426882e+04, 1.095603e+05, 1.273322e+05, 1.479869e+05, 1.719921e+05, 1.998911e+05, 2.323158e+05, 2.700000e+05 }"
       values="{ 1.796142e-05, 1.796142e-05, 1.871362e-05, 1.877441e-05, 1.884029e-05, 1.891172e-05, 1.898920e-05, 1.907327e-05, 1.916457e-05, 1.926375e-05, 1.937158e-05, 1.948887e-05, 1.961656e-05, 1.975567e-05, 1.990732e-05, 2.007274e-05, 2.025315e-05, 2.044971e-05, 2.066328e-05, 2.089425e-05, 2.114220e-05, 2.140571e-05, 2.168219e-05, 2.196772e-05, 2.225713e-05, 2.254410e-05, 2.282144e-05, 2.308165e-05, 2.331752e-05, 2.352297e-05, 2.369387e-05, 2.382869e-05, 2.392879e-05, 2.399820e-05, 2.404285e-05, 2.406945e-05, 2.408433e-05, 2.409256e-05, 2.409758e-05, 2.410137e-05, 2.410489e-05, 2.410852e-05, 2.411239e-05, 2.411654e-05, 2.412101e-05, 2.412582e-05, 2.413100e-05, 2.413657e-05, 2.414258e-05, 2.414905e-05, 2.415603e-05, 2.416355e-05, 2.417166e-05, 2.418040e-05, 2.418982e-05, 2.419998e-05, 2.421094e-05, 2.422276e-05, 2.423551e-05, 2.424927e-05, 2.426411e-05, 2.428012e-05, 2.429740e-05, 2.431604e-05, 2.433617e-05, 2.435789e-05, 2.438135e-05, 2.440667e-05, 2.443401e-05, 2.446354e-05, 2.449544e-05, 2.452990e-05, 2.456713e-05, 2.460737e-05, 2.465086e-05, 2.469788e-05, 2.474873e-05, 2.480373e-05, 2.486324e-05, 2.492764e-05, 2.499736e-05, 2.507286e-05, 2.515463e-05, 2.524317e-05, 2.533896e-05, 2.544237e-05, 2.555354e-05, 2.567227e-05, 2.579789e-05, 2.592914e-05, 2.606411e-05, 2.620030e-05, 2.633464e-05, 2.646369e-05, 2.658392e-05, 2.669198e-05, 2.678516e-05, 2.686172e-05, 2.692121e-05, 2.696452e-05, 2.699377e-05 }"/>
+
+    <!-- 应力驱动缓升：0→1(×scale=1MPa) over 0..1e-3 s 再保持，避开 t=0 阶跃冲击致 Newton 发散 -->
+    <TableFunction name="stressRamp" inputVarNames="{ time }"
+      coordinates="{ 0.0, 1.0e-3, 4.0e5 }" values="{ 0.0, 1.0, 1.0 }"/>
   </Functions>
 
   <FieldSpecifications>
@@ -239,7 +243,7 @@
 
     <RigidBoundary name="zposLoad"
       objectPath="faceManager" targetMesh="mesh1"
-      component="2" scale="-1.0e6" setNames="{ zpos }"/>
+      component="2" scale="-1.0e6" setNames="{ zpos }" functionName="stressRamp"/>
 
 
     <FieldSpecification name="boundaryPressureM"
@@ -265,7 +269,7 @@
     <!-- Mandel-Cryer overshoot peaks near tau~0.05 (t~0.5s).  The single-pass
          fixed-stress split under-resolves this transient, so the overshoot is
          only captured with fine dt through the window 0.01 s < t < 2 s. -->
-    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" maxEventDt="5.0e-5" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase1" beginTime="0.01" endTime="0.1" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase2" beginTime="0.1" endTime="2.0" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase3" beginTime="2.0" endTime="10.0" target="/Solvers/poroSolver"/>
@@ -281,6 +285,8 @@
     <PeriodicEvent name="pressureFractureOutputEvent" targetExactTimestep="0" target="/Outputs/pressureFractureHistory"/>
     <PeriodicEvent name="displacementEvent" target="/Tasks/displacementCollection"/>
     <PeriodicEvent name="displacementOutputEvent" targetExactTimestep="0" target="/Outputs/displacementHistory"/>
+    <PeriodicEvent name="stressEvent" target="/Tasks/stressCollection"/>
+    <PeriodicEvent name="stressOutputEvent" targetExactTimestep="0" target="/Outputs/stressHistory"/>
   </Events>
 
   <Tasks>
@@ -290,6 +296,8 @@
       objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock" fieldName="pressure"/>
     <PackCollection name="displacementCollection"
       objectPath="mesh1/nodeManager" fieldName="totalDisplacement"/>
+    <PackCollection name="stressCollection"
+      objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock" fieldName="matrixSolid_stress"/>
   </Tasks>
 
   <Outputs>
@@ -300,5 +308,7 @@
       sources="{ /Tasks/pressureFractureCollection }" filename="pressure_fracture_history"/>
     <TimeHistory name="displacementHistory"
       sources="{ /Tasks/displacementCollection }" filename="displacement_history"/>
+    <TimeHistory name="stressHistory"
+      sources="{ /Tasks/stressCollection }" filename="stress_history"/>
   </Outputs>
 </Problem>

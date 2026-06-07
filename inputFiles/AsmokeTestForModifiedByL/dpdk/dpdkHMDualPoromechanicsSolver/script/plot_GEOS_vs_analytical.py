@@ -112,7 +112,7 @@ def main():
     sol = an.solve(tau_min=1e-5, tau_max=tau_max, n=90)
     ta = sol['tau']
 
-    fig, ax = plt.subplots(1, 3, figsize=(18, 5.2))
+    fig, ax = plt.subplots(1, 2, figsize=(13, 5.2))
 
     # ===== (a) pressure: matrix + fracture =====
     ax[0].semilogx(ta, sol['pm'], 'r-', lw=1.6, label=r'analytical $p_m$')
@@ -127,19 +127,10 @@ def main():
         ax[0].semilogx(gf[0][m] / t0, gf[1][m] / PF0, 'b.', ms=5, label=r'GEOS $p_f$')
     ax[0].set_title('(a) pressure'); ax[0].set_ylabel(r'$p/p_0^+$'); ax[0].set_ylim(0, 1.5)
 
-    # ===== (b) dimensionless stress sigma_zz =====
-    ax[1].semilogx(ta, sol['sig'] / sol['sig'][0], 'g-', lw=1.6, label=r'analytical $\sigma_{zz}$')
-    gs = load_stress(geos_dir)
-    if gs is not None:
-        m = gs[0] > 0
-        szz = gs[1][m]
-        lbl = r'GEOS $\sigma_{zz}$ (total)' if gs[2] else r"GEOS $\sigma'_{zz}$ (effective)"
-        ax[1].semilogx(gs[0][m] / t0, szz / szz[0], 'g.', ms=5, label=lbl)
-    else:
-        print("note: stress_history.hdf5 not found -> (b) shows analytical only")
-    ax[1].set_title('(b) dimensionless stress'); ax[1].set_ylabel(r'$\sigma_{zz}/\sigma_{zz}(t_0)$')
-
-    # ===== (c) displacement u_z =====
+    # ===== (b) displacement u_z =====
+    # (the stress subplot is intentionally omitted: the displacement-driven setup leaves the
+    #  total stress as a reconstructed difference sigma_eff - abar*p that drifts at late time;
+    #  see the technical doc. pressure and displacement are the reliable comparisons.)
     gd = load_displacement(geos_dir)
     tt = np.logspace(-3, np.log10(tau_max), 50) * t0
     uz_unit = an.invert(3, tt)
@@ -147,12 +138,12 @@ def main():
         m = gd[0] > 0
         uz_geos = gd[1][m]
         Pc = np.abs(uz_geos).max() / np.abs(uz_unit).max()   # calibrate load to GEOS scale
-        ax[2].semilogx(tt / t0, np.abs(uz_unit) * Pc, 'm-', lw=1.6, label=r'analytical $u_z$')
-        ax[2].semilogx(gd[0][m] / t0, np.abs(uz_geos), 'm.', ms=5, label=r'GEOS $u_z$ (top)')
+        ax[1].semilogx(tt / t0, np.abs(uz_unit) * Pc, 'm-', lw=1.6, label=r'analytical $u_z$')
+        ax[1].semilogx(gd[0][m] / t0, np.abs(uz_geos), 'm.', ms=5, label=r'GEOS $u_z$ (top)')
     else:
-        ax[2].semilogx(tt / t0, np.abs(uz_unit), 'm-', lw=1.6, label=r'analytical $u_z$ (unit load)')
-        print("note: displacement_history.hdf5 not found -> (c) shows analytical only")
-    ax[2].set_title('(c) displacement'); ax[2].set_ylabel(r'$|u_z|$ (m)')
+        ax[1].semilogx(tt / t0, np.abs(uz_unit), 'm-', lw=1.6, label=r'analytical $u_z$ (unit load)')
+        print("note: displacement_history.hdf5 not found -> (b) shows analytical only")
+    ax[1].set_title('(b) displacement'); ax[1].set_ylabel(r'$|u_z|$ (m)')
 
     for a in ax:
         a.set_xlabel(r'$\tau = t/t_0$,  $t_0$=%.2f s' % t0)
