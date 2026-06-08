@@ -339,6 +339,10 @@
 					<xsd:selector xpath="CompositionalMultiPhaseDualContinuumFVM" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
+				<xsd:unique name="SolversCompositionalMultiphaseDualContinuumPoromechanicsUniqueName">
+					<xsd:selector xpath="CompositionalMultiphaseDualContinuumPoromechanics" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
 				<xsd:unique name="SolversCompositionalMultiphaseFVMUniqueName">
 					<xsd:selector xpath="CompositionalMultiphaseFVM" />
 					<xsd:field xpath="@name" />
@@ -2652,6 +2656,7 @@ Information output from lower logLevels is added with the desired log level
 			<xsd:element name="AcousticSEM" type="AcousticSEMType" />
 			<xsd:element name="AcousticVTISEM" type="AcousticVTISEMType" />
 			<xsd:element name="CompositionalMultiPhaseDualContinuumFVM" type="CompositionalMultiPhaseDualContinuumFVMType" />
+			<xsd:element name="CompositionalMultiphaseDualContinuumPoromechanics" type="CompositionalMultiphaseDualContinuumPoromechanicsType" />
 			<xsd:element name="CompositionalMultiphaseFVM" type="CompositionalMultiphaseFVMType" />
 			<xsd:element name="CompositionalMultiphaseHybridFVM" type="CompositionalMultiphaseHybridFVMType" />
 			<xsd:element name="CompositionalMultiphaseReservoir" type="CompositionalMultiphaseReservoirType" />
@@ -3166,7 +3171,7 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="DualContinuumCrossFlowType">
-		<!--crossStorageOffDiagScale => Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). Compensates for the incomplete monolithic-Schur cancellation under laterally confined (Mandel) geometry, where the mechanical volumetric response uses an effective modulus larger than the bulk Kbar.-->
+		<!--crossStorageOffDiagScale => Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). Compensates for the incomplete monolithic-Schur cancellation under laterally confined (Mandel) geometry, where the discrete Q1 mechanical volumetric response is stiffer than the continuum oedometric modulus. MEASURED value 0.911 for the GOM-shale N=2 Mandel case (nu=0.22): the discrete modulus is ~1.21x oedometric, mesh-independent (10x10==20x20); see SinglePhaseDualContinuum.cpp for the full derivation and why it cannot be computed from Kbar/Gbar/nu in closed form.-->
 		<xsd:attribute name="crossStorageOffDiagScale" type="real64" default="1" />
 		<!--fractureRegionList => List of fracture regions-->
 		<xsd:attribute name="fractureRegionList" type="string_array" use="required" />
@@ -3193,6 +3198,74 @@ When set to 2 also output convergence information to a csv-->
 		<!--matrixRegionList => List of matrix regions-->
 		<xsd:attribute name="matrixRegionList" type="string_array" use="required" />
 	</xsd:complexType>
+	<xsd:complexType name="CompositionalMultiphaseDualContinuumPoromechanicsType">
+		<xsd:choice minOccurs="0" maxOccurs="unbounded">
+			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
+			<xsd:element name="NonlinearSolverParameters" type="NonlinearSolverParametersType" maxOccurs="1" />
+		</xsd:choice>
+		<!--allowNonConvergedLinearSolverSolution => Cut time step if linear solution fail without going until max nonlinear iterations.-->
+		<xsd:attribute name="allowNonConvergedLinearSolverSolution" type="integer" default="1" />
+		<!--autoInitializeStress => Automatically initialize the matrix effective stress to the dual-continuum total Biot stress sigma' = (alpha_m*p_m + alpha_f*p_f)*I so the initial total stress is in equilibrium (Rsolid~0 at t=0), the same way single-porosity poromechanics starts balanced. Removes the need to set matrixSolid_stress by hand. Assumes isotropic initial stress and zero external load; for anisotropic/loaded initial states set this 0 and prescribe matrixSolid_stress manually. Default 0 (backward compatible); the compositional dual solver defaults it to 1.-->
+		<xsd:attribute name="autoInitializeStress" type="integer" default="0" />
+		<!--cflFactor => Factor to apply to the `CFL condition <http://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`_ when calculating the maximum allowable time step. Values should be in the interval (0,1] -->
+		<xsd:attribute name="cflFactor" type="real64" default="0.5" />
+		<!--dualcontinuumSolverName => Name of the dualcontinuum solver used by the coupled solver-->
+		<xsd:attribute name="dualcontinuumSolverName" type="groupNameRef" use="required" />
+		<!--enableFimCrossStorage => Enable the multi-porosity (Mehrabian S_ij) cross-storage correction in the FullyImplicit path (adds the matrix<->fracture off-diagonal storage that drives the Mandel-Cryer matrix decay).-->
+		<xsd:attribute name="enableFimCrossStorage" type="integer" default="1" />
+		<!--enableFractureMechanicsCoupling => Assemble the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) in the FullyImplicit path. Requires the cross-mesh node<->elem sparsity.-->
+		<xsd:attribute name="enableFractureMechanicsCoupling" type="integer" default="1" />
+		<!--fimNewtonRelaxation => FullyImplicit Newton step under-relaxation factor (0,1]. The monolithic dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable.-->
+		<xsd:attribute name="fimNewtonRelaxation" type="real64" default="0.5" />
+		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). Default (<0) computes v_f from mesh element volumes. Set explicitly when the mesh does not reflect the physical volume fractions (e.g. dual-continuum models with co-located meshes).-->
+		<xsd:attribute name="fractureVolumeFraction" type="real64" default="-1" />
+		<!--initialDt => Initial time-step value required by the solver to the event manager.-->
+		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
+		<!--isThermal => Flag indicating whether the problem is thermal or not. Set isThermal="1" to enable the thermal coupling-->
+		<xsd:attribute name="isThermal" type="integer" default="0" />
+		<!--logLevel => Sets the level of information to write in the standard output (the console typically).
+Information output from lower logLevels is added with the desired log level
+1
+ - Convergence information
+ - Linear solver information
+ - Output residual norm
+ - Solution information (scaling, maximum changes, quality check)
+ - Time step information
+ - Solver timers information
+ - Coupling information
+2
+ - The summary of declared fields and coupling-->
+		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--solidSolverName => Name of the solid solver used by the coupled solver-->
+		<xsd:attribute name="solidSolverName" type="groupNameRef" use="required" />
+		<!--stabilizationMultiplier => Constant multiplier of stabilization strength-->
+		<xsd:attribute name="stabilizationMultiplier" type="real64" default="1" />
+		<!--stabilizationRegionNames => Regions where stabilization is applied.-->
+		<xsd:attribute name="stabilizationRegionNames" type="groupNameRef_array" default="{}" />
+		<!--stabilizationType => StabilizationType. Options are:
+None- Add no stabilization to mass equation 
+Global- Add jump stabilization to all faces 
+Local- Add jump stabilization on interior of macro elements-->
+		<xsd:attribute name="stabilizationType" type="geos_stabilization_StabilizationType" default="None" />
+		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
+		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
+		<!--useIntrinsicInput => Material input mode for the FullyImplicit effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver homogenizes (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i) at initialization and overwrites the constitutive effective values + feeds the intrinsics to the storage. FullyImplicit only; default is fully backward-compatible.-->
+		<xsd:attribute name="useIntrinsicInput" type="integer" default="0" />
+		<!--usePhysicsScaling => Enable physics-based scaling of the linear system. Default: true.-->
+		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
+		<!--writeLinearSystem => Write matrix, rhs, solution to screen ( = 1) or file ( = 2).-->
+		<xsd:attribute name="writeLinearSystem" type="integer" default="0" />
+		<!--writeStatistics => When set to 1, output iterations information to a csv
+When set to 2 also output convergence information to a csv-->
+		<xsd:attribute name="writeStatistics" type="integer" default="0" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:simpleType name="geos_stabilization_StabilizationType">
+		<xsd:restriction base="xsd:string">
+			<xsd:pattern value=".*[\[\]`$].*|None|Global|Local" />
+		</xsd:restriction>
+	</xsd:simpleType>
 	<xsd:complexType name="CompositionalMultiphaseFVMType">
 		<xsd:choice minOccurs="0" maxOccurs="unbounded">
 			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
@@ -3501,11 +3574,6 @@ When set to 2 also output convergence information to a csv-->
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
-	<xsd:simpleType name="geos_stabilization_StabilizationType">
-		<xsd:restriction base="xsd:string">
-			<xsd:pattern value=".*[\[\]`$].*|None|Global|Local" />
-		</xsd:restriction>
-	</xsd:simpleType>
 	<xsd:complexType name="CompositionalMultiphaseWellType">
 		<xsd:choice minOccurs="0" maxOccurs="unbounded">
 			<xsd:element name="LinearSolverParameters" type="LinearSolverParametersType" maxOccurs="1" />
@@ -4860,6 +4928,8 @@ When set to 2 also output convergence information to a csv-->
 		</xsd:choice>
 		<!--allowNonConvergedLinearSolverSolution => Cut time step if linear solution fail without going until max nonlinear iterations.-->
 		<xsd:attribute name="allowNonConvergedLinearSolverSolution" type="integer" default="1" />
+		<!--autoInitializeStress => Automatically initialize the matrix effective stress to the dual-continuum total Biot stress sigma' = (alpha_m*p_m + alpha_f*p_f)*I so the initial total stress is in equilibrium (Rsolid~0 at t=0), the same way single-porosity poromechanics starts balanced. Removes the need to set matrixSolid_stress by hand. Assumes isotropic initial stress and zero external load; for anisotropic/loaded initial states set this 0 and prescribe matrixSolid_stress manually. Default 0 (backward compatible); the compositional dual solver defaults it to 1.-->
+		<xsd:attribute name="autoInitializeStress" type="integer" default="0" />
 		<!--cflFactor => Factor to apply to the `CFL condition <http://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`_ when calculating the maximum allowable time step. Values should be in the interval (0,1] -->
 		<xsd:attribute name="cflFactor" type="real64" default="0.5" />
 		<!--dualcontinuumSolverName => Name of the dualcontinuum solver used by the coupled solver-->
@@ -4902,6 +4972,8 @@ Local- Add jump stabilization on interior of macro elements-->
 		<xsd:attribute name="stabilizationType" type="geos_stabilization_StabilizationType" default="None" />
 		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
 		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
+		<!--useIntrinsicInput => Material input mode for the FullyImplicit effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver homogenizes (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i) at initialization and overwrites the constitutive effective values + feeds the intrinsics to the storage. FullyImplicit only; default is fully backward-compatible.-->
+		<xsd:attribute name="useIntrinsicInput" type="integer" default="0" />
 		<!--usePhysicsScaling => Enable physics-based scaling of the linear system. Default: true.-->
 		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
 		<!--writeLinearSystem => Write matrix, rhs, solution to screen ( = 1) or file ( = 2).-->
