@@ -108,7 +108,6 @@ public:
 
     //m_crossFlow.initialize( primaryMesh, secondaryMesh );
     // add validation of solver types if needed
-    GEOS_LOG("some thermal check");
   }
 
   virtual void initializePostInitialConditionsPreSubGroups() override
@@ -174,7 +173,6 @@ public:
                               DofManager & dofManager ) const override
   {
     // ensure element-based coupling (two components per element) has sparsity
-    GEOS_LOG(SinglePhaseBase::viewKeyStruct::elemDofFieldString());
 
     // Get supports from both solvers
     /*
@@ -602,12 +600,6 @@ public:
       //TODO: temporarily disable automatic connectivity registration
       // the fracture and matrix region should be rigorously same
       connectivityRegistered = true;
-    }
-
-    // TracAI: Print registered connectivity values to terminal
-    if( connectivityRegistered )
-    {
-      printRegisteredConnectivityValues( domain );
     }
 
     // Call base class implementation
