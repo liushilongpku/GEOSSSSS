@@ -64,7 +64,20 @@ public:
   CompositionalMultiphaseDualContinuumPoromechanicsSolver( const string & name,
                                                            dataRepository::Group * const parent )
     : Base( name, parent )
-  {}
+  {
+    // Set compositional-dual defaults in the CONSTRUCTOR (before XML input is parsed) so the deck
+    // can still override them. (Setting them in initializePreSubGroups, which runs AFTER input,
+    // would clobber the deck value.) The wrappers are registered by the base constructors.
+    this->getWrapper< integer >( Base::viewKeyStruct::isThermalString() ).setApplyDefaultValue( 0 );
+
+    // Auto-initialize the matrix effective stress to the dual-continuum total Biot stress so the
+    // model starts in mechanical equilibrium (Rsolid~0 at t=0), like single-porosity poromechanics.
+    this->getWrapper< integer >( Base::viewKeyStruct::autoInitializeStressString() ).setApplyDefaultValue( 1 );
+
+    // enableFractureMechanicsCoupling already defaults to 1 in the base constructor; we leave it so
+    // the deck can set it to 0 (e.g. external-VTK double meshes where the K_upf cross-mesh sparsity
+    // is not formed -> disable K_upf/K_pfu and the auto-init uses sigma'=alpha_m*p_m only).
+  }
 
   ~CompositionalMultiphaseDualContinuumPoromechanicsSolver() override = default;
 
@@ -74,27 +87,6 @@ public:
   static string catalogName() { return "CompositionalMultiphaseDualContinuumPoromechanics"; }
 
   string getCatalogName() const override { return catalogName(); }
-
-  virtual void initializePreSubGroups() override
-  {
-    Base::initializePreSubGroups();
-
-    // Isothermal by default.
-    this->getWrapper< integer >( Base::viewKeyStruct::isThermalString() ).setApplyDefaultValue( 0 );
-
-    // Fracture<->mechanics coupling is fully consistent for the compositional path:
-    // K_upf (alpha_f*p_f in the displacement residual + its p_f Jacobian) and the
-    // per-component K_pfu (d(phi_f*compDens_c*V)/dU, with the useTotalMassEquation row
-    // transform) are both assembled, together with the strain term in the fracture
-    // porosity (updateFracturePorosityFixedStressMultiphase). This makes the monolithic
-    // dual-porosity Newton consistent (true FIM) so it converges without step damping.
-    this->getWrapper< integer >( Base::viewKeyStruct::enableFractureMechanicsCouplingString() ).setApplyDefaultValue( 1 );
-
-    // Automatically initialize the matrix effective stress to the dual-continuum total Biot stress
-    // sigma' = alpha_m*p_m + alpha_f*p_f so the model starts in mechanical equilibrium (Rsolid~0 at
-    // t=0), the same way single-porosity poromechanics does -- no manual matrixSolid_stress needed.
-    this->getWrapper< integer >( Base::viewKeyStruct::autoInitializeStressString() ).setApplyDefaultValue( 1 );
-  }
 
   virtual void setupDofs( DomainPartition const & domain,
                           DofManager & dofManager ) const override

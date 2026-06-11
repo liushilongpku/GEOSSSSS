@@ -111,6 +111,40 @@ public:
     return m_solidUpdate.getShearModulus( k );
   }
 
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromMeanEffectiveStress( localIndex const k,
+                                                  localIndex const q,
+                                                  real64 const & meanEffectiveStress ) const
+  {
+    m_permUpdate.updateFromMeanEffectiveStress( k, q, meanEffectiveStress );
+  }
+
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromEffectiveStress( localIndex const k,
+                                              localIndex const q,
+                                              real64 const ( & effectiveStress )[6] ) const
+  {
+    m_permUpdate.updateFromEffectiveStress( k, q, effectiveStress );
+  }
+
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromEffectiveStress( localIndex const k,
+                                              localIndex const q,
+                                              real64 const ( & effectiveStress )[6],
+                                              real64 const & currentTime ) const
+  {
+    m_permUpdate.updateFromEffectiveStress( k, q, effectiveStress, currentTime );
+  }
+
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromNormalAndShearStress( localIndex const k,
+                                                   localIndex const q,
+                                                   real64 const & normalStress,
+                                                   real64 const & shearStress ) const
+  {
+    m_permUpdate.updateFromNormalAndShearStress( k, q, normalStress, shearStress );
+  }
+
 protected:
   typename SOLID_TYPE::KernelWrapper const m_solidUpdate;
 

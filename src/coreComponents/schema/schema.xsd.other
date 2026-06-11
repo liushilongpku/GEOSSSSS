@@ -1620,9 +1620,11 @@
 			<xsd:element name="InvariantImmiscibleFluid" type="InvariantImmiscibleFluidType" />
 			<xsd:element name="JFunctionCapillaryPressure" type="JFunctionCapillaryPressureType" />
 			<xsd:element name="LinearIsotropicDispersion" type="LinearIsotropicDispersionType" />
+			<xsd:element name="MeanEffectiveStressPermeability" type="MeanEffectiveStressPermeabilityType" />
 			<xsd:element name="ModifiedCamClay" type="ModifiedCamClayType" />
 			<xsd:element name="MultiPhaseConstantThermalConductivity" type="MultiPhaseConstantThermalConductivityType" />
 			<xsd:element name="MultiPhaseVolumeWeightedThermalConductivity" type="MultiPhaseVolumeWeightedThermalConductivityType" />
+			<xsd:element name="NormalShearStressPermeability" type="NormalShearStressPermeabilityType" />
 			<xsd:element name="NullModel" type="NullModelType" />
 			<xsd:element name="ParallelPlatesPermeability" type="ParallelPlatesPermeabilityType" />
 			<xsd:element name="ParticleFluid" type="ParticleFluidType" />
@@ -1636,6 +1638,9 @@
 			<xsd:element name="PorousDruckerPragerCarmanKozenyPermeability" type="PorousDruckerPragerCarmanKozenyPermeabilityType" />
 			<xsd:element name="PorousElasticIsotropic" type="PorousElasticIsotropicType" />
 			<xsd:element name="PorousElasticIsotropicCarmanKozenyPermeability" type="PorousElasticIsotropicCarmanKozenyPermeabilityType" />
+			<xsd:element name="PorousElasticIsotropicMeanEffectiveStressPermeability" type="PorousElasticIsotropicMeanEffectiveStressPermeabilityType" />
+			<xsd:element name="PorousElasticIsotropicNormalShearStressPermeability" type="PorousElasticIsotropicNormalShearStressPermeabilityType" />
+			<xsd:element name="PorousElasticIsotropicPressurePermeability" type="PorousElasticIsotropicPressurePermeabilityType" />
 			<xsd:element name="PorousElasticOrthotropic" type="PorousElasticOrthotropicType" />
 			<xsd:element name="PorousElasticOrthotropicCarmanKozenyPermeability" type="PorousElasticOrthotropicCarmanKozenyPermeabilityType" />
 			<xsd:element name="PorousElasticTransverseIsotropic" type="PorousElasticTransverseIsotropicType" />
@@ -2732,6 +2737,12 @@
 		<!--dispersivity => Dispersivity-->
 		<xsd:attribute name="dispersivity" type="real64_array3d" />
 	</xsd:complexType>
+	<xsd:complexType name="MeanEffectiveStressPermeabilityType">
+		<!--dPerm_dPressure => Derivative of rock permeability with respect to pressure-->
+		<xsd:attribute name="dPerm_dPressure" type="real64_array3d" />
+		<!--permeability => Rock permeability-->
+		<xsd:attribute name="permeability" type="real64_array3d" />
+	</xsd:complexType>
 	<xsd:complexType name="ModifiedCamClayType">
 		<!--cslSlope => Critical state line slope-->
 		<xsd:attribute name="cslSlope" type="real64_array" />
@@ -2771,6 +2782,12 @@
 		<xsd:attribute name="effectiveConductivity" type="real64_array3d" />
 		<!--rockThermalConductivity => Rock thermal conductivity-->
 		<xsd:attribute name="rockThermalConductivity" type="real64_array3d" />
+	</xsd:complexType>
+	<xsd:complexType name="NormalShearStressPermeabilityType">
+		<!--dPerm_dPressure => Derivative of rock permeability with respect to pressure-->
+		<xsd:attribute name="dPerm_dPressure" type="real64_array3d" />
+		<!--permeability => Rock permeability-->
+		<xsd:attribute name="permeability" type="real64_array3d" />
 	</xsd:complexType>
 	<xsd:complexType name="NullModelType" />
 	<xsd:complexType name="ParallelPlatesPermeabilityType">
@@ -2822,6 +2839,9 @@
 	<xsd:complexType name="PorousDruckerPragerCarmanKozenyPermeabilityType" />
 	<xsd:complexType name="PorousElasticIsotropicType" />
 	<xsd:complexType name="PorousElasticIsotropicCarmanKozenyPermeabilityType" />
+	<xsd:complexType name="PorousElasticIsotropicMeanEffectiveStressPermeabilityType" />
+	<xsd:complexType name="PorousElasticIsotropicNormalShearStressPermeabilityType" />
+	<xsd:complexType name="PorousElasticIsotropicPressurePermeabilityType" />
 	<xsd:complexType name="PorousElasticOrthotropicType" />
 	<xsd:complexType name="PorousElasticOrthotropicCarmanKozenyPermeabilityType" />
 	<xsd:complexType name="PorousElasticTransverseIsotropicType" />

@@ -152,6 +152,8 @@ set( constitutive_headers
      permeability/ConstantPermeability.hpp
      permeability/DamagePermeability.hpp
      permeability/ExponentialDecayPermeability.hpp
+     permeability/MeanEffectiveStressPermeability.hpp
+     permeability/NormalShearStressPermeability.hpp
      permeability/ParallelPlatesPermeability.hpp
      permeability/PermeabilityBase.hpp
      permeability/PermeabilityFields.hpp
@@ -304,6 +306,8 @@ set( constitutive_sources
      permeability/ConstantPermeability.cpp
      permeability/DamagePermeability.cpp
      permeability/ExponentialDecayPermeability.cpp
+     permeability/MeanEffectiveStressPermeability.cpp
+     permeability/NormalShearStressPermeability.cpp
      permeability/ParallelPlatesPermeability.cpp
      permeability/PermeabilityBase.cpp
      permeability/PressurePermeability.cpp

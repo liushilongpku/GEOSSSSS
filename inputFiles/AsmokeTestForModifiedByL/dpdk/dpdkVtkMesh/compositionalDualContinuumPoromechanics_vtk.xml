@@ -1,0 +1,157 @@
+<?xml version="1.0" ?>
+<!--
+  ============================================================================
+  多相（CO2-Brine 两相两组分）双重介质流固耦合 — 外部 VTK 网格版
+  Solver: CompositionalMultiphaseDualContinuumPoromechanics（FIM 全隐式）
+  ============================================================================
+  这是单相外部网格 deck (singlePhaseDualContinuumPoromechanics_vtk*.xml) 的多相对应版。
+
+  Phase-1 "all-doubled" 外部网格接入（见 plan mesh1-mesh2-velvet-pine）：
+  同一个外部文件 faultMesh_smoke.vtk 被导入两次，作为硬编码的两个 mesh body
+  mesh1(matrix) / mesh2(fracture)。同文件同参数 ⇒ 单元顺序一致 ⇒ 求解器 k<->k 配对成立
+  （串行与 MPI 均已在单相版验证：同导入下 VTK 分区器对两套网格分区一致）。
+
+  Solver/Constitutive 块照搬内部网格蓝本：
+    inputFiles/AsmokeTestForModifiedByL/dpdk/dpdkHMCompositional/dpdkHMCompositional.xml
+  仅 <Mesh> / <ElementRegions> / <Geometry> / <FieldSpecifications> 适配 fault 网格
+  几何 (x[-2000,2000] y[-500,500] z[0,2000])。
+
+  收敛设置（双重介质 FIM 固有要求）：autoInitializeStress（多相求解器默认开）+
+  fimNewtonRelaxation + lineSearchAction="Attempt" + 渐进 dt（避开初始大孔压冲击）。
+
+  ==========================================================================
+  当前状态（2026-06-08）：
+   * 装配/网格接入完全正确：DOF = compositionalVariables 5940 (=3组分×2×990) +
+     totalDisplacement 6384；两套 VTK 网格双倍、双重介质多相耦合均装配正常。
+   * 必须去掉 regionAttribute（单 subregion）：否则 hex 分裂成 94..97 四个 subregion，
+     FIM 跨网格耦合 Jacobian 不一致，矩阵流动 Newton 步严重过冲。单 subregion 下
+     矩阵连续介质流动 Newton 步已正确（压力变化精确等于源驱动 0.5 MPa）。
+   * 必须用 directParallel=1 (SuperLU_dist)：UMFPACK 的 umfpack_dl_symbolic 在此
+     单块矩阵上失败；SuperLU 精确求解 (res~1e-14)，矩阵非奇异。
+   * 未解决：裂缝连续介质 + 力学的 FIM 在此场尺度(4km)、巨型不规则单元、高刚度差
+     (矩阵K=1e9 vs 裂缝K=2e7) 下不收敛——Rsolid 从 3e-4 爆到 1e11。这是 FIM dual
+     的固有严格收敛问题（见 dpdkHMCompositional 注释 + 内部记忆），属物理/求解器调参，
+     非网格接入问题。试过降刚度差/加阻尼/减 dt 均未解决，留待 FIM 求解器层面调优。
+  ==========================================================================
+-->
+<Problem>
+  <NumericalMethods>
+    <FiniteElements><FiniteElementSpace name="FE1" order="1"/></FiniteElements>
+    <FiniteVolume><TwoPointFluxApproximation name="fluidTPFA"/></FiniteVolume>
+  </NumericalMethods>
+
+  <!-- No regionAttribute: all hexahedra land in ONE cell block ("hexahedra") => a
+       single CellElementSubRegion per mesh, matching the internal blueprint's structure.
+       (With regionAttribute=CellEntityIds the hexes split into 4 subregions 94..97_hex,
+       under which the dual-continuum FIM cross-coupling Jacobian is inconsistent and the
+       monolithic Newton overshoots/diverges.) -->
+  <Mesh>
+    <VTKMesh name="mesh1" file="faultMesh_smoke.vtk"/>
+    <VTKMesh name="mesh2" file="faultMesh_smoke.vtk"/>
+  </Mesh>
+
+  <Geometry>
+    <Box name="xMinBoundary" xMin="{ -2010, -510, -10 }" xMax="{ -1990,  510, 2010 }"/>
+    <Box name="xMaxBoundary" xMin="{  1990, -510, -10 }" xMax="{  2010,  510, 2010 }"/>
+    <Box name="yMinBoundary" xMin="{ -2010, -510, -10 }" xMax="{  2010, -490, 2010 }"/>
+    <Box name="yMaxBoundary" xMin="{ -2010,  490, -10 }" xMax="{  2010,  510, 2010 }"/>
+    <Box name="zMinBoundary" xMin="{ -2010, -510, -10 }" xMax="{  2010,  510,   10 }"/>
+    <Box name="source"       xMin="{  -200, -100, -10 }" xMax="{   200,  100, 2010 }"/>
+  </Geometry>
+
+  <ElementRegions>
+    <CellElementRegion name="matrixRegion"   meshBody="mesh1" cellBlocks="{ * }" materialList="{ matrixRock, fluid, relperm }"/>
+    <CellElementRegion name="fractureRegion" meshBody="mesh2" cellBlocks="{ * }" materialList="{ fractureRock, fluid, relperm }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CO2BrinePhillipsFluid name="fluid" phaseNames="{ gas, water }" componentNames="{ co2, water }"
+      componentMolarWeight="{ 44e-3, 18e-3 }" phasePVTParaFiles="{ pvtgas.txt, pvtliquid.txt }" flashModelParaFile="co2flash.txt"/>
+    <BrooksCoreyRelativePermeability name="relperm" phaseNames="{ gas, water }"
+      phaseMinVolumeFraction="{ 0.0, 0.0 }" phaseRelPermExponent="{ 1.5, 1.5 }" phaseRelPermMaxValue="{ 0.9, 0.9 }"/>
+
+    <!-- Matrix (primary porosity) -->
+    <ElasticIsotropic name="matrixSolid" defaultDensity="2650" defaultBulkModulus="1.0e9" defaultShearModulus="0.6e9"/>
+    <BiotPorosity name="matrixPorosity" defaultGrainBulkModulus="1.0e10" defaultReferencePorosity="0.1" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="matrixPerm" permeabilityComponents="{ 1.0e-18, 1.0e-18, 1.0e-18 }"/>
+    <PorousElasticIsotropic name="matrixRock" solidModelName="matrixSolid" porosityModelName="matrixPorosity" permeabilityModelName="matrixPerm"/>
+
+    <!-- Fracture (secondary porosity) -->
+    <ElasticIsotropic name="fractureSolid" defaultDensity="2650" defaultBulkModulus="2.0e7" defaultShearModulus="1.5e7"/>
+    <BiotPorosity name="fracturePorosity" defaultGrainBulkModulus="1.0e10" defaultReferencePorosity="0.5" defaultBiotCoefficient="0.99"/>
+    <ConstantPermeability name="fracturePerm" permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
+    <PorousElasticIsotropic name="fractureRock" solidModelName="fractureSolid" porosityModelName="fracturePorosity" permeabilityModelName="fracturePerm"/>
+  </Constitutive>
+
+  <Solvers gravityVector="{ 0.0, 0.0, 0.0 }">
+    <CompositionalMultiphaseFVM name="matrixFlow" logLevel="1" discretization="fluidTPFA" temperature="368.15" useMass="1"
+      targetRegions="{ mesh1/matrixRegion }">
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+    <CompositionalMultiphaseFVM name="fractureFlow" logLevel="1" discretization="fluidTPFA" temperature="368.15" useMass="1"
+      targetRegions="{ mesh2/fractureRegion }">
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+    <SolidMechanicsLagrangianFEM name="solidMech" logLevel="1" discretization="FE1"
+      targetRegions="{ mesh1/matrixRegion }" timeIntegrationOption="QuasiStatic"/>
+
+    <CompositionalMultiPhaseDualContinuumFVM name="dualFlow" logLevel="1"
+      flowSolverName="matrixFlow" flowSolverName1="fractureFlow"
+      matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
+      <DualContinuumCrossFlow fractureSpacingLx="10.0" fractureSpacingLy="10.0" fractureSpacingLz="10.0"
+        fractureVolumeFraction="0.1"
+        matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="40"/>
+      <LinearSolverParameters directParallel="0"/>
+    </CompositionalMultiPhaseDualContinuumFVM>
+
+    <CompositionalMultiphaseDualContinuumPoromechanics name="poroSolver" logLevel="1"
+      dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      fractureVolumeFraction="0.1" fimNewtonRelaxation="0.5" enableFractureMechanicsCoupling="1" enableFimCrossStorage="1"
+      stabilizationType="None" isThermal="0">
+      <NonlinearSolverParameters couplingType="FullyImplicit" newtonMaxIter="100" newtonMinIter="0" newtonTol="1.0e-6"
+        maxAllowedResidualNorm="1e13" lineSearchAction="Attempt" lineSearchResidualFactor="2.0"
+        maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
+    </CompositionalMultiphaseDualContinuumPoromechanics>
+  </Solvers>
+
+  <FieldSpecifications>
+    <!-- 初始有效应力由 poroSolver autoInitializeStress 自动设为 alpha_m*p_m + alpha_f*p_f
+         （双重介质总 Biot 应力）以平衡初始孔压 —— 无需手动给定 matrixSolid_stress。 -->
+
+    <FieldSpecification name="initPressureM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="1.0e6"/>
+    <FieldSpecification name="initPressureF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="1.0e6"/>
+
+    <!-- 初始组分：gas+water 两相共存（远离 0/1，避免正性截断） -->
+    <FieldSpecification name="initCo2M"   initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.5"/>
+    <FieldSpecification name="initWaterM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.5"/>
+    <FieldSpecification name="initCo2F"   initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.5"/>
+    <FieldSpecification name="initWaterF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.5"/>
+
+    <!-- source 端升压驱动（组分保持均匀以演示纯压力驱动 HM 耦合） -->
+    <FieldSpecification name="srcPressM" setNames="{ source }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="1.5e6"/>
+    <FieldSpecification name="srcPressF" setNames="{ source }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="1.5e6"/>
+
+    <!-- 力学边界（滚动支撑，z 顶面自由） -->
+    <FieldSpecification name="xnegFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xMinBoundary }"/>
+    <FieldSpecification name="xposFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xMaxBoundary }"/>
+    <FieldSpecification name="yFix"    objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="1" scale="0.0" setNames="{ yMinBoundary, yMaxBoundary }"/>
+    <FieldSpecification name="znegFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="2" scale="0.0" setNames="{ zMinBoundary }"/>
+  </FieldSpecifications>
+
+  <!-- 渐进 dt，避开初始大孔压载荷冲击（同单相 VTK deck 策略） -->
+  <Events maxTime="1000.0">
+    <PeriodicEvent name="solverPhase0" beginTime="0.0"    endTime="1.0"    forceDt="0.1"   target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase1" beginTime="1.0"    endTime="10.0"   forceDt="1.0"   target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase2" beginTime="10.0"   endTime="100.0"  forceDt="10.0"  target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase3" beginTime="100.0"  endTime="1000.0" forceDt="100.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="outputs" timeFrequency="100.0" target="/Outputs/vtkOutput"/>
+  </Events>
+
+  <Outputs><VTK name="vtkOutput"/></Outputs>
+</Problem>

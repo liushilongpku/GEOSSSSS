@@ -1301,7 +1301,7 @@ real64 SinglePhaseBase::scalingForSystemSolution( DomainPartition & domain,
   maxDeltaPres  = MpiWrapper::max( maxDeltaPres );
 
   GEOS_LOG_LEVEL_RANK_0( logInfo::Solution, GEOS_FMT( "        {}: Max pressure change = {} Pa (before scaling)",
-                                                      getName(), fmt::format( "{:.{}f}", maxDeltaPres, 3 ) ) );
+                                                      getName(), fmt::format( "{:.6e}", maxDeltaPres ) ) );
 
   return scalingFactor;
 }

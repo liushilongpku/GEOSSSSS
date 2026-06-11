@@ -262,6 +262,13 @@ protected:
   arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > const m_dFluidDensity;
 
   integer const m_performStressInitialization;
+
+  /// Fracture pressure mapped onto matrix elements (dual-continuum FIM only; empty otherwise)
+  arrayView1d< real64 const > m_fracturePressure;
+  /// Fracture Biot coefficient mapped onto matrix elements
+  arrayView1d< real64 const > m_fractureBiotCoeff;
+  /// Whether fracture data is available on this subRegion
+  bool m_hasFractureData;
 };
 
 using SinglePhasePoromechanicsKernelFactory =

@@ -90,6 +90,40 @@ public:
     GEOS_UNUSED_VAR( k, q, oldHydraulicAperture, newHydraulicAperture, dHydraulicAperture_dNormalJump, proppantPackVolumeFraction );
   }
 
+  GEOS_HOST_DEVICE
+  virtual void updateFromMeanEffectiveStress( localIndex const k,
+                                              localIndex const q,
+                                              real64 const & meanEffectiveStress ) const
+  {
+    GEOS_UNUSED_VAR( k, q, meanEffectiveStress );
+  }
+
+  GEOS_HOST_DEVICE
+  virtual void updateFromEffectiveStress( localIndex const k,
+                                          localIndex const q,
+                                          real64 const ( & effectiveStress )[6] ) const
+  {
+    GEOS_UNUSED_VAR( k, q, effectiveStress );
+  }
+
+  GEOS_HOST_DEVICE
+  virtual void updateFromEffectiveStress( localIndex const k,
+                                          localIndex const q,
+                                          real64 const ( & effectiveStress )[6],
+                                          real64 const & currentTime ) const
+  {
+    GEOS_UNUSED_VAR( k, q, effectiveStress, currentTime );
+  }
+
+  GEOS_HOST_DEVICE
+  virtual void updateFromNormalAndShearStress( localIndex const k,
+                                               localIndex const q,
+                                               real64 const & normalStress,
+                                               real64 const & shearStress ) const
+  {
+    GEOS_UNUSED_VAR( k, q, normalStress, shearStress );
+  }
+
 protected:
 
   PermeabilityBaseUpdate( arrayView3d< real64 > const & permeability,

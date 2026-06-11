@@ -807,6 +807,10 @@
 					<xsd:selector xpath="LinearIsotropicDispersion" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
+				<xsd:unique name="domainConstitutiveMeanEffectiveStressPermeabilityUniqueName">
+					<xsd:selector xpath="MeanEffectiveStressPermeability" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
 				<xsd:unique name="domainConstitutiveModifiedCamClayUniqueName">
 					<xsd:selector xpath="ModifiedCamClay" />
 					<xsd:field xpath="@name" />
@@ -817,6 +821,10 @@
 				</xsd:unique>
 				<xsd:unique name="domainConstitutiveMultiPhaseVolumeWeightedThermalConductivityUniqueName">
 					<xsd:selector xpath="MultiPhaseVolumeWeightedThermalConductivity" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
+				<xsd:unique name="domainConstitutiveNormalShearStressPermeabilityUniqueName">
+					<xsd:selector xpath="NormalShearStressPermeability" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
 				<xsd:unique name="domainConstitutiveNullModelUniqueName">
@@ -869,6 +877,18 @@
 				</xsd:unique>
 				<xsd:unique name="domainConstitutivePorousElasticIsotropicCarmanKozenyPermeabilityUniqueName">
 					<xsd:selector xpath="PorousElasticIsotropicCarmanKozenyPermeability" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
+				<xsd:unique name="domainConstitutivePorousElasticIsotropicMeanEffectiveStressPermeabilityUniqueName">
+					<xsd:selector xpath="PorousElasticIsotropicMeanEffectiveStressPermeability" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
+				<xsd:unique name="domainConstitutivePorousElasticIsotropicNormalShearStressPermeabilityUniqueName">
+					<xsd:selector xpath="PorousElasticIsotropicNormalShearStressPermeability" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
+				<xsd:unique name="domainConstitutivePorousElasticIsotropicPressurePermeabilityUniqueName">
+					<xsd:selector xpath="PorousElasticIsotropicPressurePermeability" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
 				<xsd:unique name="domainConstitutivePorousElasticOrthotropicUniqueName">
@@ -3206,7 +3226,7 @@ When set to 2 also output convergence information to a csv-->
 		<!--allowNonConvergedLinearSolverSolution => Cut time step if linear solution fail without going until max nonlinear iterations.-->
 		<xsd:attribute name="allowNonConvergedLinearSolverSolution" type="integer" default="1" />
 		<!--autoInitializeStress => Automatically initialize the matrix effective stress to the dual-continuum total Biot stress sigma' = (alpha_m*p_m + alpha_f*p_f)*I so the initial total stress is in equilibrium (Rsolid~0 at t=0), the same way single-porosity poromechanics starts balanced. Removes the need to set matrixSolid_stress by hand. Assumes isotropic initial stress and zero external load; for anisotropic/loaded initial states set this 0 and prescribe matrixSolid_stress manually. Default 0 (backward compatible); the compositional dual solver defaults it to 1.-->
-		<xsd:attribute name="autoInitializeStress" type="integer" default="0" />
+		<xsd:attribute name="autoInitializeStress" type="integer" default="1" />
 		<!--cflFactor => Factor to apply to the `CFL condition <http://en.wikipedia.org/wiki/Courant-Friedrichs-Lewy_condition>`_ when calculating the maximum allowable time step. Values should be in the interval (0,1] -->
 		<xsd:attribute name="cflFactor" type="real64" default="0.5" />
 		<!--dualcontinuumSolverName => Name of the dualcontinuum solver used by the coupled solver-->
@@ -6450,9 +6470,11 @@ Information output from lower logLevels is added with the desired log level
 			<xsd:element name="InvariantImmiscibleFluid" type="InvariantImmiscibleFluidType" />
 			<xsd:element name="JFunctionCapillaryPressure" type="JFunctionCapillaryPressureType" />
 			<xsd:element name="LinearIsotropicDispersion" type="LinearIsotropicDispersionType" />
+			<xsd:element name="MeanEffectiveStressPermeability" type="MeanEffectiveStressPermeabilityType" />
 			<xsd:element name="ModifiedCamClay" type="ModifiedCamClayType" />
 			<xsd:element name="MultiPhaseConstantThermalConductivity" type="MultiPhaseConstantThermalConductivityType" />
 			<xsd:element name="MultiPhaseVolumeWeightedThermalConductivity" type="MultiPhaseVolumeWeightedThermalConductivityType" />
+			<xsd:element name="NormalShearStressPermeability" type="NormalShearStressPermeabilityType" />
 			<xsd:element name="NullModel" type="NullModelType" />
 			<xsd:element name="ParallelPlatesPermeability" type="ParallelPlatesPermeabilityType" />
 			<xsd:element name="ParticleFluid" type="ParticleFluidType" />
@@ -6466,6 +6488,9 @@ Information output from lower logLevels is added with the desired log level
 			<xsd:element name="PorousDruckerPragerCarmanKozenyPermeability" type="PorousDruckerPragerCarmanKozenyPermeabilityType" />
 			<xsd:element name="PorousElasticIsotropic" type="PorousElasticIsotropicType" />
 			<xsd:element name="PorousElasticIsotropicCarmanKozenyPermeability" type="PorousElasticIsotropicCarmanKozenyPermeabilityType" />
+			<xsd:element name="PorousElasticIsotropicMeanEffectiveStressPermeability" type="PorousElasticIsotropicMeanEffectiveStressPermeabilityType" />
+			<xsd:element name="PorousElasticIsotropicNormalShearStressPermeability" type="PorousElasticIsotropicNormalShearStressPermeabilityType" />
+			<xsd:element name="PorousElasticIsotropicPressurePermeability" type="PorousElasticIsotropicPressurePermeabilityType" />
 			<xsd:element name="PorousElasticOrthotropic" type="PorousElasticOrthotropicType" />
 			<xsd:element name="PorousElasticOrthotropicCarmanKozenyPermeability" type="PorousElasticOrthotropicCarmanKozenyPermeabilityType" />
 			<xsd:element name="PorousElasticTransverseIsotropic" type="PorousElasticTransverseIsotropicType" />
@@ -7558,6 +7583,16 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
+	<xsd:complexType name="MeanEffectiveStressPermeabilityType">
+		<!--initialPermeabilityComponents => Initial xx, yy and zz components of a diagonal permeability tensor.-->
+		<xsd:attribute name="initialPermeabilityComponents" type="R1Tensor" use="required" />
+		<!--referenceMeanEffectiveStress => Reference compression-positive mean effective stress [Pa].-->
+		<xsd:attribute name="referenceMeanEffectiveStress" type="real64" use="required" />
+		<!--stressSensitivity => Stress sensitivity coefficient beta_sigma [1/Pa].-->
+		<xsd:attribute name="stressSensitivity" type="real64" use="required" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
 	<xsd:complexType name="ModifiedCamClayType">
 		<!--defaultCslSlope => Slope of the critical state line-->
 		<xsd:attribute name="defaultCslSlope" type="real64" default="1" />
@@ -7595,6 +7630,36 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 		<xsd:attribute name="phaseThermalConductivity" type="real64_array" use="required" />
 		<!--rockThermalConductivityComponents => xx, yy, and zz components of a diagonal rock thermal conductivity tensor [W/(m.K)]-->
 		<xsd:attribute name="rockThermalConductivityComponents" type="R1Tensor" use="required" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="NormalShearStressPermeabilityType">
+		<!--cohesion => Cohesion used in the slip activation function [Pa].-->
+		<xsd:attribute name="cohesion" type="real64" default="0" />
+		<!--decayStartTime => Time at which long-term permeability decay starts [s].-->
+		<xsd:attribute name="decayStartTime" type="real64" default="0" />
+		<!--fractureNormal => Fracture-plane normal vector in global coordinates.-->
+		<xsd:attribute name="fractureNormal" type="R1Tensor" use="required" />
+		<!--frictionCoefficient => Friction coefficient used in the slip activation function.-->
+		<xsd:attribute name="frictionCoefficient" type="real64" default="0.6" />
+		<!--initialPermeabilityComponents => Initial xx, yy and zz components of a diagonal permeability tensor.-->
+		<xsd:attribute name="initialPermeabilityComponents" type="R1Tensor" use="required" />
+		<!--normalStressSensitivity => Normal effective stress sensitivity coefficient beta_n [1/Pa].-->
+		<xsd:attribute name="normalStressSensitivity" type="real64" use="required" />
+		<!--referenceNormalStress => Reference compression-positive normal effective stress [Pa].-->
+		<xsd:attribute name="referenceNormalStress" type="real64" use="required" />
+		<!--referenceShearStress => Reference effective shear stress magnitude [Pa].-->
+		<xsd:attribute name="referenceShearStress" type="real64" use="required" />
+		<!--shearStressSensitivity => Shear effective stress sensitivity coefficient beta_tau [1/Pa].-->
+		<xsd:attribute name="shearStressSensitivity" type="real64" use="required" />
+		<!--slipEnhancementCoefficient => Slip enhancement coefficient A_s. A value of zero disables slip enhancement.-->
+		<xsd:attribute name="slipEnhancementCoefficient" type="real64" default="0" />
+		<!--slipEnhancementExponent => Slip enhancement exponent.-->
+		<xsd:attribute name="slipEnhancementExponent" type="real64" default="1" />
+		<!--slipReferenceStress => Reference stress used to normalize positive slip tendency [Pa].-->
+		<xsd:attribute name="slipReferenceStress" type="real64" default="1e+06" />
+		<!--timeDecayRate => Long-term permeability decay rate lambda_t [1/s]. A value of zero disables time decay.-->
+		<xsd:attribute name="timeDecayRate" type="real64" default="0" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
@@ -7757,6 +7822,42 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="PorousElasticIsotropicCarmanKozenyPermeabilityType">
+		<!--permeabilityModelName => Name of the permeability model.-->
+		<xsd:attribute name="permeabilityModelName" type="groupNameRef" use="required" />
+		<!--porosityModelName => Name of the porosity model.-->
+		<xsd:attribute name="porosityModelName" type="groupNameRef" use="required" />
+		<!--solidInternalEnergyModelName => Name of the solid internal energy model.-->
+		<xsd:attribute name="solidInternalEnergyModelName" type="groupNameRef" default="" />
+		<!--solidModelName => Name of the solid model.-->
+		<xsd:attribute name="solidModelName" type="groupNameRef" use="required" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="PorousElasticIsotropicMeanEffectiveStressPermeabilityType">
+		<!--permeabilityModelName => Name of the permeability model.-->
+		<xsd:attribute name="permeabilityModelName" type="groupNameRef" use="required" />
+		<!--porosityModelName => Name of the porosity model.-->
+		<xsd:attribute name="porosityModelName" type="groupNameRef" use="required" />
+		<!--solidInternalEnergyModelName => Name of the solid internal energy model.-->
+		<xsd:attribute name="solidInternalEnergyModelName" type="groupNameRef" default="" />
+		<!--solidModelName => Name of the solid model.-->
+		<xsd:attribute name="solidModelName" type="groupNameRef" use="required" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="PorousElasticIsotropicNormalShearStressPermeabilityType">
+		<!--permeabilityModelName => Name of the permeability model.-->
+		<xsd:attribute name="permeabilityModelName" type="groupNameRef" use="required" />
+		<!--porosityModelName => Name of the porosity model.-->
+		<xsd:attribute name="porosityModelName" type="groupNameRef" use="required" />
+		<!--solidInternalEnergyModelName => Name of the solid internal energy model.-->
+		<xsd:attribute name="solidInternalEnergyModelName" type="groupNameRef" default="" />
+		<!--solidModelName => Name of the solid model.-->
+		<xsd:attribute name="solidModelName" type="groupNameRef" use="required" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="PorousElasticIsotropicPressurePermeabilityType">
 		<!--permeabilityModelName => Name of the permeability model.-->
 		<xsd:attribute name="permeabilityModelName" type="groupNameRef" use="required" />
 		<!--porosityModelName => Name of the porosity model.-->

@@ -69,6 +69,43 @@ public:
     m_porosityUpdate.updateFixedStress( k, q,
                                         pressure, pressure_k, pressure_n,
                                         temperature, temperature_k, temperature_n );
+
+    real64 const porosity = m_porosityUpdate.getPorosity( k, q );
+    m_permUpdate.updateFromPressureAndPorosity( k, q, pressure, porosity );
+  }
+
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromMeanEffectiveStress( localIndex const k,
+                                                  localIndex const q,
+                                                  real64 const & meanEffectiveStress ) const
+  {
+    m_permUpdate.updateFromMeanEffectiveStress( k, q, meanEffectiveStress );
+  }
+
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromEffectiveStress( localIndex const k,
+                                              localIndex const q,
+                                              real64 const ( & effectiveStress )[6] ) const
+  {
+    m_permUpdate.updateFromEffectiveStress( k, q, effectiveStress );
+  }
+
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromEffectiveStress( localIndex const k,
+                                              localIndex const q,
+                                              real64 const ( & effectiveStress )[6],
+                                              real64 const & currentTime ) const
+  {
+    m_permUpdate.updateFromEffectiveStress( k, q, effectiveStress, currentTime );
+  }
+
+  GEOS_HOST_DEVICE
+  void updatePermeabilityFromNormalAndShearStress( localIndex const k,
+                                                   localIndex const q,
+                                                   real64 const & normalStress,
+                                                   real64 const & shearStress ) const
+  {
+    m_permUpdate.updateFromNormalAndShearStress( k, q, normalStress, shearStress );
   }
 
   GEOS_HOST_DEVICE
@@ -127,6 +164,17 @@ public:
       dPorosity_dPressure = 0.0;
       dPorosity_dTemperature = 0.0;
     }
+
+    m_permUpdate.updateFromPressureAndPorosity( k, q, pressure, porosity );
+
+    real64 const biotCoefficient = m_porosityUpdate.getBiotCoefficient( k );
+    real64 const thermalExpansionCoefficient = m_solidUpdate.getThermalExpansionCoefficient( k );
+    real64 const bulkModulus = m_solidUpdate.getBulkModulus( k );
+    real64 const meanEffectiveStress =
+      -( totalStress[0] + totalStress[1] + totalStress[2]
+         + 3.0 * biotCoefficient * pressure
+         + 9.0 * thermalExpansionCoefficient * bulkModulus * deltaTemperature ) / 3.0;
+    m_permUpdate.updateFromMeanEffectiveStress( k, q, meanEffectiveStress );
 
     // Save the derivative of solid density wrt pressure for the computation of the body force
     dSolidDensity_dPressure = m_porosityUpdate.dGrainDensity_dPressure( k );

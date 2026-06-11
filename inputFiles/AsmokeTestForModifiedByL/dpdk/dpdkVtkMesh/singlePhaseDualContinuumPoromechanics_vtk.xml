@@ -1,0 +1,299 @@
+<?xml version="1.0" ?>
+
+<!--
+  Dual-continuum single-phase poromechanics on an EXTERNAL VTK mesh.
+
+  Phase-1 "all-doubled" approach (see plan mesh1-mesh2-velvet-pine):
+  the same external file (faultMesh_smoke.vtk) is imported TWICE as the two
+  hard-coded mesh bodies mesh1 (matrix) and mesh2 (fracture). The dual-continuum
+  solver requires exactly two mesh bodies named mesh1/mesh2 whose paired regions
+  have identical element ordering (element k <-> element k); importing the same
+  file with identical parameters guarantees this in serial.
+
+  Solver / constitutive blocks are copied verbatim from the internal-mesh blueprint
+    inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumPoromechanics/singlePhaseDualContinuumPoromechanics.xml
+  Only <Mesh>, <ElementRegions>, <Geometry> and <FieldSpecifications> are adapted
+  to the fault mesh geometry (x[-2000,2000] y[-500,500] z[0,2000]).
+-->
+
+<Problem>
+  <Solvers
+    gravityVector="{ 0.0, 0.0, 0.0 }">
+    <!-- Define individual solvers and reference them from the poromechanics coupled solver -->
+    <SinglePhaseFVM
+      name="matrixFlowSolver"
+      logLevel="1"
+      discretization="singlePhaseTPFA"
+      targetRegions="{ mesh1/matrixRegion }">
+    <NonlinearSolverParameters
+            newtonMaxIter="40"
+            newtonTol="1.0e-3"/>
+    <LinearSolverParameters
+            krylovTol="1.0e-12"
+            solverType="gmres"/>
+    </SinglePhaseFVM>
+    <SinglePhaseFVM
+      name="fractureFlowSolver"
+      logLevel="1"
+      discretization="singlePhaseTPFA"
+      targetRegions="{ mesh2/fractureRegion }">
+    <NonlinearSolverParameters
+            newtonMaxIter="40"
+            newtonTol="1.0e-3"/>
+    <LinearSolverParameters
+            krylovTol="1.0e-12"
+            solverType="gmres"/>
+  </SinglePhaseFVM>
+
+    <SolidMechanicsLagrangianFEM
+      name="solidMechanicsSolver"
+      logLevel="1"
+      discretization="FE1"
+      targetRegions="{ mesh1/matrixRegion }"
+      timeIntegrationOption="QuasiStatic"
+      contactRelationName="tractionlessContact"/>
+
+    <!-- Dual-continuum flow wrapper that binds the two single-phase flow solvers -->
+    <DualContinuumFVM
+      name="dualcontinuumSolver"
+      logLevel="1"
+      flowSolverName="matrixFlowSolver"
+      flowSolverName1="fractureFlowSolver"
+      matrixRegionList="{ matrixRegion }"
+      fractureRegionList="{ fractureRegion }"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      transferCoefficient="0.0">
+    <DualContinuumCrossFlow
+            interporosityExchangeCoefficient="0.0"
+            fractureVolumeFraction="0.03"
+            intrinsicMatrixBiot="0.9593"
+            intrinsicMatrixBulkModulus="1.1e9"
+            intrinsicFractureBiot="0.9992"
+            intrinsicFractureBulkModulus="2.25e7"
+            crossStorageOffDiagScale="0.911"
+            fractureSpacingLx="10"
+            fractureSpacingLy="10"
+            fractureSpacingLz="10"
+            gravityDrainageFlag="0"
+            matrixRegionList="{ matrixRegion }"
+            fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters
+              newtonMaxIter="40"
+              newtonTol="1.0e-4"/>
+    <LinearSolverParameters
+            krylovTol="1.0e-12"
+            solverType="gmres"/>
+    </DualContinuumFVM>
+    <!-- Poromechanics solver that uses the dual-continuum flow wrapper -->
+    <SinglePhaseDualContinuumPoromechanics
+      name="poromechanicsSolver"
+      logLevel="1"
+      dualcontinuumSolverName="dualcontinuumSolver"
+      solidSolverName="solidMechanicsSolver"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      fractureVolumeFraction="0.03"
+      fimNewtonRelaxation="0.7"
+      enableFimCrossStorage="1"
+      enableFractureMechanicsCoupling="1"
+      stabilizationType="None"
+      isThermal="0"
+      autoInitializeStress="1">
+    <NonlinearSolverParameters
+            couplingType="FullyImplicit"
+            newtonMaxIter="80"
+            newtonTol="1.0e-6"
+            maxAllowedResidualNorm="1e13"
+            lineSearchAction="Attempt"
+            lineSearchResidualFactor="2.0"
+            maxTimeStepCuts="4"
+            timeStepCutFactor="0.5"/>
+      <LinearSolverParameters
+            solverType="direct"
+            directParallel="1"/>
+    </SinglePhaseDualContinuumPoromechanics>
+
+  </Solvers>
+
+  <Mesh>
+    <VTKMesh
+      name="mesh1"
+      file="faultMesh_smoke.vtk"
+      regionAttribute="CellEntityIds"/>
+    <VTKMesh
+      name="mesh2"
+      file="faultMesh_smoke.vtk"
+      regionAttribute="CellEntityIds"/>
+  </Mesh>
+
+  <Geometry>
+    <Box
+      name="xMinBoundary"
+      xMin="{ -2100, -600, -100 }"
+      xMax="{ -1900,  600, 2100 }"/>
+    <Box
+      name="xMaxBoundary"
+      xMin="{  1900, -600, -100 }"
+      xMax="{  2100,  600, 2100 }"/>
+    <Box
+      name="yMinBoundary"
+      xMin="{ -2100, -600, -100 }"
+      xMax="{  2100, -400, 2100 }"/>
+    <Box
+      name="yMaxBoundary"
+      xMin="{ -2100,  400, -100 }"
+      xMax="{  2100,  600, 2100 }"/>
+    <Box
+      name="zMinBoundary"
+      xMin="{ -2100, -600, -100 }"
+      xMax="{  2100,  600,  100 }"/>
+    <Box
+      name="injectionPoint"
+      xMin="{ -200, -100,  -2500 }"
+      xMax="{  200,  100,  2500 }"/>
+  </Geometry>
+
+  <!-- Gradual time-step ramp-up avoids the large initial poroelastic load shock
+       (same staged strategy as the working internal-mesh dual deck DPDP_N2). -->
+  <Events maxTime="100.0">
+    <PeriodicEvent name="solverPhase0" beginTime="0.0"   endTime="0.01"  forceDt="0.0005" target="/Solvers/poromechanicsSolver"/>
+    <PeriodicEvent name="solverPhase1" beginTime="0.01"  endTime="0.1"   forceDt="0.002"  target="/Solvers/poromechanicsSolver"/>
+    <PeriodicEvent name="solverPhase2" beginTime="0.1"   endTime="1.0"   forceDt="0.01"   target="/Solvers/poromechanicsSolver"/>
+    <PeriodicEvent name="solverPhase3" beginTime="1.0"   endTime="10.0"  forceDt="0.1"    target="/Solvers/poromechanicsSolver"/>
+    <PeriodicEvent name="solverPhase4" beginTime="10.0"  endTime="100.0" forceDt="10"     target="/Solvers/poromechanicsSolver"/>
+    <PeriodicEvent
+      name="outputs"
+      timeFrequency="10"
+      target="/Outputs/vtkOutput"/>
+  </Events>
+
+  <NumericalMethods>
+    <FiniteVolume>
+      <TwoPointFluxApproximation
+        name="singlePhaseTPFA"/>
+    </FiniteVolume>
+    <FiniteElements>
+      <FiniteElementSpace
+        name="FE1"
+        order="1"/>
+    </FiniteElements>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="matrixRegion"
+      meshBody="mesh1"
+      cellBlocks="{ * }"
+      materialList="{ matrixRock, water }"/>
+    <CellElementRegion
+      name="fractureRegion"
+      meshBody="mesh2"
+      cellBlocks="{ * }"
+      materialList="{ fractureRock, water }"/>
+  </ElementRegions>
+
+  <!-- Distinct matrix / fracture materials. The dual-continuum sequential
+       (composite-pressure) path divides by the matrix Biot coefficient, so a
+       non-zero alpha is mandatory: alpha = 1 - K_drained / K_grain. Values mirror
+       the working internal-mesh deck DPDP_N2 (GOM-shale dual-porosity). -->
+  <Constitutive>
+    <CompressibleSinglePhaseFluid
+      name="water"
+      defaultDensity="1000"
+      defaultViscosity="0.001"
+      referencePressure="0.0"
+      compressibility="5.734e-10"/>
+
+    <!-- Matrix: EFFECTIVE-MEDIUM coefficients (Reuss-homogenized).
+         Kbar = 1/(v_m/K_m + v_f/K_f) = 4.514e8
+         Gbar = 1/(v_m/G_m + v_f/G_f) = 3.108e8
+         abar_m = Kbar*v_m*alpha_m/K_m = 0.382
+         FIM monolithic mechanics uses these composite stiffness + effective Biot. -->
+    <ElasticIsotropic name="matrixSolid"
+      defaultDensity="0" defaultBulkModulus="4.514e8" defaultShearModulus="3.108e8"/>
+    <BiotPorosity name="matrixPorosity"
+      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.14"
+      defaultBiotCoefficient="0.382"/>
+    <ConstantPermeability name="matrixPerm"
+      permeabilityComponents="{ 4.935e-21, 4.935e-21, 4.935e-21 }"/>
+    <PorousElasticIsotropic name="matrixRock"
+      solidModelName="matrixSolid" porosityModelName="matrixPorosity"
+      permeabilityModelName="matrixPerm"/>
+
+    <!-- Fracture: EFFECTIVE-MEDIUM Biot.
+         abar_f = Kbar*v_f*alpha_f/K_f = 0.601
+         Fracture K/G kept as intrinsic (fracture is the soft continuum).
+         Permeability = kappa_f = v_f * k_f = 0.03 * 4.935e-15 = 1.4805e-16. -->
+    <ElasticIsotropic name="fractureSolid"
+      defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.549e7"/>
+    <BiotPorosity name="fracturePorosity"
+      defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.95"
+      defaultBiotCoefficient="0.601"/>
+    <ConstantPermeability name="fracturePerm"
+      permeabilityComponents="{ 1.4805e-16, 1.4805e-16, 1.4805e-16 }"/>
+    <PorousElasticIsotropic name="fractureRock"
+      solidModelName="fractureSolid" porosityModelName="fracturePorosity"
+      permeabilityModelName="fracturePerm"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+    <FieldSpecification
+      name="initialPressure"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh1"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="1e6"/>
+    <FieldSpecification
+      name="initialPressureFracture"
+      initialCondition="1"
+      setNames="{ all }"
+      targetMesh="mesh2"
+      objectPath="ElementRegions"
+      fieldName="pressure"
+      scale="1.2e6"/>
+    <FieldSpecification
+      name="xConstraint"
+      objectPath="nodeManager"
+      targetMesh="mesh1"
+      fieldName="totalDisplacement"
+      component="0"
+      scale="0.0"
+      setNames="{ xMinBoundary, xMaxBoundary }"/>
+    <FieldSpecification
+      name="yConstraint"
+      objectPath="nodeManager"
+      targetMesh="mesh1"
+      fieldName="totalDisplacement"
+      component="1"
+      scale="0.0"
+      setNames="{ yMinBoundary, yMaxBoundary }"/>
+    <FieldSpecification
+      name="zConstraint"
+      objectPath="nodeManager"
+      targetMesh="mesh1"
+      fieldName="totalDisplacement"
+      component="2"
+      scale="0.0"
+      setNames="{ zMinBoundary }"/>
+
+    <SourceFlux
+      name="injectionMatrix"
+      objectPath="ElementRegions"
+      targetMesh="mesh1"
+      scale="-0.5"
+      setNames="{ injectionPoint }"/>
+    <SourceFlux
+      name="injectionFracture"
+      objectPath="ElementRegions"
+      targetMesh="mesh2"
+      scale="-0.5"
+      setNames="{ injectionPoint }"/>
+  </FieldSpecifications>
+
+  <Outputs>
+  <VTK
+          name="vtkOutput"/>
+  </Outputs>
+
+</Problem>

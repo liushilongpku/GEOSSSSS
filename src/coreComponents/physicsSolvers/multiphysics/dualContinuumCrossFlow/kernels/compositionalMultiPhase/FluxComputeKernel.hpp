@@ -502,11 +502,10 @@ public:
         {
           RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow + ic],
                            stack.localFlux[ic] );
-          m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >
-            ( localRow + ic,
-            stack.dofColIndices.data(),
-            stack.localFluxJacobian[ic].dataIfContiguous(),
-            stack.stencilSize * numDof );
+          addToExistingRowEntries( localRow + ic,
+                                   stack.dofColIndices.data(),
+                                   stack.localFluxJacobian[ic].dataIfContiguous(),
+                                   stack.stencilSize * numDof );
         }
 
         // call the lambda to assemble additional terms, such as thermal terms
@@ -523,17 +522,40 @@ public:
         {
           RAJA::atomicAdd( parallelDeviceAtomic{}, &m_localRhs[localRow + ic],
                            stack.localFlux[numEqn + ic] );
-          m_localMatrix.addToRowBinarySearchUnsorted< parallelDeviceAtomic >
-                         ( localRow + ic,
-                           stack.dofColIndices.data(),
-                           stack.localFluxJacobian[ numEqn + ic].dataIfContiguous(),
-                           stack.stencilSize * numDof );
+          addToExistingRowEntries( localRow + ic,
+                                   stack.dofColIndices.data(),
+                                   stack.localFluxJacobian[ numEqn + ic ].dataIfContiguous(),
+                                   stack.stencilSize * numDof );
         }
 
         // call the lambda to assemble additional terms, such as thermal terms
         assemblyKernelOp( 1, localRow );
       }
 
+  }
+
+  GEOS_HOST_DEVICE
+  inline
+  void addToExistingRowEntries( localIndex const localRow,
+                                globalIndex const * const colsToAdd,
+                                real64 const * const valsToAdd,
+                                localIndex const numCols ) const
+  {
+    arraySlice1d< globalIndex const > const cols = m_localMatrix.getColumns( localRow );
+    arraySlice1d< real64 > const vals = m_localMatrix.getEntries( localRow );
+    localIndex const nnz = m_localMatrix.numNonZeros( localRow );
+
+    for( localIndex j = 0; j < numCols; ++j )
+    {
+      for( localIndex a = 0; a < nnz; ++a )
+      {
+        if( cols[a] == colsToAdd[j] )
+        {
+          RAJA::atomicAdd< parallelDeviceAtomic >( &vals[a], valsToAdd[j] );
+          break;
+        }
+      }
+    }
   }
 
   /**

@@ -1045,13 +1045,11 @@ void DofManager::setSparsityPatternDualContinuum(SparsityPatternView< globalInde
 
                   for( localIndex c = 0; c < field.numComponents; ++c )
                   {
-                    GEOS_LOG("flag");
                     colDofIndices[c] = colDofNumber + c;
                   }
 
-                  for( localIndex c = 0; c < field.numComponents ; ++c)
+                  for( integer const c : globallyCoupledComponents )
                   {
-                    std::cout  << "rowRegionName is " << rowRegionName << " row: " << rowDofNumber << "col:" << colDofNumber << std::endl;
                     pattern.insertNonZeros( rowDofNumber - rankDofOffset + c, colDofIndices.begin(), colDofIndices.end() );
                   }
                 } );
@@ -1088,7 +1086,7 @@ void DofManager::setSparsityPatternDualContinuumMechanics( SparsityPatternView< 
 
   globalIndex const rankDofOffset = rankOffset();
   integer const numCompDisp = dispField.numComponents;
-  integer const numCompFrac = fracPField.numComponents;
+  integer const numFracRows = LvArray::integerConversion< integer >( fracPField.globallyCoupledComponents.size() );
   localIndex const numLocalRows = pattern.numRows();
 
   auto const findMesh = [&]( FieldDescription const & fld, string const & regionName ) -> MeshLevel const *
@@ -1154,7 +1152,7 @@ void DofManager::setSparsityPatternDualContinuumMechanics( SparsityPatternView< 
               }
             }
           }
-          for( integer c = 0; c < numCompFrac; ++c )
+          for( integer const c : fracPField.globallyCoupledComponents )
           {
             localIndex const localRow = pfDof - rankDofOffset + c;
             if( localRow >= 0 && localRow < numLocalRows )
@@ -1167,10 +1165,11 @@ void DofManager::setSparsityPatternDualContinuumMechanics( SparsityPatternView< 
       else
       {
         // Displacement rows, fracture-pressure columns.
-        array1d< globalIndex > colDofs( numCompFrac );
-        for( integer c = 0; c < numCompFrac; ++c )
+        array1d< globalIndex > colDofs;
+        colDofs.reserve( numFracRows );
+        for( integer const c : fracPField.globallyCoupledComponents )
         {
-          colDofs[c] = pfDof + c;
+          colDofs.emplace_back( pfDof + c );
         }
         for( localIndex a = 0; a < numNodesPerElem; ++a )
         {
@@ -1409,6 +1408,7 @@ void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex
   }
 
   integer const numComp = rowFieldDescription.numComponents;
+  CompMask const & globallyCoupledComponents = rowFieldDescription.globallyCoupledComponents;
   globalIndex const rankDofOffset = rankOffset();
 
   forMeshSupport(rowFieldDescription.support, *m_domain, [&](MeshBody const &, MeshLevel const &mesh, auto const &regions)
@@ -1421,8 +1421,6 @@ void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex
 
         mesh.getElemManager().forElementSubRegions(regionNames, [&](localIndex const, ElementSubRegionBase const &subRegion)
         {
-          GEOS_LOG(subRegion.getName());
-          GEOS_LOG(rowFieldDescription.key);
           arrayView1d<integer const> const ghostRank = subRegion.ghostRank();
           arrayView1d<globalIndex const> const dofNumber = subRegion.getReference<array1d<globalIndex> >(rowFieldDescription.key);
           forAll<parallelHostPolicy>(subRegion.size(),[&](localIndex const ei)
@@ -1430,7 +1428,7 @@ void DofManager::countRowLengthsDualContinuum(const arrayView1d<geos::localIndex
             if (ghostRank[ei] < 0)
             {
               localIndex const localDofNumber =dofNumber[ei] - rankDofOffset;
-              for (integer c = 0; c < numComp; ++c)
+              for( integer const c : globallyCoupledComponents )
               {
                 rowLengths[localDofNumber +c] += numComp;
               }
@@ -1470,7 +1468,7 @@ void DofManager::countRowLengthsDualContinuumMechanics( const arrayView1d< local
 
   globalIndex const rankDofOffset = rankOffset();
   integer const numCompDisp = dispField.numComponents;
-  integer const numCompFrac = fracPField.numComponents;
+  integer const numFracRows = LvArray::integerConversion< integer >( fracPField.globallyCoupledComponents.size() );
 
   // Resolve the matrix mesh (where displacement lives) and the fracture mesh (where p_f lives)
   // from each field's support, matching on the requested region name.
@@ -1525,11 +1523,12 @@ void DofManager::countRowLengthsDualContinuumMechanics( const arrayView1d< local
         if( fracGhostRank[ei] < 0 )
         {
           globalIndex const pfDof = fracPDof[ei];
-          if( pfDof >= rankDofOffset && pfDof - rankDofOffset < rowLengths.size() )
+          for( integer const c : fracPField.globallyCoupledComponents )
           {
-            for( integer c = 0; c < numCompFrac; ++c )
+            localIndex const localRow = LvArray::integerConversion< localIndex >( pfDof - rankDofOffset + c );
+            if( localRow >= 0 && localRow < rowLengths.size() )
             {
-              rowLengths[pfDof - rankDofOffset + c] += numNodesPerElem * numCompDisp;
+              rowLengths[localRow] += numNodesPerElem * numCompDisp;
             }
           }
         }
@@ -1547,7 +1546,7 @@ void DofManager::countRowLengthsDualContinuumMechanics( const arrayView1d< local
             {
               for( integer c = 0; c < numCompDisp; ++c )
               {
-                rowLengths[dDof - rankDofOffset + c] += numCompFrac;
+                rowLengths[dDof - rankDofOffset + c] += numFracRows;
               }
             }
           }

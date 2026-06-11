@@ -29,6 +29,9 @@
 #include "DuvautLionsSolid.hpp"
 #include "constitutive/permeability/ConstantPermeability.hpp"
 #include "constitutive/permeability/CarmanKozenyPermeability.hpp"
+#include "constitutive/permeability/MeanEffectiveStressPermeability.hpp"
+#include "constitutive/permeability/NormalShearStressPermeability.hpp"
+#include "constitutive/permeability/PressurePermeability.hpp"
 
 namespace geos
 {
@@ -72,6 +75,12 @@ typedef PorousSolid< DuvautLionsSolid< DruckerPrager >, CarmanKozenyPermeability
 typedef PorousSolid< DuvautLionsSolid< DruckerPragerExtended >, CarmanKozenyPermeability > PorousViscoDruckerPragerExtendedCK;
 typedef PorousSolid< DuvautLionsSolid< ModifiedCamClay >, CarmanKozenyPermeability > PorousViscoModifiedCamClayCK;
 typedef PorousSolid< ModifiedCamClay, CarmanKozenyPermeability > PorousModifiedCamClayCK;
+typedef PorousSolid< ElasticIsotropic, PressurePermeability >
+  PorousElasticIsotropicPressurePerm;
+typedef PorousSolid< ElasticIsotropic, MeanEffectiveStressPermeability >
+  PorousElasticIsotropicMeanEffectiveStressPerm;
+typedef PorousSolid< ElasticIsotropic, NormalShearStressPermeability >
+  PorousElasticIsotropicNormalShearStressPerm;
 
 
 REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousElasticIsotropicConstant, string const &, Group * const )
@@ -94,6 +103,9 @@ REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousModifiedCamClayCK, string const 
 REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousViscoDruckerPragerCK, string const &, Group * const )
 REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousViscoDruckerPragerExtendedCK, string const &, Group * const )
 REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousViscoModifiedCamClayCK, string const &, Group * const )
+REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousElasticIsotropicPressurePerm, string const &, Group * const )
+REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousElasticIsotropicMeanEffectiveStressPerm, string const &, Group * const )
+REGISTER_CATALOG_ENTRY( ConstitutiveBase, PorousElasticIsotropicNormalShearStressPerm, string const &, Group * const )
 
 
 }

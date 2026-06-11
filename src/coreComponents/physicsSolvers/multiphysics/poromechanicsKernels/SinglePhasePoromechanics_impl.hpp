@@ -69,8 +69,15 @@ SinglePhasePoromechanics( NodeManager const & nodeManager,
   m_fluidDensity( elementSubRegion.template getConstitutiveModel< constitutive::SingleFluidBase >( elementSubRegion.template getReference< string >( fluidModelKey ) ).density() ),
   m_fluidDensity_n( elementSubRegion.template getConstitutiveModel< constitutive::SingleFluidBase >( elementSubRegion.template getReference< string >( fluidModelKey ) ).density_n() ),
   m_dFluidDensity( elementSubRegion.template getConstitutiveModel< constitutive::SingleFluidBase >( elementSubRegion.template getReference< string >( fluidModelKey ) ).dDensity() ),
-  m_performStressInitialization( performStressInitialization )
-{}
+  m_performStressInitialization( performStressInitialization ),
+  m_hasFractureData( elementSubRegion.hasWrapper( "fracturePressure" ) )
+{
+  if( m_hasFractureData )
+  {
+    m_fracturePressure  = elementSubRegion.template getReference< array1d< real64 > >( "fracturePressure" );
+    m_fractureBiotCoeff = elementSubRegion.template getReference< array1d< real64 > >( "fractureBiotCoefficient" );
+  }
+}
 
 template< typename SUBREGION_TYPE,
           typename CONSTITUTIVE_TYPE,
@@ -107,7 +114,17 @@ smallStrainUpdate( localIndex const k,
                                                        dPorosity_dVolStrain,
                                                        dPorosity_dPressure,
                                                        dPorosity_dTemperature,
-                                                       dSolidDensity_dPressure );
+                                                        dSolidDensity_dPressure );
+
+  // Step 1b (dual-continuum FIM): subtract fracture Biot contribution from total stress
+  //  sigma_total = sigma_eff - alpha_m * p_m - alpha_f * p_f
+  // The constitutive model above only subtracts alpha_m * p_m (matrix).
+  if( m_hasFractureData )
+  {
+    real64 const alpha_f = m_fractureBiotCoeff[k];
+    real64 const p_f     = m_fracturePressure[k];
+    LvArray::tensorOps::symAddIdentity< 3 >( stack.totalStress, -alpha_f * p_f );
+  }
 
   // Step 2: compute the body force
   computeBodyForce( k, q,
