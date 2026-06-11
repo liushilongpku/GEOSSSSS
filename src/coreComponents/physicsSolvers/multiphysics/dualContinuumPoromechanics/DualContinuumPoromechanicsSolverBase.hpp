@@ -550,17 +550,12 @@ private:
         constitutive::CoupledSolidBase const & fractureSolid =
           this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fractureSubRegion, fracturePorousName );
         arrayView1d< real64 const > const alpha_f_mesh2 = fractureSolid.getBiotCoefficient();
-        arrayView1d< real64 const > const matrixVolume = matrixSubRegion.getElementVolume();
-        arrayView1d< real64 const > const fractureVolume = fractureSubRegion.getElementVolume();
 
         for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
         {
           p_f_wrapper[ k ] = p_f_mesh2[ k ];
           alpha_f_wrapper[ k ] = alpha_f_mesh2[ k ];
-          fractureMechanicsScale[ k ] =
-            ( m_useIntrinsicInput != 0 ) ? 1.0 :
-            ( ( m_fractureVolumeFraction >= 0.0 ) ? m_fractureVolumeFraction :
-              ( matrixVolume[ k ] > 0.0 ? fractureVolume[ k ] / matrixVolume[ k ] : 1.0 ) );
+          fractureMechanicsScale[ k ] = 1.0;
         }
       } );
     }
@@ -625,8 +620,6 @@ private:
         constitutive::CoupledSolidBase & fracSolid =
           this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fracSubReg, fracSolidName );
         arrayView1d< real64 const > const alpha_f = fracSolid.getBiotCoefficient();
-        arrayView1d< real64 const > const matrixVolume = matSubReg.getElementVolume();
-        arrayView1d< real64 const > const fractureVolume = fracSubReg.getElementVolume();
 
         // matrix elastic solid (carries the stress tensor used by the mechanics kernel)
         string const & matElasticName = matSolid.getReference< string >(
@@ -650,20 +643,15 @@ private:
           return;
         }
 
-        // The fracture pressure enters the matrix momentum balance ONLY through K_upf
-        // (assembleFractureMechanicsCoupling). Include alpha_f*p_f in the balancing stress
-        // ONLY when that coupling is active; otherwise the initial total stress is just
-        // sigma' = alpha_m*p_m. (On co-located external-VTK double meshes the K_upf cross-mesh
-        // sparsity is not formed, so set enableFractureMechanicsCoupling=0 there -> matrix-only balance.)
+        // The fracture pressure enters the matrix momentum balance only through K_upf
+        // (assembleFractureMechanicsCoupling). The fracture Biot coefficient stored on the
+        // constitutive model is the effective dual-continuum coefficient, so no additional
+        // volume-fraction scaling is applied here.
         bool const includeFracture = ( m_enableFractureMechanicsCoupling != 0 );
         for( localIndex k = 0; k < matSubReg.size(); ++k )
         {
-          real64 const fractureScale =
-            ( m_useIntrinsicInput != 0 ) ? 1.0 :
-            ( ( m_fractureVolumeFraction >= 0.0 ) ? m_fractureVolumeFraction :
-              ( matrixVolume[ k ] > 0.0 ? fractureVolume[ k ] / matrixVolume[ k ] : 1.0 ) );
           real64 const sigma0 =
-            alpha_m[k] * p_m[k] + ( includeFracture ? fractureScale * alpha_f[k] * p_f[k] : 0.0 );
+            alpha_m[k] * p_m[k] + ( includeFracture ? alpha_f[k] * p_f[k] : 0.0 );
           for( localIndex q = 0; q < stress.size( 1 ); ++q )
           {
             stress[k][q][0] = sigma0; stress[k][q][1] = sigma0; stress[k][q][2] = sigma0;
@@ -1402,8 +1390,6 @@ private:
         arrayView1d< real64 const > const p_f = fractureSubRegion.getField< fields::flow::pressure >();
         arrayView1d< globalIndex const > const p_f_dof =
           fractureSubRegion.getReference< array1d< globalIndex > >( flowDofKey );
-        arrayView1d< real64 const > const matrixVolume = matrixSubRegion.getElementVolume();
-        arrayView1d< real64 const > const fractureVolume = fractureSubRegion.getElementVolume();
 
         string const & fracturePorousName =
           fractureSubRegion.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
@@ -1416,10 +1402,7 @@ private:
           fracturePressure[ k ]  = p_f[ k ];
           fractureBiotCoeff[ k ] = alpha_f[ k ];
           fractureDofNumber[ k ] = p_f_dof[ k ];
-          fractureMechanicsScale[ k ] =
-            ( m_useIntrinsicInput != 0 ) ? 1.0 :
-            ( ( m_fractureVolumeFraction >= 0.0 ) ? m_fractureVolumeFraction :
-              ( matrixVolume[ k ] > 0.0 ? fractureVolume[ k ] / matrixVolume[ k ] : 1.0 ) );
+          fractureMechanicsScale[ k ] = 1.0;
         }
       } );
     }
@@ -1769,7 +1752,7 @@ private:
                 localColDofIndex[ numDofPerNode * a + dim ] = dispDofNumber[ ni ] + dim;
             }
 
-            // geometric factor g[a*ND+dim] = alpha_f * sum_q (dN_a/dx_dim) * detJxW
+            // geometric factor g[a*ND+dim] = alpha_f,strain * sum_q (dN_a/dx_dim) * detJxW
             real64 g[ numNodesPerElem * numDofPerNode ] = {};
             real64 const alpha = fractureMechanicsScale[ k ] * alpha_f[ k ];
             for( integer q = 0; q < FE_TYPE::numQuadraturePoints; ++q )
@@ -1985,9 +1968,8 @@ private:
               {
                 real64 const delta_p = p_f[ k ] - p_f_n[ k ];
                 real64 const scaledAlpha = fractureMechanicsScale[ k ] * alpha_f[ k ];
-                real64 const scaledRefPorosity = fractureMechanicsScale[ k ] * refPorosity[ k ];
                 real64 const biotSkeletonModulusInverse =
-                  ( scaledAlpha - scaledRefPorosity ) / grainBulkModulus[ k ];
+                  ( scaledAlpha - refPorosity[ k ] ) / grainBulkModulus[ k ];
                 real64 const phi_new =
                   phi_n_frac[ k ][ 0 ] + scaledAlpha * volStrainInc + biotSkeletonModulusInverse * delta_p;
                 phi_frac[ k ][ 0 ] = phi_new;
@@ -2157,9 +2139,8 @@ private:
               {
                 real64 const delta_p = p_f[ k ] - p_f_n[ k ];
                 real64 const scaledAlpha = fractureMechanicsScale[ k ] * alpha_f[ k ];
-                real64 const scaledRefPorosity = fractureMechanicsScale[ k ] * refPorosity[ k ];
                 real64 const biotSkeletonModulusInverse =
-                  ( scaledAlpha - scaledRefPorosity ) / grainBulkModulus[ k ];
+                  ( scaledAlpha - refPorosity[ k ] ) / grainBulkModulus[ k ];
                 phi_frac[ k ][ 0 ] = phi_n_frac[ k ][ 0 ] + scaledAlpha * volStrainInc + biotSkeletonModulusInverse * delta_p;
                 dPhiFrac_dPres[ k ][ 0 ] = biotSkeletonModulusInverse;
                 dPhiFrac_dTemp[ k ][ 0 ] = 0.0;
