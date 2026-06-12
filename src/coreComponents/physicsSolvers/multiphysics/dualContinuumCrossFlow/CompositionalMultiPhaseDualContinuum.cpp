@@ -45,8 +45,6 @@ assembleCouplingTerms(real64 const time_n,
                       CRSMatrixView<real64, globalIndex const> const &localMatrix,
                       arrayView1d<real64> const &localRhs)
 {
-
-
   //TODO@LSL 扩散与弥散作用强不强？？
 
   GEOS_MARK_FUNCTION;

@@ -108,17 +108,9 @@ localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionN
 localIndex DualContinuumCrossFlow::findRegionIndexInRegionManager( ElementRegionManager const & elemManager,
                                                                    string const & regionName )
 {
-  localIndex idx = 0;
-  elemManager.forElementRegions( [&]( ElementRegionBase const & elemRegion )
-                                 {
-                                   if( elemRegion.getName() == regionName && idx < elemRegion.getNumberOfElements() )
-                                   {
-                                     return;
-                                   }
-                                   idx++;
-                                 } );
-
-  return idx;
+  GEOS_ERROR_IF( !elemManager.hasRegion( regionName ),
+                 GEOS_FMT( "Region '{}' was not found in '{}'", regionName, elemManager.getName() ) );
+  return elemManager.getRegion( regionName ).getIndexInParent();
 }
 
 void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
@@ -350,4 +342,3 @@ void DualContinuumCrossFlow::assembleCouplingTerms( MeshLevel & mesh,
 //REGISTER_CATALOG_ENTRY( DualContinuumSinglePhaseSolver, DualContinuumCrossFlow, string const &, Group * const )
 
 } // namespace geos
-

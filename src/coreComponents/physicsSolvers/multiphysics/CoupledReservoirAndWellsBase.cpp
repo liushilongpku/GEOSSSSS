@@ -124,6 +124,20 @@ bool validateWellPerforations( PhysicsSolverBase const * const reservoirSolver,
   string_array const & flowTargetRegionNames =
     reservoirSolver->getReference< string_array >( PhysicsSolverBase::viewKeyStruct::targetRegionsString() );
 
+  auto isTargetRegion = [&]( string const & regionName )
+  {
+    for( string const & targetRegionName : flowTargetRegionNames )
+    {
+      string::size_type const separator = targetRegionName.find_last_of( '/' );
+      string const targetName = separator == string::npos ? targetRegionName : targetRegionName.substr( separator + 1 );
+      if( targetName == regionName )
+      {
+        return true;
+      }
+    }
+    return false;
+  };
+
   wellSolver->forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&] ( string const &,
                                                                             MeshLevel const & meshLevel,
                                                                             string_array const & regionNames )
@@ -143,7 +157,7 @@ bool validateWellPerforations( PhysicsSolverBase const * const reservoirSolver,
       {
         localIndex const er = resElementRegion[iperf];
         string const regionName = elemManager.getRegion( er ).getName();
-        if( std::find( flowTargetRegionNames.begin(), flowTargetRegionNames.end(), regionName ) == flowTargetRegionNames.end())
+        if( !isTargetRegion( regionName ) )
         {
           badPerforation = {wellControls.getName(), regionName};
           break;

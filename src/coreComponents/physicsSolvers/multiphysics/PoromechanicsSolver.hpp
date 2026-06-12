@@ -182,8 +182,6 @@ public:
 
   virtual void registerDataOnMesh( dataRepository::Group & meshBodies ) override
   {
-    Base::registerDataOnMesh( meshBodies );
-
     if( this->getNonlinearSolverParameters().m_couplingType == NonlinearSolverParameters::CouplingType::Sequential )
     {
       // to let the solid mechanics solver that there is a pressure and temperature RHS in the mechanics solve
@@ -196,6 +194,8 @@ public:
     {
       flowSolver()->enableJumpStabilization();
     }
+
+    Base::registerDataOnMesh( meshBodies );
 
     this->forDiscretizationOnMeshTargets( meshBodies, [&] ( string const &,
                                                             MeshLevel & mesh,

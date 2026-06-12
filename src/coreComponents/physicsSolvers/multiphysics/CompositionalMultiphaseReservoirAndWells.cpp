@@ -30,6 +30,8 @@
 #include "physicsSolvers/fluidFlow/wells/CompositionalMultiphaseWell.hpp"
 #include "physicsSolvers/fluidFlow/wells/WellControls.hpp"
 #include "physicsSolvers/fluidFlow/wells/kernels/CompositionalMultiphaseWellKernels.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumCrossFlow/CompositionalMultiPhaseDualContinuum.hpp"
+#include "physicsSolvers/multiphysics/dualContinuumPoromechanics/CompositionalMultiphaseDualContinuumPoromechanicsSolver.hpp"
 #include "physicsSolvers/multiphysics/MultiphasePoromechanics.hpp"
 
 
@@ -68,6 +70,44 @@ CompositionalMultiphaseReservoirAndWells< MultiphasePoromechanics<> >::
 flowSolver() const
 {
   return this->reservoirSolver()->flowSolver();
+}
+
+template<>
+CompositionalMultiphaseBase *
+CompositionalMultiphaseReservoirAndWells< CompositionalMultiPhaseDualContinuumFVM<> >::
+flowSolver() const
+{
+  return this->reservoirSolver()->secondarySolver();
+}
+
+template<>
+CompositionalMultiphaseBase *
+CompositionalMultiphaseReservoirAndWells< CompositionalMultiphaseDualContinuumPoromechanicsSolver >::
+flowSolver() const
+{
+  return this->reservoirSolver()->flowSolver()->secondarySolver();
+}
+
+template<>
+void
+CompositionalMultiphaseReservoirAndWells< CompositionalMultiPhaseDualContinuumFVM<> >::
+setMGRStrategy()
+{
+  if( m_linearSolverParameters.get().preconditionerType == LinearSolverParameters::PreconditionerType::mgr )
+  {
+    GEOS_ERROR( GEOS_FMT( "{}: MGR strategy is not implemented for {}", this->getName(), this->getCatalogName() ) );
+  }
+}
+
+template<>
+void
+CompositionalMultiphaseReservoirAndWells< CompositionalMultiphaseDualContinuumPoromechanicsSolver >::
+setMGRStrategy()
+{
+  if( m_linearSolverParameters.get().preconditionerType == LinearSolverParameters::PreconditionerType::mgr )
+  {
+    GEOS_ERROR( GEOS_FMT( "{}: MGR strategy is not implemented for {}", this->getName(), this->getCatalogName() ) );
+  }
 }
 
 template<>
@@ -141,6 +181,23 @@ setMGRStrategy()
 template< typename RESERVOIR_SOLVER >
 void
 CompositionalMultiphaseReservoirAndWells< RESERVOIR_SOLVER >::
+postInputInitialization()
+{
+  Base::postInputInitialization();
+}
+
+template<>
+void
+CompositionalMultiphaseReservoirAndWells< CompositionalMultiphaseDualContinuumPoromechanicsSolver >::
+postInputInitialization()
+{
+  Base::postInputInitialization();
+  Base::wellSolver()->setFlowSolverName( this->reservoirSolver()->fractureFlowSolver()->getName() );
+}
+
+template< typename RESERVOIR_SOLVER >
+void
+CompositionalMultiphaseReservoirAndWells< RESERVOIR_SOLVER >::
 initializePreSubGroups()
 {
   Base::initializePreSubGroups();
@@ -163,6 +220,38 @@ initializePreSubGroups()
                            this->getDataContext(), CompositionalMultiphaseBase::viewKeyStruct::isThermalString(),
                            Base::reservoirSolver()->getDataContext(), Base::wellSolver()->getDataContext() ),
                  InputError );
+}
+
+template< typename RESERVOIR_SOLVER >
+real64
+CompositionalMultiphaseReservoirAndWells< RESERVOIR_SOLVER >::
+sequentiallyCoupledSolverStep( real64 const & time_n,
+                               real64 const & dt,
+                               integer const cycleNumber,
+                               DomainPartition & domain )
+{
+  NonlinearSolverParameters::CouplingType const originalCouplingType =
+    this->m_nonlinearSolverParameters.m_couplingType;
+
+  this->m_nonlinearSolverParameters.m_couplingType =
+    NonlinearSolverParameters::CouplingType::FullyImplicit;
+  m_assembleReservoirWellCouplingJacobian = false;
+
+  try
+  {
+    real64 const dtReturn = PhysicsSolverBase::solverStep( time_n, dt, cycleNumber, domain );
+
+    m_assembleReservoirWellCouplingJacobian = true;
+    this->m_nonlinearSolverParameters.m_couplingType = originalCouplingType;
+
+    return dtReturn;
+  }
+  catch( ... )
+  {
+    m_assembleReservoirWellCouplingJacobian = true;
+    this->m_nonlinearSolverParameters.m_couplingType = originalCouplingType;
+    throw;
+  }
 }
 
 template< typename RESERVOIR_SOLVER >
@@ -297,6 +386,8 @@ assembleCouplingTerms( real64 const time_n,
   if( Base::wellSolver()->useTotalMassEquation() )
     kernelFlags.set( isothermalCompositionalMultiphaseBaseKernels::KernelFlags::TotalMassEquation );
 
+  bool const assembleJacobian = m_assembleReservoirWellCouplingJacobian;
+
   this->template forDiscretizationOnMeshTargets<>( domain.getMeshBodies(), [&] ( string const &,
                                                                                  MeshLevel const & mesh,
                                                                                  string_array const & regionNames )
@@ -339,7 +430,101 @@ assembleCouplingTerms( real64 const time_n,
       areWellsShut = 0;
 
       integer numCrossflowPerforations=0;
-      if( isThermal ( )  )
+      if( !assembleJacobian )
+      {
+        arrayView1d< globalIndex const > const wellDofNumber =
+          subRegion.getReference< array1d< globalIndex > >( wellDofKey );
+        arrayView2d< real64 const > const compPerfRate =
+          perforationData->getField< fields::well::compPerforationRate >();
+        arrayView1d< integer const > const perfStatus =
+          perforationData->getField< fields::perforation::perforationStatus >();
+        arrayView1d< localIndex const > const perfWellElemIndex =
+          perforationData->getField< fields::perforation::wellElementIndex >();
+        arrayView1d< localIndex const > const resElementRegion =
+          perforationData->getField< fields::perforation::reservoirElementRegion >();
+        arrayView1d< localIndex const > const resElementSubRegion =
+          perforationData->getField< fields::perforation::reservoirElementSubRegion >();
+        arrayView1d< localIndex const > const resElementIndex =
+          perforationData->getField< fields::perforation::reservoirElementIndex >();
+
+        bool const useTotalMassEquation = Base::wellSolver()->useTotalMassEquation();
+        integer constexpr wellMassOffset = compositionalMultiphaseWellKernels::RowOffset::MASSBAL;
+
+        forAll< parallelDevicePolicy<> >( perforationData->size(), [=] GEOS_HOST_DEVICE ( localIndex const iperf )
+        {
+          if( !perfStatus[iperf] )
+          {
+            return;
+          }
+
+          localIndex const er = resElementRegion[iperf];
+          localIndex const esr = resElementSubRegion[iperf];
+          localIndex const ei = resElementIndex[iperf];
+          localIndex const iwelem = perfWellElemIndex[iperf];
+
+          globalIndex const resOffset = resDofNumber[er][esr][ei];
+          globalIndex const wellOffset = wellDofNumber[iwelem];
+
+          if( useTotalMassEquation )
+          {
+            real64 totalPerfRate = 0.0;
+            for( integer ic = 0; ic < numComps; ++ic )
+            {
+              totalPerfRate += compPerfRate[iperf][ic];
+            }
+
+            localIndex const resRow = LvArray::integerConversion< localIndex >( resOffset - rankOffset );
+            localIndex const wellRow = LvArray::integerConversion< localIndex >( wellOffset - rankOffset ) + wellMassOffset;
+
+            if( resRow >= 0 && resRow < localMatrix.numRows() )
+            {
+              RAJA::atomicAdd( parallelDeviceAtomic{}, &localRhs[resRow], dt * totalPerfRate );
+            }
+            if( wellRow >= 0 && wellRow < localMatrix.numRows() )
+            {
+              RAJA::atomicAdd( parallelDeviceAtomic{}, &localRhs[wellRow], -dt * totalPerfRate );
+            }
+
+            for( integer ic = 1; ic < numComps; ++ic )
+            {
+              real64 const shiftedPerfRate = compPerfRate[iperf][ic - 1];
+              localIndex const shiftedResRow =
+                LvArray::integerConversion< localIndex >( resOffset - rankOffset ) + ic;
+              localIndex const shiftedWellRow =
+                LvArray::integerConversion< localIndex >( wellOffset - rankOffset ) + wellMassOffset + ic;
+
+              if( shiftedResRow >= 0 && shiftedResRow < localMatrix.numRows() )
+              {
+                RAJA::atomicAdd( parallelDeviceAtomic{}, &localRhs[shiftedResRow], dt * shiftedPerfRate );
+              }
+              if( shiftedWellRow >= 0 && shiftedWellRow < localMatrix.numRows() )
+              {
+                RAJA::atomicAdd( parallelDeviceAtomic{}, &localRhs[shiftedWellRow], -dt * shiftedPerfRate );
+              }
+            }
+          }
+          else
+          {
+            for( integer ic = 0; ic < numComps; ++ic )
+            {
+              localIndex const resRow =
+                LvArray::integerConversion< localIndex >( resOffset - rankOffset ) + ic;
+              localIndex const wellRow =
+                LvArray::integerConversion< localIndex >( wellOffset - rankOffset ) + wellMassOffset + ic;
+
+              if( resRow >= 0 && resRow < localMatrix.numRows() )
+              {
+                RAJA::atomicAdd( parallelDeviceAtomic{}, &localRhs[resRow], dt * compPerfRate[iperf][ic] );
+              }
+              if( wellRow >= 0 && wellRow < localMatrix.numRows() )
+              {
+                RAJA::atomicAdd( parallelDeviceAtomic{}, &localRhs[wellRow], -dt * compPerfRate[iperf][ic] );
+              }
+            }
+          }
+        } );
+      }
+      else if( isThermal ( )  )
       {
         coupledReservoirAndWellKernels::
           ThermalCompositionalMultiPhaseFluxKernelFactory::
@@ -399,13 +584,19 @@ assembleCouplingTerms( real64 const time_n,
 
 template class CompositionalMultiphaseReservoirAndWells<>;
 template class CompositionalMultiphaseReservoirAndWells< MultiphasePoromechanics<> >;
+template class CompositionalMultiphaseReservoirAndWells< CompositionalMultiPhaseDualContinuumFVM<> >;
+template class CompositionalMultiphaseReservoirAndWells< CompositionalMultiphaseDualContinuumPoromechanicsSolver >;
 
 namespace
 {
 typedef CompositionalMultiphaseReservoirAndWells<> CompositionalMultiphaseFlowAndWells;
 typedef CompositionalMultiphaseReservoirAndWells< MultiphasePoromechanics<> > CompositionalMultiphasePoromechanicsAndWells;
+typedef CompositionalMultiphaseReservoirAndWells< CompositionalMultiPhaseDualContinuumFVM<> > CompositionalMultiphaseDualContinuumAndWells;
+typedef CompositionalMultiphaseReservoirAndWells< CompositionalMultiphaseDualContinuumPoromechanicsSolver > CompositionalMultiphaseDualContinuumPoromechanicsAndWells;
 REGISTER_CATALOG_ENTRY( PhysicsSolverBase, CompositionalMultiphaseFlowAndWells, string const &, Group * const )
 REGISTER_CATALOG_ENTRY( PhysicsSolverBase, CompositionalMultiphasePoromechanicsAndWells, string const &, Group * const )
+REGISTER_CATALOG_ENTRY( PhysicsSolverBase, CompositionalMultiphaseDualContinuumAndWells, string const &, Group * const )
+REGISTER_CATALOG_ENTRY( PhysicsSolverBase, CompositionalMultiphaseDualContinuumPoromechanicsAndWells, string const &, Group * const )
 }
 
 } /* namespace geos */

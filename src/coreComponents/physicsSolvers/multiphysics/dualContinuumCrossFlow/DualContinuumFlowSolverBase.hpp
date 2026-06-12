@@ -201,6 +201,43 @@ public:
                                          DofManager::Connector::Elem);
   }
 
+  void initializeState( DomainPartition & domain )
+  {
+    primarySolver()->initializeState( domain );
+    secondarySolver()->initializeState( domain );
+  }
+
+  void assembleFluxTerms( real64 const dt,
+                          DomainPartition const & domain,
+                          DofManager const & dofManager,
+                          CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                          arrayView1d< real64 > const & localRhs ) const
+  {
+    primarySolver()->assembleFluxTerms( dt, domain, dofManager, localMatrix, localRhs );
+    secondarySolver()->assembleFluxTerms( dt, domain, dofManager, localMatrix, localRhs );
+  }
+
+  void assembleStabilizedFluxTerms( real64 const dt,
+                                    DomainPartition const & domain,
+                                    DofManager const & dofManager,
+                                    CRSMatrixView< real64, globalIndex const > const & localMatrix,
+                                    arrayView1d< real64 > const & localRhs ) const
+  {
+    primarySolver()->assembleStabilizedFluxTerms( dt, domain, dofManager, localMatrix, localRhs );
+    secondarySolver()->assembleStabilizedFluxTerms( dt, domain, dofManager, localMatrix, localRhs );
+  }
+
+  real64 updateFluidState( ElementSubRegionBase & subRegion ) const
+  {
+    return primarySolver()->updateFluidState( subRegion );
+  }
+
+  void updateSolidInternalEnergyModel( ObjectManagerBase & dataGroup ) const
+  {
+    primarySolver()->updateSolidInternalEnergyModel( dataGroup );
+    secondarySolver()->updateSolidInternalEnergyModel( dataGroup );
+  }
+
   /**
    * @brief Get the fracture spacing Lz
    * @return The fracture spacing in z-direction

@@ -1,0 +1,274 @@
+<?xml version="1.0" ?>
+
+<Problem>
+  <NumericalMethods>
+    <FiniteElements>
+      <FiniteElementSpace name="FE1" order="1"/>
+    </FiniteElements>
+    <FiniteVolume>
+      <TwoPointFluxApproximation name="fluidTPFA"/>
+    </FiniteVolume>
+  </NumericalMethods>
+
+  <Mesh>
+    <VTKMesh name="mesh1" file="../dpdkVtkMesh/faultMesh_smoke.vtk"/>
+    <VTKMesh name="mesh2" file="../dpdkVtkMesh/faultMesh_smoke.vtk">
+      <InternalWell
+        name="co2Injector"
+        wellRegionName="wellRegion"
+        wellControlsName="injControls"
+        polylineNodeCoords="{ { 0.0, 0.0, 1900.0 },
+                              { 0.0, 0.0, 100.0 } }"
+        polylineSegmentConn="{ { 0, 1 } }"
+        radius="0.1"
+        numElementsPerSegment="4">
+        <Perforation
+          name="upper_open_perf"
+          targetRegion="fractureRegion"
+          distanceFromHead="500.0"/>
+        <Perforation
+          name="lower_perf"
+          targetRegion="fractureRegion"
+          distanceFromHead="1500.0"/>
+      </InternalWell>
+    </VTKMesh>
+  </Mesh>
+
+  <Geometry>
+    <Box name="xMinBoundary" xMin="{ -2010.0, -510.0, -10.0 }" xMax="{ -1990.0, 510.0, 2010.0 }"/>
+    <Box name="xMaxBoundary" xMin="{ 1990.0, -510.0, -10.0 }" xMax="{ 2010.0, 510.0, 2010.0 }"/>
+    <Box name="yMinBoundary" xMin="{ -2010.0, -510.0, -10.0 }" xMax="{ 2010.0, -490.0, 2010.0 }"/>
+    <Box name="yMaxBoundary" xMin="{ -2010.0, 490.0, -10.0 }" xMax="{ 2010.0, 510.0, 2010.0 }"/>
+    <Box name="zMinBoundary" xMin="{ -2010.0, -510.0, -10.0 }" xMax="{ 2010.0, 510.0, 10.0 }"/>
+    <Box name="farField" xMin="{ 1500.0, -510.0, -10.0 }" xMax="{ 2010.0, 510.0, 2010.0 }"/>
+  </Geometry>
+
+  <ElementRegions>
+    <CellElementRegion
+      name="matrixRegion"
+      meshBody="mesh1"
+      cellBlocks="{ * }"
+      materialList="{ matrixRock, fluid, relperm }"/>
+    <CellElementRegion
+      name="fractureRegion"
+      meshBody="mesh2"
+      cellBlocks="{ * }"
+      materialList="{ fractureRock, fluid, relperm }"/>
+    <WellElementRegion
+      name="wellRegion"
+      meshBody="mesh2"
+      materialList="{ fluid }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CO2BrinePhillipsFluid
+      name="fluid"
+      phaseNames="{ gas, water }"
+      componentNames="{ co2, water }"
+      componentMolarWeight="{ 44e-3, 18e-3 }"
+      phasePVTParaFiles="{ ../dpdkVtkMesh/pvtgas.txt, ../dpdkVtkMesh/pvtliquid.txt }"
+      flashModelParaFile="../dpdkVtkMesh/co2flash.txt"/>
+
+    <BrooksCoreyRelativePermeability
+      name="relperm"
+      phaseNames="{ gas, water }"
+      phaseMinVolumeFraction="{ 0.0, 0.0 }"
+      phaseRelPermExponent="{ 1.5, 1.5 }"
+      phaseRelPermMaxValue="{ 0.9, 0.9 }"/>
+
+    <ElasticIsotropic
+      name="matrixSolid"
+      defaultDensity="2650.0"
+      defaultBulkModulus="1.0e9"
+      defaultShearModulus="0.6e9"/>
+    <BiotPorosity
+      name="matrixPorosity"
+      defaultGrainBulkModulus="1.0e10"
+      defaultReferencePorosity="0.1"
+      defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability
+      name="matrixPerm"
+      permeabilityComponents="{ 1.0e-18, 1.0e-18, 1.0e-18 }"/>
+    <PorousElasticIsotropic
+      name="matrixRock"
+      solidModelName="matrixSolid"
+      porosityModelName="matrixPorosity"
+      permeabilityModelName="matrixPerm"/>
+
+    <ElasticIsotropic
+      name="fractureSolid"
+      defaultDensity="2650.0"
+      defaultBulkModulus="2.0e8"
+      defaultShearModulus="1.2e8"/>
+    <BiotPorosity
+      name="fracturePorosity"
+      defaultGrainBulkModulus="1.0e10"
+      defaultReferencePorosity="0.5"
+      defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability
+      name="fracturePerm"
+      permeabilityComponents="{ 1.0e-13, 1.0e-13, 1.0e-13 }"/>
+    <PorousElasticIsotropic
+      name="fractureRock"
+      solidModelName="fractureSolid"
+      porosityModelName="fracturePorosity"
+      permeabilityModelName="fracturePerm"/>
+  </Constitutive>
+
+  <Solvers gravityVector="{ 0.0, 0.0, 0.0 }">
+    <CompositionalMultiphaseFVM
+      name="matrixFlow"
+      logLevel="1"
+      discretization="fluidTPFA"
+      temperature="368.15"
+      useMass="0"
+      maxCompFractionChange="0.5"
+      targetRegions="{ mesh1/matrixRegion }">
+      <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters krylovTol="1.0e-10" solverType="gmres"/>
+    </CompositionalMultiphaseFVM>
+
+    <CompositionalMultiphaseFVM
+      name="fractureFlow"
+      logLevel="1"
+      discretization="fluidTPFA"
+      temperature="368.15"
+      useMass="0"
+      maxCompFractionChange="0.5"
+      targetRegions="{ mesh2/fractureRegion }">
+      <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters krylovTol="1.0e-10" solverType="gmres"/>
+    </CompositionalMultiphaseFVM>
+
+    <SolidMechanicsLagrangianFEM
+      name="solidMech"
+      logLevel="1"
+      discretization="FE1"
+      targetRegions="{ mesh1/matrixRegion }"
+      timeIntegrationOption="QuasiStatic"/>
+
+    <CompositionalMultiPhaseDualContinuumFVM
+      name="dualFlow"
+      logLevel="1"
+      flowSolverName="matrixFlow"
+      flowSolverName1="fractureFlow"
+      matrixRegionList="{ matrixRegion }"
+      fractureRegionList="{ fractureRegion }"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
+      <DualContinuumCrossFlow
+        fractureSpacingLx="10.0"
+        fractureSpacingLy="10.0"
+        fractureSpacingLz="10.0"
+        fractureVolumeFraction="0.1"
+        matrixRegionList="{ matrixRegion }"
+        fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters krylovTol="1.0e-10" solverType="gmres"/>
+    </CompositionalMultiPhaseDualContinuumFVM>
+
+    <CompositionalMultiphaseWell
+      name="wellSolver"
+      logLevel="2"
+      writeCSV="1"
+      useMass="0"
+      targetRegions="{ mesh2/wellRegion }">
+      <WellControls
+        name="injControls"
+        type="injector"
+        control="totalVolRate"
+        referenceElevation="1900.0"
+        statusTableName="wellOpenCloseSchedule"
+        targetBHP="1.0e8"
+        targetTotalRate="1.0e1"
+        enableCrossflow="0"
+        useSurfaceConditions="1"
+        surfacePressure="1.0e6"
+        surfaceTemperature="300.0"
+        injectionTemperature="368.15"
+        injectionStream="{ 1.0, 0.0 }"/>
+    </CompositionalMultiphaseWell>
+
+    <CompositionalMultiphaseDualContinuumPoromechanics
+      name="poroSolver"
+      logLevel="1"
+      dualcontinuumSolverName="dualFlow"
+      solidSolverName="solidMech"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      fractureVolumeFraction="0.1"
+      fimNewtonRelaxation="0.5"
+      enableFractureMechanicsCoupling="1"
+      enableFimCrossStorage="1"
+      stabilizationType="None"
+      isThermal="0">
+      <NonlinearSolverParameters
+        couplingType="FullyImplicit"
+        newtonTol="5.0e-3"
+        newtonMinIter="1"
+        newtonMaxIter="60"
+        lineSearchAction="Attempt"
+        maxSubSteps="1000"
+        maxTimeStepCuts="8"
+        timeStepCutFactor="0.5"/>
+      <LinearSolverParameters krylovTol="1.0e-10" solverType="gmres"/>
+    </CompositionalMultiphaseDualContinuumPoromechanics>
+
+    <CompositionalMultiphaseDualContinuumPoromechanicsReservoir
+      name="poroWellSolver"
+      logLevel="2"
+      compositionalmultiphasedualcontinuumporomechanicsSolverName="poroSolver"
+      wellSolverName="wellSolver"
+      initialDt="1.0"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion, mesh2/wellRegion }">
+      <NonlinearSolverParameters
+        couplingType="FullyImplicit"
+        newtonTol="5.0e-3"
+        newtonMinIter="1"
+        newtonMaxIter="60"
+        lineSearchAction="Attempt"
+        maxSubSteps="1000"
+        maxTimeStepCuts="8"
+        timeStepCutFactor="0.5"/>
+      <LinearSolverParameters krylovTol="1.0e-10" krylovMaxIter="300" solverType="gmres"/>
+    </CompositionalMultiphaseDualContinuumPoromechanicsReservoir>
+
+  </Solvers>
+
+  <FieldSpecifications>
+    <FieldSpecification name="initPressureM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="1.0e6"/>
+    <FieldSpecification name="initPressureF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="1.0e6"/>
+    <FieldSpecification name="initCo2M" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="initWaterM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="initCo2F" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="initWaterF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="farPressureM" setNames="{ farField }" targetMesh="mesh1" objectPath="mesh1/Level0/ElementRegions/matrixRegion/hexahedra" fieldName="pressure" scale="1.0e6"/>
+    <FieldSpecification name="farPressureF" setNames="{ farField }" targetMesh="mesh2" objectPath="mesh2/Level0/ElementRegions/fractureRegion/hexahedra" fieldName="pressure" scale="1.0e6"/>
+    <FieldSpecification name="farCo2M" setNames="{ farField }" targetMesh="mesh1" objectPath="mesh1/Level0/ElementRegions/matrixRegion/hexahedra" fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="farWaterM" setNames="{ farField }" targetMesh="mesh1" objectPath="mesh1/Level0/ElementRegions/matrixRegion/hexahedra" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="farCo2F" setNames="{ farField }" targetMesh="mesh2" objectPath="mesh2/Level0/ElementRegions/fractureRegion/hexahedra" fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="farWaterF" setNames="{ farField }" targetMesh="mesh2" objectPath="mesh2/Level0/ElementRegions/fractureRegion/hexahedra" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="xnegFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xMinBoundary }"/>
+    <FieldSpecification name="xposFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xMaxBoundary }"/>
+    <FieldSpecification name="yFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="1" scale="0.0" setNames="{ yMinBoundary, yMaxBoundary }"/>
+    <FieldSpecification name="znegFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="2" scale="0.0" setNames="{ zMinBoundary }"/>
+  </FieldSpecifications>
+
+  <Functions>
+    <TableFunction
+      name="wellOpenCloseSchedule"
+      interpolation="lower"
+      coordinates="{ 0.0, 2500.0, 5000.0, 7500.0 }"
+      values="{ 1.0, 0.0, 1.0, 0.0 }"/>
+  </Functions>
+
+  <Events maxTime="10000.0">
+    <PeriodicEvent name="outputs" timeFrequency="100.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" forceDt="0.001" target="/Solvers/poroWellSolver"/>
+    <PeriodicEvent name="solverPhase1" beginTime="0.01" endTime="1.0" forceDt="0.1" target="/Solvers/poroWellSolver"/>
+    <PeriodicEvent name="solverPhase2" beginTime="1.0" endTime="10.0" forceDt="1.0" target="/Solvers/poroWellSolver"/>
+    <PeriodicEvent name="solverPhase3" beginTime="10.0" endTime="10000.0" forceDt="100.0" target="/Solvers/poroWellSolver"/>
+  </Events>
+
+  <Outputs>
+    <VTK name="vtkOutput"/>
+  </Outputs>
+</Problem>

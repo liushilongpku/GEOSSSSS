@@ -244,6 +244,9 @@ public:
   virtual void saveSequentialIterationState( DomainPartition & domain ) override
   { reservoirSolver()->saveSequentialIterationState( domain ); }
 
+  virtual bool checkSequentialSolutionIncrements( DomainPartition & domain ) const override
+  { return reservoirSolver()->checkSequentialSolutionIncrements( domain ); }
+
 protected:
 
   /**

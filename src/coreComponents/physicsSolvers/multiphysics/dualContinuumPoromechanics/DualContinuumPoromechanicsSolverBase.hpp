@@ -2222,6 +2222,8 @@ private:
     }
   }
 
+public:
+
   virtual void implicitStepComplete( real64 const & time, real64 const & dt,
                                      DomainPartition & domain ) override
   {
@@ -2292,6 +2294,8 @@ private:
       }
     }
   }
+
+private:
 
   // Accessor for dual continuum flow solver
   DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER > * dualContinuumFlowSolver() const

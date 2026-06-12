@@ -88,6 +88,9 @@ public:
 
   string getCatalogName() const override { return catalogName(); }
 
+  CompositionalMultiphaseFVM * fractureFlowSolver() const
+  { return this->flowSolver()->secondarySolver(); }
+
   virtual void setupDofs( DomainPartition const & domain,
                           DofManager & dofManager ) const override
   {

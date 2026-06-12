@@ -75,6 +75,8 @@ public:
    */
   string getCatalogName() const override { return catalogName(); }
 
+  virtual void postInputInitialization() override;
+
   virtual void addCouplingSparsityPattern( DomainPartition const & domain,
                                            DofManager const & dofManager,
                                            SparsityPatternView< globalIndex > const & pattern ) const override;
@@ -95,7 +97,14 @@ protected:
 
   virtual void initializePreSubGroups() override;
 
+  virtual real64 sequentiallyCoupledSolverStep( real64 const & time_n,
+                                                real64 const & dt,
+                                                integer const cycleNumber,
+                                                DomainPartition & domain ) override;
+
   virtual void setMGRStrategy() override;
+
+  bool m_assembleReservoirWellCouplingJacobian = true;
 
 private:
 
