@@ -186,14 +186,23 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
     localIndex subRegionIdx = 0;//默认matrix 与 fracture 的subregion相同
     elemRegionMatrix.forElementSubRegions( [&]( ElementSubRegionBase const & elementSubRegionMatrix )
     {
-      //目前只需要获得matrix的体积属性,因此无需获取fracture的subregion
-      //ElementSubRegionBase const & elementSubRegionFracture = elemRegionFracture.getSubRegions()[subRegionIdx];
+      ElementSubRegionBase const & elementSubRegionFracture = elemRegionFracture.getSubRegion( subRegionIdx );
       auto const & cellVolumeArrayViewMatrix = elementSubRegionMatrix.getReference< array1d< real64 > >( "elementVolume" );
+      arrayView1d< localIndex const > const matrixToFractureConnectivity =
+        elementSubRegionMatrix.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
       for( localIndex i = 0; i < elementSubRegionMatrix.size(); i++ )
       {
+        localIndex const fractureElementIndex = matrixToFractureConnectivity[i];
+        GEOS_ERROR_IF( fractureElementIndex < 0 || fractureElementIndex >= elementSubRegionFracture.size(),
+                       "Invalid dual-continuum matrix-to-fracture connectivity for matrix region "
+                       << regionName << ", subregion " << elementSubRegionMatrix.getName()
+                       << ", local element " << i << ": mapped fracture element "
+                       << fractureElementIndex << " is outside fracture subregion "
+                       << elementSubRegionFracture.getName() << " size "
+                       << elementSubRegionFracture.size() );
         localIndex regionIndices[2] = { regionMatrixIdx, regionFractureIdx };
         localIndex subRegionIndices[2] = { subRegionIdx, subRegionIdx }; // Assuming default subregion 0
-        localIndex elementIndices[2] = { i, i }; // 1-to-1 mapping
+        localIndex elementIndices[2] = { i, fractureElementIndex };
         // Compute Geometric Weights [Wx, Wy, Wz]
         //薄板形状的形状因子，乘体积是因为算这个网格的交换而不是每单位体积的交换
         // W = 4 * V / L^2

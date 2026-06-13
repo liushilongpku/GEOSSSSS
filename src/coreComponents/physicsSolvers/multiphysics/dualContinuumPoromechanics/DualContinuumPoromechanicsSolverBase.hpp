@@ -494,12 +494,21 @@ public:
             {
               arrayView1d< real64 const > const K_eff_frac =
                 matSubReg.getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() );
+              arrayView1d< localIndex const > const matrixToFracture =
+                matSubReg.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
               real64 const v_f = m_fractureVolumeFraction;
               for( localIndex k = 0; k < matSubReg.size(); ++k )
               {
+                localIndex const kf = matrixToFracture[k];
+                GEOS_ERROR_IF( kf < 0 || kf >= fracSubReg.size(),
+                               "Invalid dual-continuum fracture stress copy connectivity for matrix subregion "
+                               << matSubReg.getName() << ", local element " << k
+                               << ": mapped fracture element " << kf
+                               << " is outside fracture subregion " << fracSubReg.getName()
+                               << " size " << fracSubReg.size() );
                 real64 const delta_eps_v = ( k < static_cast< localIndex >( m_tempVolStrainIncr.size() ) )
                                            ? m_tempVolStrainIncr[k] : 0.0;
-                fracAvgStressIncr[k] = v_f * K_eff_frac[k] * delta_eps_v;
+                fracAvgStressIncr[kf] = v_f * K_eff_frac[k] * delta_eps_v;
               }
             }
             this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( fracSubReg );
@@ -550,11 +559,20 @@ private:
         constitutive::CoupledSolidBase const & fractureSolid =
           this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fractureSubRegion, fracturePorousName );
         arrayView1d< real64 const > const alpha_f_mesh2 = fractureSolid.getBiotCoefficient();
+        arrayView1d< localIndex const > const matrixToFracture =
+          matrixSubRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
 
         for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
         {
-          p_f_wrapper[ k ] = p_f_mesh2[ k ];
-          alpha_f_wrapper[ k ] = alpha_f_mesh2[ k ];
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fractureSubRegion.size(),
+                         "Invalid dual-continuum copyFracturePressureToMesh1 connectivity for matrix subregion "
+                         << matrixSubRegion.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fractureSubRegion.getName()
+                         << " size " << fractureSubRegion.size() );
+          p_f_wrapper[ k ] = p_f_mesh2[ kf ];
+          alpha_f_wrapper[ k ] = alpha_f_mesh2[ kf ];
           fractureMechanicsScale[ k ] = 1.0;
         }
       } );
@@ -620,6 +638,8 @@ private:
         constitutive::CoupledSolidBase & fracSolid =
           this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fracSubReg, fracSolidName );
         arrayView1d< real64 const > const alpha_f = fracSolid.getBiotCoefficient();
+        arrayView1d< localIndex const > const matrixToFracture =
+          matSubReg.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
 
         // matrix elastic solid (carries the stress tensor used by the mechanics kernel)
         string const & matElasticName = matSolid.getReference< string >(
@@ -650,8 +670,15 @@ private:
         bool const includeFracture = ( m_enableFractureMechanicsCoupling != 0 );
         for( localIndex k = 0; k < matSubReg.size(); ++k )
         {
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fracSubReg.size(),
+                         "Invalid dual-continuum autoInitializeEffectiveStress connectivity for matrix subregion "
+                         << matSubReg.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fracSubReg.getName()
+                         << " size " << fracSubReg.size() );
           real64 const sigma0 =
-            alpha_m[k] * p_m[k] + ( includeFracture ? alpha_f[k] * p_f[k] : 0.0 );
+            alpha_m[k] * p_m[k] + ( includeFracture ? alpha_f[kf] * p_f[kf] : 0.0 );
           for( localIndex q = 0; q < stress.size( 1 ); ++q )
           {
             stress[k][q][0] = sigma0; stress[k][q][1] = sigma0; stress[k][q][2] = sigma0;
@@ -755,31 +782,40 @@ private:
           dynamic_cast< constitutive::BiotPorosity const & >( csM.getBasePorosityModel() ).getGrainBulkModulus();
         arrayView1d< real64 const > const KsF =
           dynamic_cast< constitutive::BiotPorosity const & >( csF.getBasePorosityModel() ).getGrainBulkModulus();
+        arrayView1d< localIndex const > const matrixToFracture =
+          matSR.template getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
 
         for( localIndex k = 0; k < matSR.size(); ++k )
         {
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fracSR.size(),
+                         "Invalid dual-continuum cross-storage connectivity for matrix subregion "
+                         << matSR.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fracSR.getName()
+                         << " size " << fracSR.size() );
           real64 const aMI = ( intrMatA  > 0.0 ) ? intrMatA  : aM[k];
-          real64 const aFI = ( intrFracA > 0.0 ) ? intrFracA : aF[k];
+          real64 const aFI = ( intrFracA > 0.0 ) ? intrFracA : aF[kf];
           real64 const KmI = ( intrMatK  > 0.0 ) ? intrMatK  : Km[k];
-          real64 const KfI = ( intrFracK > 0.0 ) ? intrFracK : Kf[k];
+          real64 const KfI = ( intrFracK > 0.0 ) ? intrFracK : Kf[kf];
 
           real64 const Kbar = 1.0 / ( v_m/KmI + v_f/KfI );
           real64 const abm  = Kbar*v_m*aMI/KmI;
           real64 const abf  = Kbar*v_f*aFI/KfI;
           // skeleton-only intrinsic storage (no fluid compressibility; multiphase flash carries it)
           real64 const invMmI = (aMI-phiM[k])/KsM[k];
-          real64 const invMfI = (aFI-phiF[k])/KsF[k];
+          real64 const invMfI = (aFI-phiF[kf])/KsF[kf];
           real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
           real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
           // what the compositional accumulation already put on the diagonal: skeleton (alpha-phi)/Ks
           real64 const invMmMat = (aM[k]-phiM[k])/KsM[k];
-          real64 const invMfMat = (aF[k]-phiF[k])/KsF[k];
+          real64 const invMfMat = (aF[kf]-phiF[kf])/KsF[kf];
           real64 const corrDiagM = SbarMM - invMmMat;
           real64 const corrDiagF = SbarFF - invMfMat;
           real64 const corrOff   = -abm*abf/Kbar * offScale;  // symmetric off-diagonal
 
           real64 const dpM = pM[k]-pMn[k];
-          real64 const dpF = pF[k]-pFn[k];
+          real64 const dpF = pF[kf]-pFn[kf];
 
           // per-component coefficients (compDens_c), with optional total-mass row transform
           real64 coeffM[ maxNumComp ] = {};
@@ -787,13 +823,13 @@ private:
           if( useTotalMass )
           {
             real64 sM = 0.0, sF = 0.0;
-            for( integer c = 0; c < numComp; ++c ) { sM += compDensM[k][c]; sF += compDensF[k][c]; }
+            for( integer c = 0; c < numComp; ++c ) { sM += compDensM[k][c]; sF += compDensF[kf][c]; }
             coeffM[0] = sM; coeffF[0] = sF;
-            for( integer i = 1; i < numComp; ++i ) { coeffM[i] = compDensM[k][i-1]; coeffF[i] = compDensF[k][i-1]; }
+            for( integer i = 1; i < numComp; ++i ) { coeffM[i] = compDensM[k][i-1]; coeffF[i] = compDensF[kf][i-1]; }
           }
           else
           {
-            for( integer c = 0; c < numComp; ++c ) { coeffM[c] = compDensM[k][c]; coeffF[c] = compDensF[k][c]; }
+            for( integer c = 0; c < numComp; ++c ) { coeffM[c] = compDensM[k][c]; coeffF[c] = compDensF[kf][c]; }
           }
 
           // matrix continuum mass rows: vs p_m (diag) and p_f (off)
@@ -802,7 +838,7 @@ private:
             real64 const V = volM[k];
             real64 const storageIncrement = V * ( corrDiagM * dpM + corrOff * dpF );
             globalIndex const colP_self  = dofM[k];       // matrix pressure DOF (offset 0)
-            globalIndex const colP_other = dofF[k];       // fracture pressure DOF (offset 0)
+            globalIndex const colP_other = dofF[kf];      // fracture pressure DOF (offset 0)
             for( integer i = 0; i < numComp; ++i )
             {
               localIndex const row = LvArray::integerConversion< localIndex >( dofM[k] + i - rankOffset );
@@ -829,15 +865,15 @@ private:
             }
           }
           // fracture continuum mass rows: vs p_f (diag) and p_m (off)
-          if( ghostF[k] < 0 )
+          if( ghostF[kf] < 0 )
           {
-            real64 const V = volF[k];
+            real64 const V = volF[kf];
             real64 const storageIncrement = V * ( corrDiagF * dpF + corrOff * dpM );
-            globalIndex const colP_self  = dofF[k];       // fracture pressure DOF (offset 0)
+            globalIndex const colP_self  = dofF[kf];      // fracture pressure DOF (offset 0)
             globalIndex const colP_other = dofM[k];       // matrix pressure DOF (offset 0)
             for( integer i = 0; i < numComp; ++i )
             {
-              localIndex const row = LvArray::integerConversion< localIndex >( dofF[k] + i - rankOffset );
+              localIndex const row = LvArray::integerConversion< localIndex >( dofF[kf] + i - rankOffset );
               if( row < 0 || row >= localMatrix.numRows() ) continue;
               localRhs[row] += coeffF[i] * storageIncrement;
               globalIndex cols[2] = { colP_self, colP_other };
@@ -848,14 +884,14 @@ private:
               {
                 for( integer jc = 0; jc < numComp; ++jc )
                 {
-                  globalIndex const colC = dofF[k] + jc + 1;
+                  globalIndex const colC = dofF[kf] + jc + 1;
                   localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, &colC, &storageIncrement, 1 );
                 }
               }
               else
               {
                 integer const compIndex = useTotalMass ? i - 1 : i;
-                globalIndex const colC = dofF[k] + compIndex + 1;
+                globalIndex const colC = dofF[kf] + compIndex + 1;
                 localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, &colC, &storageIncrement, 1 );
               }
             }
@@ -1096,23 +1132,32 @@ private:
         bool const useMeshVolumes = ( m_fractureVolumeFraction < 0.0 );
         arrayView1d< real64 const > V_m, V_f;
         if( useMeshVolumes ) { V_m = matSubReg.getElementVolume(); V_f = fracSubReg.getElementVolume(); }
+        arrayView1d< localIndex const > const matrixToFracture =
+          matSubReg.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
 
         for( localIndex k = 0; k < matSubReg.size(); ++k )
         {
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fracSubReg.size(),
+                         "Invalid dual-continuum computeEffectiveFromIntrinsic connectivity for matrix subregion "
+                         << matSubReg.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fracSubReg.getName()
+                         << " size " << fracSubReg.size() );
           // capture a representative intrinsic set (homogeneous material) for the storage params
-          if( intrKm < 0.0 ) { intrKm = K_m[k]; intrAm = alpha_m[k]; intrKf = K_f[k]; intrAf = alpha_f[k]; }
+          if( intrKm < 0.0 ) { intrKm = K_m[k]; intrAm = alpha_m[k]; intrKf = K_f[kf]; intrAf = alpha_f[kf]; }
 
-          real64 const v_f = useMeshVolumes ? V_f[k] / ( V_m[k] + V_f[k] ) : m_fractureVolumeFraction;
+          real64 const v_f = useMeshVolumes ? V_f[kf] / ( V_m[k] + V_f[kf] ) : m_fractureVolumeFraction;
           real64 const v_m = 1.0 - v_f;
 
-          real64 const Kbar = 1.0 / ( v_m / K_m[k] + v_f / K_f[k] );
-          real64 const Gbar = 1.0 / ( v_m / G_m[k] + v_f / G_f[k] );
+          real64 const Kbar = 1.0 / ( v_m / K_m[k] + v_f / K_f[kf] );
+          real64 const Gbar = 1.0 / ( v_m / G_m[k] + v_f / G_f[kf] );
           real64 const abar_m = Kbar * v_m * alpha_m[k] / K_m[k];
-          real64 const abar_f = Kbar * v_f * alpha_f[k] / K_f[k];
+          real64 const abar_f = Kbar * v_f * alpha_f[kf] / K_f[kf];
 
           K_m[k] = Kbar;  G_m[k] = Gbar;   // matrix mechanics → effective drained moduli
           alpha_m[k] = abar_m;             // matrix Biot → effective (kernel K_upm)
-          alpha_f[k] = abar_f;             // fracture Biot → effective (K_upf / K_pfu)
+          alpha_f[kf] = abar_f;            // fracture Biot → effective (K_upf / K_pfu)
         }
       } );
     }
@@ -1219,34 +1264,43 @@ private:
           V_m = matSubReg.getElementVolume();
           V_f = fracSubReg.getElementVolume();
         }
+        arrayView1d< localIndex const > const matrixToFracture =
+          matSubReg.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
 
         for( localIndex k = 0; k < matSubReg.size(); ++k )
         {
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fracSubReg.size(),
+                         "Invalid dual-continuum swapToCompositePressure connectivity for matrix subregion "
+                         << matSubReg.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fracSubReg.getName()
+                         << " size " << fracSubReg.size() );
           m_tempPm.push_back( p_m[k] );
           m_tempPm_n.push_back( p_m_n[k] );
           m_tempAlphaF.push_back( alpha_f_wrapper[k] );
 
           real64 const v_f = useMeshVolumes
-            ? V_f[k] / (V_m[k] + V_f[k])
+            ? V_f[kf] / (V_m[k] + V_f[kf])
             : m_fractureVolumeFraction;
           real64 const v_m = 1.0 - v_f;
 
           // K_eff = (v_m/K_m + v_f/K_f)^{-1}  (Reuss average, Eq. A20)
-          real64 const K_eff_inv = v_m / K_m[k] + v_f / K_f[k];
+          real64 const K_eff_inv = v_m / K_m[k] + v_f / K_f[kf];
           real64 const K_eff = 1.0 / K_eff_inv;
 
           // G_eff = (v_m/G_m + v_f/G_f)^{-1}  (Reuss average for shear)
-          real64 const G_eff_inv = v_m / G_m_writable[k] + v_f / G_f[k];
+          real64 const G_eff_inv = v_m / G_m_writable[k] + v_f / G_f[kf];
           real64 const G_eff = 1.0 / G_eff_inv;
 
           // α_eff_i = K_eff · v_i · α_i / K_i  (Eq. A21)
           real64 const alpha_eff_m = K_eff * v_m * alpha_m[k] / K_m[k];
-          real64 const alpha_eff_f = K_eff * v_f * alpha_f[k] / K_f[k];
+          real64 const alpha_eff_f = K_eff * v_f * alpha_f[kf] / K_f[kf];
 
           // p_eq = (α_eff_m · p_m + α_eff_f · p_f) / α_m
           // p_eq_n = (α_eff_m · p_m_n + α_eff_f · p_f_n) / α_m
           real64 const p_eq = (alpha_eff_m * p_m[k] + alpha_eff_f * p_f_wrapper[k]) / alpha_m[k];
-          real64 const p_eq_n = (alpha_eff_m * p_m_n[k] + alpha_eff_f * p_f_n[k]) / alpha_m[k];
+          real64 const p_eq_n = (alpha_eff_m * p_m_n[k] + alpha_eff_f * p_f_n[kf]) / alpha_m[k];
 
           m_tempCompositePressure.push_back( p_eq );
           m_tempCompositePressure_n.push_back( p_eq_n );
@@ -1396,12 +1450,21 @@ private:
         constitutive::CoupledSolidBase const & fractureSolid =
           this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fractureSubRegion, fracturePorousName );
         arrayView1d< real64 const > const alpha_f = fractureSolid.getBiotCoefficient();
+        arrayView1d< localIndex const > const matrixToFracture =
+          matrixSubRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
 
         for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
         {
-          fracturePressure[ k ]  = p_f[ k ];
-          fractureBiotCoeff[ k ] = alpha_f[ k ];
-          fractureDofNumber[ k ] = p_f_dof[ k ];
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fractureSubRegion.size(),
+                         "Invalid dual-continuum mapFractureDataToMatrix connectivity for matrix subregion "
+                         << matrixSubRegion.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fractureSubRegion.getName()
+                         << " size " << fractureSubRegion.size() );
+          fracturePressure[ k ]  = p_f[ kf ];
+          fractureBiotCoeff[ k ] = alpha_f[ kf ];
+          fractureDofNumber[ k ] = p_f_dof[ kf ];
           fractureMechanicsScale[ k ] = 1.0;
         }
       } );
@@ -1714,6 +1777,18 @@ private:
           fractureSubRegion.getReference< array1d< globalIndex > >( flowDofKey );
 
         auto const compDens = fractureSubRegion.getField< fields::flow::globalCompDensity >();
+        arrayView1d< localIndex const > const matrixToFracture =
+          matrixSubRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
+        for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
+        {
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fractureSubRegion.size(),
+                         "Invalid dual-continuum K_pfu connectivity for matrix subregion "
+                         << matrixSubRegion.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fractureSubRegion.getName()
+                         << " size " << fractureSubRegion.size() );
+        }
 
         finiteElement::FiniteElementBase & subRegionFE =
           matrixSubRegion.template getReference< finiteElement::FiniteElementBase >(
@@ -1741,6 +1816,7 @@ private:
           {
             typename FE_TYPE::StackVariables feStack;
             finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
+            localIndex const kf = matrixToFracture[k];
             localIndex const numSupportPoints = finiteElement.template numSupportPoints< FE_TYPE >( feStack );
             integer const numDispDof = numSupportPoints * numDofPerNode;
 
@@ -1774,19 +1850,19 @@ private:
             if( totalMass )
             {
               real64 sum = 0.0;
-              for( integer c = 0; c < nc; ++c ) sum += compDens[ k ][ c ];
+              for( integer c = 0; c < nc; ++c ) sum += compDens[ kf ][ c ];
               coeff[ 0 ] = sum;
-              for( integer i = 1; i < nc; ++i ) coeff[ i ] = compDens[ k ][ i - 1 ];
+              for( integer i = 1; i < nc; ++i ) coeff[ i ] = compDens[ kf ][ i - 1 ];
             }
             else
             {
-              for( integer c = 0; c < nc; ++c ) coeff[ c ] = compDens[ k ][ c ];
+              for( integer c = 0; c < nc; ++c ) coeff[ c ] = compDens[ kf ][ c ];
             }
 
             // write each component-mass equation row (volume-balance row numComp is porosity-free)
             for( integer i = 0; i < nc; ++i )
             {
-              globalIndex const rowDof = fractureDofNumber[ k ] + i;
+              globalIndex const rowDof = fractureDofNumber[ kf ] + i;
               localIndex const fracRow =
                 LvArray::integerConversion< localIndex >( rowDof - rankOffset );
               if( fracRow < 0 || fracRow >= localMatrix.numRows() ) continue;
@@ -1906,6 +1982,18 @@ private:
         arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > const dFluidDensity =
             fractureSubRegion.getConstitutiveModel< constitutive::SingleFluidBase >(
                 fractureSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() ) ).dDensity();
+        arrayView1d< localIndex const > const matrixToFracture =
+          matrixSubRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
+        for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
+        {
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fractureSubRegion.size(),
+                         "Invalid dual-continuum single-phase fracture porosity connectivity for matrix subregion "
+                         << matrixSubRegion.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fractureSubRegion.getName()
+                         << " size " << fractureSubRegion.size() );
+        }
 
         string const & matrixSolidName =
           matrixSubRegion.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
@@ -1943,6 +2031,7 @@ private:
             {
               typename FE_TYPE::StackVariables feStack;
               finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
+              localIndex const kf = matrixToFracture[k];
 
               real64 uhat[ NN ][ ND ];
               for( localIndex a = 0; a < NN; ++a )
@@ -1964,24 +2053,24 @@ private:
               }
               real64 const volStrainInc = ( elemVol > 0.0 ) ? volStrainIncSum / elemVol : 0.0;
 
-              if( k < phi_frac.size( 0 ) )
+              if( kf < phi_frac.size( 0 ) )
               {
-                real64 const delta_p = p_f[ k ] - p_f_n[ k ];
+                real64 const delta_p = p_f[ kf ] - p_f_n[ kf ];
                 real64 const scaledAlpha = fractureMechanicsScale[ k ] * alpha_f[ k ];
                 real64 const biotSkeletonModulusInverse =
-                  ( scaledAlpha - refPorosity[ k ] ) / grainBulkModulus[ k ];
+                  ( scaledAlpha - refPorosity[ kf ] ) / grainBulkModulus[ kf ];
                 real64 const phi_new =
-                  phi_n_frac[ k ][ 0 ] + scaledAlpha * volStrainInc + biotSkeletonModulusInverse * delta_p;
-                phi_frac[ k ][ 0 ] = phi_new;
-                dPhiFrac_dPres[ k ][ 0 ] = biotSkeletonModulusInverse;
-                dPhiFrac_dTemp[ k ][ 0 ] = 0.0;
+                  phi_n_frac[ kf ][ 0 ] + scaledAlpha * volStrainInc + biotSkeletonModulusInverse * delta_p;
+                phi_frac[ kf ][ 0 ] = phi_new;
+                dPhiFrac_dPres[ kf ][ 0 ] = biotSkeletonModulusInverse;
+                dPhiFrac_dTemp[ kf ][ 0 ] = 0.0;
 
-                real64 const V = volume[ k ];
-                real64 const rho = rho_f[ k ][ 0 ];
-                mass2[ k ] = phi_new * rho * V;
+                real64 const V = volume[ kf ];
+                real64 const rho = rho_f[ kf ][ 0 ];
+                mass2[ kf ] = phi_new * rho * V;
 
-                real64 const drho_dp_val = dFluidDensity[ k ][ 0 ][ 0 ];
-                dMass2[ k ][ 0 ] = (biotSkeletonModulusInverse * rho + phi_new * drho_dp_val) * V;
+                real64 const drho_dp_val = dFluidDensity[ kf ][ 0 ][ 0 ];
+                dMass2[ kf ][ 0 ] = (biotSkeletonModulusInverse * rho + phi_new * drho_dp_val) * V;
 
                 real64 effectiveStress[6] = {};
                 for( localIndex q = 0; q < numMatrixStressQ; ++q )
@@ -1996,7 +2085,7 @@ private:
                 {
                   effectiveStress[component] *= invNumMatrixStressQ;
                 }
-                fracSolidWrapper.updatePermeabilityFromEffectiveStress( k, 0, effectiveStress, currentTime );
+                fracSolidWrapper.updatePermeabilityFromEffectiveStress( kf, 0, effectiveStress, currentTime );
               }
             } ); // forAll
           } ); // dispatch3D
@@ -2078,6 +2167,18 @@ private:
           dynamic_cast< constitutive::BiotPorosity const & >( fracSolid.getBasePorosityModel() );
         arrayView1d< real64 const > const grainBulkModulus = fracBiotPorosity.getGrainBulkModulus();
         arrayView1d< real64 const > const refPorosity = fracSolid.getReferencePorosity();
+        arrayView1d< localIndex const > const matrixToFracture =
+          matrixSubRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
+        for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
+        {
+          localIndex const kf = matrixToFracture[k];
+          GEOS_ERROR_IF( kf < 0 || kf >= fractureSubRegion.size(),
+                         "Invalid dual-continuum fracture porosity connectivity for matrix subregion "
+                         << matrixSubRegion.getName() << ", local element " << k
+                         << ": mapped fracture element " << kf
+                         << " is outside fracture subregion " << fractureSubRegion.getName()
+                         << " size " << fractureSubRegion.size() );
+        }
 
         string const & matrixSolidName =
           matrixSubRegion.getReference< string >( Base::viewKeyStruct::porousMaterialNamesString() );
@@ -2114,6 +2215,7 @@ private:
             {
               typename FE_TYPE::StackVariables feStack;
               finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
+              localIndex const kf = matrixToFracture[k];
 
               real64 uhat[ NN ][ ND ];
               for( localIndex a = 0; a < NN; ++a )
@@ -2135,15 +2237,15 @@ private:
               }
               real64 const volStrainInc = ( elemVol > 0.0 ) ? volStrainIncSum / elemVol : 0.0;
 
-              if( k < phi_frac.size( 0 ) )
+              if( kf < phi_frac.size( 0 ) )
               {
-                real64 const delta_p = p_f[ k ] - p_f_n[ k ];
+                real64 const delta_p = p_f[ kf ] - p_f_n[ kf ];
                 real64 const scaledAlpha = fractureMechanicsScale[ k ] * alpha_f[ k ];
                 real64 const biotSkeletonModulusInverse =
-                  ( scaledAlpha - refPorosity[ k ] ) / grainBulkModulus[ k ];
-                phi_frac[ k ][ 0 ] = phi_n_frac[ k ][ 0 ] + scaledAlpha * volStrainInc + biotSkeletonModulusInverse * delta_p;
-                dPhiFrac_dPres[ k ][ 0 ] = biotSkeletonModulusInverse;
-                dPhiFrac_dTemp[ k ][ 0 ] = 0.0;
+                  ( scaledAlpha - refPorosity[ kf ] ) / grainBulkModulus[ kf ];
+                phi_frac[ kf ][ 0 ] = phi_n_frac[ kf ][ 0 ] + scaledAlpha * volStrainInc + biotSkeletonModulusInverse * delta_p;
+                dPhiFrac_dPres[ kf ][ 0 ] = biotSkeletonModulusInverse;
+                dPhiFrac_dTemp[ kf ][ 0 ] = 0.0;
 
                 real64 effectiveStress[6] = {};
                 for( localIndex q = 0; q < numMatrixStressQ; ++q )
@@ -2158,7 +2260,7 @@ private:
                 {
                   effectiveStress[component] *= invNumMatrixStressQ;
                 }
-                fracSolidWrapper.updatePermeabilityFromEffectiveStress( k, 0, effectiveStress, currentTime );
+                fracSolidWrapper.updatePermeabilityFromEffectiveStress( kf, 0, effectiveStress, currentTime );
               }
             } ); // forAll
           } ); // dispatch3D

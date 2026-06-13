@@ -123,6 +123,7 @@ public:
     MeshBody & fracture = domain.getMeshBody("mesh2");
     MeshLevel & primaryMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
     MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
+    this->registerMeshConnectivity( domain );
     m_crossFlow.setupCrossFlow( domain, primaryMesh, secondaryMesh );//TODO@LSL 这块需要对多region进行支持，可能会报错
   };
 
@@ -423,34 +424,58 @@ public:
                       
                       // Register connectivity from matrix to fracture
                       localIndex numElements = matrixSubRegion->size();
-                      matrixSubRegion->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() )
-                        .setApplyDefaultValue( false )
-                        .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
-                        .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
-                        .setDescription( "Connectivity from matrix elements to fracture elements" )
-                        .setRegisteringObjects( this->getName() );
+                      if( !matrixSubRegion->hasWrapper( viewKeyStruct::mesh1ToMesh2ConnectivityString() ) )
+                      {
+                        matrixSubRegion->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() )
+                          .setApplyDefaultValue( false )
+                          .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+                          .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
+                          .setDescription( "Connectivity from matrix elements to fracture elements" )
+                          .setRegisteringObjects( this->getName() );
+                      }
                       
-                      auto & matrixToFractureConnectivity = matrixSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() );
+                      auto & matrixToFractureConnectivity =
+                        matrixSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh1ToMesh2ConnectivityString() );
                       matrixToFractureConnectivity.resize( numElements );
+                      arrayView1d< globalIndex const > const matrixLocalToGlobal = matrixSubRegion->localToGlobalMap();
+                      auto const & fractureGlobalToLocal = fractureSubRegion->globalToLocalMap();
                       for( localIndex k = 0; k < numElements; ++k )
                       {
-                        matrixToFractureConnectivity[k] = k;
+                        auto const iter = fractureGlobalToLocal.find( matrixLocalToGlobal[k] );
+                        GEOS_ERROR_IF( iter == fractureGlobalToLocal.end(),
+                                       "Unable to build dual-continuum connectivity from matrix subregion "
+                                       << matrixSubRegion->getName() << " to fracture subregion "
+                                       << fractureSubRegion->getName() << ": fracture subregion does not contain global element "
+                                       << matrixLocalToGlobal[k] << " on this rank." );
+                        matrixToFractureConnectivity[k] = iter->second;
                       }
                       
                       // Register connectivity from fracture to matrix
                       numElements = fractureSubRegion->size();
-                      fractureSubRegion->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() )
-                        .setApplyDefaultValue( false )
-                        .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
-                        .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
-                        .setDescription( "Connectivity from fracture elements to matrix elements" )
-                        .setRegisteringObjects( this->getName() );
+                      if( !fractureSubRegion->hasWrapper( viewKeyStruct::mesh2ToMesh1ConnectivityString() ) )
+                      {
+                        fractureSubRegion->registerWrapper< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() )
+                          .setApplyDefaultValue( false )
+                          .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
+                          .setRestartFlags( dataRepository::RestartFlags::NO_WRITE )
+                          .setDescription( "Connectivity from fracture elements to matrix elements" )
+                          .setRegisteringObjects( this->getName() );
+                      }
                       
-                      auto & fractureToMatrixConnectivity = fractureSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() );
+                      auto & fractureToMatrixConnectivity =
+                        fractureSubRegion->getReference< array1d< localIndex > >( viewKeyStruct::mesh2ToMesh1ConnectivityString() );
                       fractureToMatrixConnectivity.resize( numElements );
+                      arrayView1d< globalIndex const > const fractureLocalToGlobal = fractureSubRegion->localToGlobalMap();
+                      auto const & matrixGlobalToLocal = matrixSubRegion->globalToLocalMap();
                       for( localIndex k = 0; k < numElements; ++k )
                       {
-                        fractureToMatrixConnectivity[k] = k;
+                        auto const iter = matrixGlobalToLocal.find( fractureLocalToGlobal[k] );
+                        GEOS_ERROR_IF( iter == matrixGlobalToLocal.end(),
+                                       "Unable to build dual-continuum connectivity from fracture subregion "
+                                       << fractureSubRegion->getName() << " to matrix subregion "
+                                       << matrixSubRegion->getName() << ": matrix subregion does not contain global element "
+                                       << fractureLocalToGlobal[k] << " on this rank." );
+                        fractureToMatrixConnectivity[k] = iter->second;
                       }
                     }
                   }

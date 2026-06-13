@@ -990,8 +990,6 @@ void DofManager::setSparsityPatternDualContinuum(SparsityPatternView< globalInde
   }
 
   FieldDescription const & field = rowFieldDescription;
-  CouplingDescription const & coupling = m_coupling.at( {rowFieldIndex, rowFieldIndex} );
-  integer const numComp = field.numComponents;
   globalIndex const rankDofOffset = rankOffset();
   CompMask const & globallyCoupledComponents = field.globallyCoupledComponents;
 
@@ -1015,31 +1013,48 @@ void DofManager::setSparsityPatternDualContinuum(SparsityPatternView< globalInde
               MeshBody & colMeshBody = m_domain->getMeshBody( colSupport.meshBodyName );
               MeshLevel const & colMesh = colMeshBody.getMeshLevel( colSupport.meshLevelName );
 
-              stdVector<string> rowRegions = {rowRegionName};
+              ElementRegionBase const & rowRegion = rowMesh.getElemManager().getRegion( rowRegionName );
+              ElementRegionBase const & colRegion = colMesh.getElemManager().getRegion( colRegionName );
+              char const * connectivityKey =
+                ( rowRegionName == matrixRegionName ) ? "mesh1ToMesh2Connectivity" : "mesh2ToMesh1Connectivity";
 
-                // 假设 regions 是你根据名字找到的网格区域集合
-              LocationSwitch( field.location, [&]( auto const loc )
+              rowRegion.forElementSubRegionsIndex( [&]( localIndex const subRegIdx,
+                                                        ElementSubRegionBase const & rowSubRegion )
               {
-                // A. 获取编译期常量 LOC (Cell, Node, Face 等)
-                FieldLocation constexpr LOC = decltype(loc)::value;
+                GEOS_ERROR_IF( subRegIdx >= colRegion.numSubRegions(),
+                               "Dual-continuum sparsity setup cannot pair row subregion "
+                               << rowSubRegion.getName() << " with region " << colRegionName
+                               << ": subregion index " << subRegIdx << " is out of range." );
+                ElementSubRegionBase const & colSubRegion = colRegion.getSubRegion( subRegIdx );
+                GEOS_ERROR_IF( !rowSubRegion.hasWrapper( connectivityKey ),
+                               "Dual-continuum sparsity setup requires connectivity field "
+                               << connectivityKey << " on subregion " << rowSubRegion.getName() );
 
-                // B. 定义 ArrayHelper 类型，专门用于读取 globalIndex (即 DoF 编号)
-                using Helper = ArrayHelper< globalIndex const, LOC >;
+                arrayView1d< globalIndex const > const rowDof =
+                  rowSubRegion.getReference< array1d< globalIndex > >( field.key );
+                arrayView1d< globalIndex const > const colDof =
+                  colSubRegion.getReference< array1d< globalIndex > >( field.key );
+                arrayView1d< integer const > const rowGhostRank = rowSubRegion.ghostRank();
+                arrayView1d< localIndex const > const rowToCol =
+                  rowSubRegion.getReference< array1d< localIndex > >( connectivityKey );
 
-                // C. 获取访问器 (Accessor)
-                // 关键点：使用 field.key 从 mesh 中提取数据数组
-                typename Helper::Accessor rowDofAccessor = Helper::get( rowMesh, field.key );
-                typename Helper::Accessor colDofAccessor = Helper::get( colMesh, field.key );
-
-                // D. 遍历 Region 中的每个实体 (locIdx 是单元或节点的局部索引)
-                forMeshLocation< LOC, false, serialPolicy >( mesh, rowRegions, [&]( auto const locIdx )
+                for( localIndex locIdx = 0; locIdx < rowSubRegion.size(); ++locIdx )
                 {
-                  // E. 获取该实体的“起始” DoF 编号
-                  globalIndex const rowDofNumber = Helper::value( rowDofAccessor, locIdx );
-                  globalIndex const colDofNumber = Helper::value( colDofAccessor, locIdx );
+                  if( rowGhostRank[locIdx] >= 0 )
+                  {
+                    continue;
+                  }
 
-                  // F. 如果该字段有多个分量 (例如位移有 x,y,z 3个分量)
-                  // 通常 DoF 是连续存储的：base, base+1, base+2
+                  localIndex const colIdx = rowToCol[locIdx];
+                  GEOS_ERROR_IF( colIdx < 0 || colIdx >= colSubRegion.size(),
+                                 "Invalid dual-continuum sparsity connectivity for row subregion "
+                                 << rowSubRegion.getName() << ", local element " << locIdx
+                                 << ": mapped column element " << colIdx
+                                 << " is outside column subregion " << colSubRegion.getName()
+                                 << " size " << colSubRegion.size() );
+
+                  globalIndex const rowDofNumber = rowDof[locIdx];
+                  globalIndex const colDofNumber = colDof[colIdx];
 
                   array1d< globalIndex > colDofIndices( field.numComponents );
 
@@ -1052,7 +1067,7 @@ void DofManager::setSparsityPatternDualContinuum(SparsityPatternView< globalInde
                   {
                     pattern.insertNonZeros( rowDofNumber - rankDofOffset + c, colDofIndices.begin(), colDofIndices.end() );
                   }
-                } );
+                }
               } );
               break;//找到对应的MeshLevel，退出循环
             }
@@ -1112,32 +1127,46 @@ void DofManager::setSparsityPatternDualContinuumMechanics( SparsityPatternView< 
     return;
   }
 
-  arrayView1d< globalIndex const > fracPDof;
-  arrayView1d< integer const > fracGhostRank;
-  fractureMesh->getElemManager().forElementSubRegions( stdVector< string >{ fractureRegionName },
-                                                       [&]( localIndex const, ElementSubRegionBase const & subRegion )
-  {
-    fracPDof = subRegion.getReference< array1d< globalIndex > >( fracPField.key );
-    fracGhostRank = subRegion.ghostRank();
-  } );
-
   arrayView1d< globalIndex const > const dispDof =
     matrixMesh->getNodeManager().getReference< array1d< globalIndex > >( dispField.key );
   arrayView1d< integer const > const nodeGhostRank = matrixMesh->getNodeManager().ghostRank();
 
-  matrixMesh->getElemManager().forElementSubRegions< CellElementSubRegion >(
-    stdVector< string >{ matrixRegionName },
-    [&]( localIndex const, CellElementSubRegion const & subRegion )
+  ElementRegionBase const & matrixRegion = matrixMesh->getElemManager().getRegion( matrixRegionName );
+  ElementRegionBase const & fractureRegion = fractureMesh->getElemManager().getRegion( fractureRegionName );
+
+  matrixRegion.forElementSubRegionsIndex< CellElementSubRegion >(
+    [&]( localIndex const subRegIdx, CellElementSubRegion const & subRegion )
   {
+    GEOS_ERROR_IF( subRegIdx >= fractureRegion.numSubRegions(),
+                   "Dual-continuum mechanics sparsity setup cannot pair matrix subregion "
+                   << subRegion.getName() << " with fracture region " << fractureRegionName
+                   << ": subregion index " << subRegIdx << " is out of range." );
+    ElementSubRegionBase const & fractureSubRegion = fractureRegion.getSubRegion( subRegIdx );
+    GEOS_ERROR_IF( !subRegion.hasWrapper( "mesh1ToMesh2Connectivity" ),
+                   "Dual-continuum mechanics sparsity setup requires connectivity field "
+                   "mesh1ToMesh2Connectivity on subregion " << subRegion.getName() );
+
+    arrayView1d< globalIndex const > const fracPDof =
+      fractureSubRegion.getReference< array1d< globalIndex > >( fracPField.key );
+    arrayView1d< integer const > const fracGhostRank = fractureSubRegion.ghostRank();
+    arrayView1d< localIndex const > const matrixToFracture =
+      subRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
     arrayView2d< localIndex const, cells::NODE_MAP_USD > const elemsToNodes = subRegion.nodeList();
     localIndex const numNodesPerElem = elemsToNodes.size( 1 );
     for( localIndex ei = 0; ei < subRegion.size(); ++ei )
     {
-      globalIndex const pfDof = fracPDof[ei];
+      localIndex const fracEi = matrixToFracture[ei];
+      GEOS_ERROR_IF( fracEi < 0 || fracEi >= fractureSubRegion.size(),
+                     "Invalid dual-continuum mechanics sparsity connectivity for matrix subregion "
+                     << subRegion.getName() << ", local element " << ei
+                     << ": mapped fracture element " << fracEi
+                     << " is outside fracture subregion " << fractureSubRegion.getName()
+                     << " size " << fractureSubRegion.size() );
+      globalIndex const pfDof = fracPDof[fracEi];
       if( rowIsElem )
       {
         // Fracture-pressure rows, displacement columns.
-        if( fracGhostRank[ei] < 0 )
+        if( fracGhostRank[fracEi] < 0 )
         {
           array1d< globalIndex > colDofs;
           colDofs.reserve( numNodesPerElem * numCompDisp );
@@ -1495,34 +1524,47 @@ void DofManager::countRowLengthsDualContinuumMechanics( const arrayView1d< local
     return;
   }
 
-  // Gather the fracture-pressure DOF numbers per (co-located) fracture element.
-  arrayView1d< globalIndex const > fracPDof;
-  arrayView1d< integer const > fracGhostRank;
-  fractureMesh->getElemManager().forElementSubRegions( stdVector< string >{ fractureRegionName },
-                                                       [&]( localIndex const, ElementSubRegionBase const & subRegion )
-  {
-    fracPDof = subRegion.getReference< array1d< globalIndex > >( fracPField.key );
-    fracGhostRank = subRegion.ghostRank();
-  } );
-
   arrayView1d< globalIndex const > const dispDof =
     matrixMesh->getNodeManager().getReference< array1d< globalIndex > >( dispField.key );
   arrayView1d< integer const > const nodeGhostRank = matrixMesh->getNodeManager().ghostRank();
 
-  matrixMesh->getElemManager().forElementSubRegions< CellElementSubRegion >(
-    stdVector< string >{ matrixRegionName },
-    [&]( localIndex const, CellElementSubRegion const & subRegion )
+  ElementRegionBase const & matrixRegion = matrixMesh->getElemManager().getRegion( matrixRegionName );
+  ElementRegionBase const & fractureRegion = fractureMesh->getElemManager().getRegion( fractureRegionName );
+
+  matrixRegion.forElementSubRegionsIndex< CellElementSubRegion >(
+    [&]( localIndex const subRegIdx, CellElementSubRegion const & subRegion )
   {
+    GEOS_ERROR_IF( subRegIdx >= fractureRegion.numSubRegions(),
+                   "Dual-continuum mechanics row-length setup cannot pair matrix subregion "
+                   << subRegion.getName() << " with fracture region " << fractureRegionName
+                   << ": subregion index " << subRegIdx << " is out of range." );
+    ElementSubRegionBase const & fractureSubRegion = fractureRegion.getSubRegion( subRegIdx );
+    GEOS_ERROR_IF( !subRegion.hasWrapper( "mesh1ToMesh2Connectivity" ),
+                   "Dual-continuum mechanics row-length setup requires connectivity field "
+                   "mesh1ToMesh2Connectivity on subregion " << subRegion.getName() );
+
+    arrayView1d< globalIndex const > const fracPDof =
+      fractureSubRegion.getReference< array1d< globalIndex > >( fracPField.key );
+    arrayView1d< integer const > const fracGhostRank = fractureSubRegion.ghostRank();
+    arrayView1d< localIndex const > const matrixToFracture =
+      subRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
     arrayView2d< localIndex const, cells::NODE_MAP_USD > const elemsToNodes = subRegion.nodeList();
     localIndex const numNodesPerElem = elemsToNodes.size( 1 );
     for( localIndex ei = 0; ei < subRegion.size(); ++ei )
     {
+      localIndex const fracEi = matrixToFracture[ei];
+      GEOS_ERROR_IF( fracEi < 0 || fracEi >= fractureSubRegion.size(),
+                     "Invalid dual-continuum mechanics row-length connectivity for matrix subregion "
+                     << subRegion.getName() << ", local element " << ei
+                     << ": mapped fracture element " << fracEi
+                     << " is outside fracture subregion " << fractureSubRegion.getName()
+                     << " size " << fractureSubRegion.size() );
       if( rowIsElem )
       {
         // Fracture-pressure rows gain capacity for all element-node displacement DOFs.
-        if( fracGhostRank[ei] < 0 )
+        if( fracGhostRank[fracEi] < 0 )
         {
-          globalIndex const pfDof = fracPDof[ei];
+          globalIndex const pfDof = fracPDof[fracEi];
           for( integer const c : fracPField.globallyCoupledComponents )
           {
             localIndex const localRow = LvArray::integerConversion< localIndex >( pfDof - rankDofOffset + c );
