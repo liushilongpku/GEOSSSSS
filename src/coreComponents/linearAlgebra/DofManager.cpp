@@ -1181,6 +1181,8 @@ void DofManager::setSparsityPatternDualContinuumMechanics( SparsityPatternView< 
               }
             }
           }
+          std::sort( colDofs.begin(), colDofs.end() );
+          colDofs.resize( LvArray::integerConversion< localIndex >( std::unique( colDofs.begin(), colDofs.end() ) - colDofs.begin() ) );
           for( integer const c : fracPField.globallyCoupledComponents )
           {
             localIndex const localRow = pfDof - rankDofOffset + c;
@@ -1200,6 +1202,8 @@ void DofManager::setSparsityPatternDualContinuumMechanics( SparsityPatternView< 
         {
           colDofs.emplace_back( pfDof + c );
         }
+        std::sort( colDofs.begin(), colDofs.end() );
+        colDofs.resize( LvArray::integerConversion< localIndex >( std::unique( colDofs.begin(), colDofs.end() ) - colDofs.begin() ) );
         for( localIndex a = 0; a < numNodesPerElem; ++a )
         {
           localIndex const nodeIdx = elemsToNodes[ei][a];

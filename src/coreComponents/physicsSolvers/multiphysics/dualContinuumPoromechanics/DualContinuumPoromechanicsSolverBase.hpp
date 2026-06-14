@@ -41,6 +41,8 @@
 #include "constitutive/solid/porosity/BiotPorosity.hpp"
 #include "constitutive/contact/HydraulicApertureBase.hpp"
 #include "mesh/DomainPartition.hpp"
+#include "mesh/FieldIdentifiers.hpp"
+#include "mesh/mpiCommunications/CommunicationTools.hpp"
 #include "mesh/utilities/AverageOverQuadraturePointsKernel.hpp"
 #include "codingUtilities/Utilities.hpp"
 #include "common/logger/Logger.hpp"
@@ -929,6 +931,7 @@ private:
           fracSR.template getField< fields::flow::globalCompDensity >();
         arrayView2d< real64 const, compflow::USD_PHASE > const phaseVolFrac =
           fracSR.template getField< fields::flow::phaseVolumeFraction >();
+        arrayView1d< integer const > const ghostRank = fracSR.ghostRank();
 
         constexpr integer maxClosureIter = 6;
         bool updatedFluidState = false;
@@ -938,6 +941,11 @@ private:
           forAll< parallelDevicePolicy<> >( fracSR.size(),
             [=] GEOS_HOST_DEVICE ( localIndex const k )
           {
+            if( ghostRank[k] >= 0 )
+            {
+              return;
+            }
+
             real64 phaseVolFracSum = 0.0;
             for( integer ip = 0; ip < numPhase; ++ip )
             {
@@ -971,6 +979,25 @@ private:
           {
             this->flowSolver()->secondarySolver()->updateFluidState( fracSR );
           }
+          this->flowSolver()->secondarySolver()->saveConvergedState( fracSR );
+        }
+      } );
+    }
+
+    FieldIdentifiers fieldsToBeSync;
+    fieldsToBeSync.addElementFields( { fields::flow::globalCompDensity::key() },
+                                     fractureRegions );
+    CommunicationTools::getInstance().synchronizeFields( fieldsToBeSync, meshLevel2, domain.getNeighbors(), true );
+
+    for( string const & fractureRegionName : fractureRegions )
+    {
+      ElementRegionBase & fracReg = meshLevel2.getElemManager().getRegion( fractureRegionName );
+      fracReg.template forElementSubRegions< CellElementSubRegion >(
+        [&]( CellElementSubRegion & fracSR )
+      {
+        this->flowSolver()->secondarySolver()->updateFluidState( fracSR );
+        if( saveConvergedState )
+        {
           this->flowSolver()->secondarySolver()->saveConvergedState( fracSR );
         }
       } );
@@ -1416,6 +1443,12 @@ private:
     string_array const & matrixRegionList = dualFlow.template getReference< string_array >( "matrixRegionList" );
     string_array const & fractureRegionList = dualFlow.template getReference< string_array >( "fractureRegionList" );
     if( matrixRegionList.empty() ) return;
+
+    FieldIdentifiers fieldsToBeSync;
+    fieldsToBeSync.addElementFields( { fields::flow::pressure::key(),
+                                        fields::flow::globalCompDensity::key() },
+                                      fractureRegionList );
+    CommunicationTools::getInstance().synchronizeFields( fieldsToBeSync, meshLevel2, domain.getNeighbors(), true );
 
     for( size_t iPair = 0; iPair < matrixRegionList.size(); ++iPair )
     {
@@ -1984,6 +2017,8 @@ private:
                 fractureSubRegion.getReference< string >( FlowSolverBase::viewKeyStruct::fluidNamesString() ) ).dDensity();
         arrayView1d< localIndex const > const matrixToFracture =
           matrixSubRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
+        arrayView1d< integer const > const matrixGhostRank = matrixSubRegion.ghostRank();
+        arrayView1d< integer const > const fractureGhostRank = fractureSubRegion.ghostRank();
         for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
         {
           localIndex const kf = matrixToFracture[k];
@@ -2032,6 +2067,10 @@ private:
               typename FE_TYPE::StackVariables feStack;
               finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
               localIndex const kf = matrixToFracture[k];
+              if( matrixGhostRank[k] >= 0 || fractureGhostRank[kf] >= 0 )
+              {
+                return;
+              }
 
               real64 uhat[ NN ][ ND ];
               for( localIndex a = 0; a < NN; ++a )
@@ -2169,6 +2208,8 @@ private:
         arrayView1d< real64 const > const refPorosity = fracSolid.getReferencePorosity();
         arrayView1d< localIndex const > const matrixToFracture =
           matrixSubRegion.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
+        arrayView1d< integer const > const matrixGhostRank = matrixSubRegion.ghostRank();
+        arrayView1d< integer const > const fractureGhostRank = fractureSubRegion.ghostRank();
         for( localIndex k = 0; k < matrixSubRegion.size(); ++k )
         {
           localIndex const kf = matrixToFracture[k];
@@ -2216,6 +2257,10 @@ private:
               typename FE_TYPE::StackVariables feStack;
               finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
               localIndex const kf = matrixToFracture[k];
+              if( matrixGhostRank[k] >= 0 || fractureGhostRank[kf] >= 0 )
+              {
+                return;
+              }
 
               real64 uhat[ NN ][ ND ];
               for( localIndex a = 0; a < NN; ++a )

@@ -146,7 +146,17 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
     ElementRegionBase const & regionBase = elemManagerMatrix.getRegion( regionName );
     if( auto const * cellRegion = dynamic_cast< CellElementRegion const * >( &regionBase ) )
     {
-      totalConnections += cellRegion->getNumberOfElements();
+      cellRegion->forElementSubRegions( [&]( ElementSubRegionBase const & subRegion )
+      {
+        arrayView1d< integer const > const ghostRank = subRegion.ghostRank();
+        for( localIndex i = 0; i < subRegion.size(); ++i )
+        {
+          if( ghostRank[i] < 0 )
+          {
+            ++totalConnections;
+          }
+        }
+      } );
     }
     else
     {
@@ -167,15 +177,19 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
   localIndex ConnIdx = 0;
 
   // 2.2 循环所有 Region，构建 Stencil
-  localIndex regionMatrixIdx = 0;
   elemManagerMatrix.forElementRegions( [&]( ElementRegionBase const & elemRegionMatrix )
   {
 
     //根据matrix的名字找到对应的fracture名字与region
     string regionName = elemRegionMatrix.getName();
     localIndex couplingRegionIndexInList = findRegionIndexInList( regionName );
+    if( couplingRegionIndexInList < 0 )
+    {
+      return;
+    }
     string fractureRegionName = m_fractureRegionList[couplingRegionIndexInList];
     localIndex regionFractureIdx = findRegionIndexInRegionManager( elemManagerFracture, fractureRegionName );
+    localIndex const regionMatrixIdx = elemRegionMatrix.getIndexInParent();
     ElementRegionBase const & elemRegionFracture = elemManagerFracture.getRegion( fractureRegionName );
     // 校验大小是否匹配
     if( elemRegionMatrix.getNumberOfElements() != elemRegionFracture.getNumberOfElements() )
@@ -183,15 +197,20 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
       GEOS_ERROR( "Region size mismatch between matrix region " << regionName << " and fracture region " << fractureRegionName );
       return;
     }
-    localIndex subRegionIdx = 0;//默认matrix 与 fracture 的subregion相同
     elemRegionMatrix.forElementSubRegions( [&]( ElementSubRegionBase const & elementSubRegionMatrix )
     {
+      localIndex const subRegionIdx = elementSubRegionMatrix.getIndexInParent();//默认matrix 与 fracture 的subregion相同
       ElementSubRegionBase const & elementSubRegionFracture = elemRegionFracture.getSubRegion( subRegionIdx );
       auto const & cellVolumeArrayViewMatrix = elementSubRegionMatrix.getReference< array1d< real64 > >( "elementVolume" );
+      arrayView1d< integer const > const matrixGhostRank = elementSubRegionMatrix.ghostRank();
       arrayView1d< localIndex const > const matrixToFractureConnectivity =
         elementSubRegionMatrix.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
       for( localIndex i = 0; i < elementSubRegionMatrix.size(); i++ )
       {
+        if( matrixGhostRank[i] >= 0 )
+        {
+          continue;
+        }
         localIndex const fractureElementIndex = matrixToFractureConnectivity[i];
         GEOS_ERROR_IF( fractureElementIndex < 0 || fractureElementIndex >= elementSubRegionFracture.size(),
                        "Invalid dual-continuum matrix-to-fracture connectivity for matrix region "
@@ -227,9 +246,7 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
         m_stencil.add( 2, regionIndices, subRegionIndices, elementIndices, shapeFactory, ConnIdx );
         ConnIdx++;
       }
-      subRegionIdx++;
     } );
-    regionMatrixIdx++;
   } );
 
 

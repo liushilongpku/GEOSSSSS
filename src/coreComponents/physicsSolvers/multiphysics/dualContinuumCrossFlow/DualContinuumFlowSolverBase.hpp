@@ -17,11 +17,15 @@
 
 #include "physicsSolvers/multiphysics/CoupledSolver.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBase.hpp"
+#include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
 #include "physicsSolvers/fluidFlow/CompositionalMultiphaseBase.hpp"
+#include "physicsSolvers/fluidFlow/CompositionalMultiphaseBaseFields.hpp"
 //#include "physicsSolvers/fluidFlow/SinglePhaseBaseDpdk.hpp"
 #include "mesh/DomainPartition.hpp"
+#include "mesh/FieldIdentifiers.hpp"
 #include "mesh/InterObjectRelation.hpp"
+#include "mesh/mpiCommunications/CommunicationTools.hpp"
 #include "codingUtilities/Utilities.hpp"
 #include <map>
 #include <tuple>
@@ -621,7 +625,36 @@ public:
                                     real64 const dt,
                                     DomainPartition & domain ) override
   {
-    // Apply solution for both primary and secondary solvers to their respective meshes
+    // The primary and secondary flow solvers usually register the same element DOF field name
+    // (e.g. "compositionalVariables") on different mesh supports. DofManager::addVectorToField()
+    // applies an update to every support of that field, so calling both sub-solvers would add the
+    // same Newton increment twice. Apply once, then synchronize all dual-flow target fields.
+    if( string( PRIMARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString() ) ==
+        string( SECONDARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString() ) )
+    {
+      primarySolver()->applySystemSolution( dofManager, localSolution, scalingFactor, dt, domain );
+
+      this->forDiscretizationOnMeshTargets( domain.getMeshBodies(),
+        [&]( string const &, MeshLevel & mesh, string_array const & regionNames )
+      {
+        stdVector< string > syncFieldNames{ fields::flow::pressure::key() };
+        if constexpr ( std::is_base_of_v< CompositionalMultiphaseBase, PRIMARY_FLOW_SOLVER > )
+        {
+          CompositionalMultiphaseFormulationType const formulationType =
+            primarySolver()->template getReference< CompositionalMultiphaseFormulationType >(
+              CompositionalMultiphaseBase::viewKeyStruct::formulationTypeString() );
+          syncFieldNames.emplace_back( formulationType == CompositionalMultiphaseFormulationType::OverallComposition ?
+                                       fields::flow::globalCompFraction::key() :
+                                       fields::flow::globalCompDensity::key() );
+        }
+
+        FieldIdentifiers fieldsToBeSync;
+        fieldsToBeSync.addElementFields( syncFieldNames, regionNames );
+        CommunicationTools::getInstance().synchronizeFields( fieldsToBeSync, mesh, domain.getNeighbors(), true );
+      } );
+      return;
+    }
+
     primarySolver()->applySystemSolution( dofManager, localSolution, scalingFactor, dt, domain );
     secondarySolver()->applySystemSolution( dofManager, localSolution, scalingFactor, dt, domain );
   }
