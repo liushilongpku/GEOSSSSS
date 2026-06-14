@@ -399,13 +399,6 @@ public:
     localIndex const sesri[2] = {m_sesri( iconn, k[0] ), m_sesri( iconn, k[1] )};
     localIndex const sei[2]   = {m_sei( iconn, k[0] ), m_sei( iconn, k[1] )};
 
-    // Step 2: compute temperature difference at the interface
-    for( integer ke = 0; ke < 2; ++ke )
-    {
-      localIndex const er  = seri[ke];
-      localIndex const esr = sesri[ke];
-      localIndex const ei  = sei[ke];
-    }
     //这里采用+ 的原因是因为传导系数thermalTrans已经包含了流动方向的影响
     //trans中第一个值是正的，而第二个值是负的
     //这里仍然需要保留+=，以包含前面的热对流

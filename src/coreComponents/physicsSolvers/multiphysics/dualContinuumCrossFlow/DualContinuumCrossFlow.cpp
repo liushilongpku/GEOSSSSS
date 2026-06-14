@@ -113,7 +113,7 @@ localIndex DualContinuumCrossFlow::findRegionIndexInRegionManager( ElementRegion
   return elemManager.getRegion( regionName ).getIndexInParent();
 }
 
-void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & domain,
+void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & GEOS_UNUSED_PARAM( domain ),
                                              MeshLevel & meshMatrix,
                                              MeshLevel & meshFracture )
 {

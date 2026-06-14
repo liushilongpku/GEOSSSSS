@@ -38,7 +38,7 @@ using namespace fields;
 template <typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
 /// Assemble coupling blocks between the two flow solvers (exchange/transfer terms)
 void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>::
-assembleCouplingTerms(real64 const time_n,
+assembleCouplingTerms(real64 const GEOS_UNUSED_PARAM( time_n ),
                       real64 const dt,
                       DomainPartition const &domain,
                       DofManager const &dofManager,
@@ -380,12 +380,6 @@ void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW
     
     if( meshLevelPtrs.size() >= 2 )
     {
-      MeshLevel const * matrixMeshPtr = meshLevelPtrs[0];
-      MeshLevel const * fractureMeshPtr = meshLevelPtrs[1];
-      
-      ElementRegionManager const & matrixElemManager = matrixMeshPtr->getElemManager();
-      ElementRegionManager const & fractureElemManager = fractureMeshPtr->getElemManager();
-      
       // Get gravity coefficient from primary solver
       real64 gravityCoefficient = primarySolver->gravityVector()[2];  // z-component
       MeshLevel  &  matrixMesh = const_cast<MeshLevel&>(* meshLevelPtrs[0]);

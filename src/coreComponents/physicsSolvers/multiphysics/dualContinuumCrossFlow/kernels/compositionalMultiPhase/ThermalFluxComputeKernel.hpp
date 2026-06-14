@@ -244,7 +244,7 @@ public:
                                            localIndex const (&seri)[2],
                                            localIndex const (&sesri)[2],
                                            localIndex const (&sei)[2],
-                                           localIndex const connectionIndex,
+                                           localIndex const GEOS_UNUSED_PARAM( connectionIndex ),
                                            localIndex const k_up,
                                            localIndex const er_up,
                                            localIndex const esr_up,
@@ -486,7 +486,6 @@ public:
 
 
     localIndex k[2]{};
-    localIndex connectionIndex = 0;
 
     for( k[0] = 0; k[0] < stack.numConnectedElems; ++k[0] )
     {

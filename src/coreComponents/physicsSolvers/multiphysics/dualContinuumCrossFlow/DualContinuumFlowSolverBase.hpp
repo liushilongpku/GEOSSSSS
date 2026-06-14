@@ -117,7 +117,7 @@ public:
   virtual void initializePostInitialConditionsPreSubGroups() override
   {
     Base::initializePostInitialConditionsPreSubGroups();
-    forEachArgInTuple( m_solvers, [&]( auto & solver, auto idx )
+    forEachArgInTuple( m_solvers, [&]( auto & solver, auto )
     {
       solver->initializePostInitialConditionsPreSubGroupsPublic();
     } );
@@ -134,7 +134,7 @@ public:
   virtual void initializePostInitialConditionsPostSubGroups() override
   {
     Base::initializePostInitialConditionsPostSubGroups();
-    forEachArgInTuple( m_solvers, [&]( auto & solver, auto idx )
+    forEachArgInTuple( m_solvers, [&]( auto & solver, auto )
     {
       solver->initializePostInitialConditionsPostSubGroupsPublic();
     } );
@@ -177,6 +177,7 @@ public:
   virtual void setupCoupling( DomainPartition const & domain,
                               DofManager & dofManager ) const override
   {
+    GEOS_UNUSED_VAR( domain );
     // ensure element-based coupling (two components per element) has sparsity
 
     // Get supports from both solvers
@@ -616,6 +617,7 @@ public:
                                       CRSMatrixView< real64, globalIndex const > const & localMatrix,
                                       arrayView1d< real64 > const & localRhs ) override
   {
+    GEOS_UNUSED_VAR( time_n, dt, domain, dofManager, localMatrix, localRhs );
     GEOS_ERROR("should be override");
   }
 

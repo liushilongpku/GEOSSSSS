@@ -467,7 +467,6 @@ public:
       {
         MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
         MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
-        using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
         DualFlow & ff = *this->flowSolver();
         string_array const & matRegions = ff.template getReference< string_array >( "matrixRegionList" );
         string_array const & fracRegions = ff.template getReference< string_array >( "fractureRegionList" );
@@ -2404,7 +2403,6 @@ public:
     // The flow solver's mass accumulation (updateMass) does φ * ρ * V_elem,
     // but the physical pore volume per dual-porosity REV is φ * v * V_elem.
     // Scaling the element volume by volumeFraction corrects this.
-    bool const useMeshVolumes = (m_fractureVolumeFraction < 0.0);
 
     GEOS_UNUSED_VAR( primaryMesh, secondaryMesh );
   }
