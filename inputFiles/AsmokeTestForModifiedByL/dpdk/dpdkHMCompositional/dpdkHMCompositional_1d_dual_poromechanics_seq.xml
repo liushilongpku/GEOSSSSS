@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<!-- 这个求解结果不正确，基质中低压边界附近的压力比任何给定值都要低，达到了7.3e5，真实情况下应该在8e5 - 1.2e6之间 -->
+<!-- 需要设置自动应力。。。。后续再修 -->
 <Problem>
   <NumericalMethods>
     <FiniteElements>
@@ -169,8 +169,13 @@
     <!-- Sequential（固定应力）顺序耦合：每个外迭代先解双重介质多相流(dualFlow)，
          再经复合压力解固体力学，固定应力把平均应力增量反馈到孔隙度。
          注意：fimNewtonRelaxation / enableFimCrossStorage 仅作用于 FullyImplicit 路径，
-         Sequential 下被忽略，故此处不设置。autoInitializeStress=0：不自动设初始应力，
-         力学首步自行弛豫到平衡（与 dpdkHMCompositionalSeq.xml 一致）。
+         Sequential 下被忽略，故此处不设置。
+         autoInitializeStress=1（关键）：把基质初始有效应力设为与初始孔压平衡（σ'=α·p），
+         使柱体 t=0 处于力学平衡。本算例两端有 Dirichlet 定压 + 顶面自由，若设 0，则
+         零初始应力遇 1MPa 孔压 → 柱体非平衡变形 → 固定应力把巨大应力增量反馈成孔压，
+         基质压力非物理地跌穿 0.8MPa 下界（实测跌到 0.71）。设 1 后基质稳定在 [0.8,1.2]，
+         与 FIM 解一致。（dpdkHMCompositionalSeq.xml 无定压边界、纯初始压差弛豫，
+         故那里设 0 不暴露此问题。）
          couplingType=Sequential 时，本求解器的 newtonMaxIter/newtonTol 控制的是
          外层 flow<->mechanics 固定应力迭代。 -->
     <CompositionalMultiphaseDualContinuumPoromechanics
@@ -181,7 +186,7 @@
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       fractureVolumeFraction="0.1"
       enableFractureMechanicsCoupling="1"
-      autoInitializeStress="0"
+      autoInitializeStress="1"
       stabilizationType="None"
       isThermal="0">
       <NonlinearSolverParameters
