@@ -701,11 +701,20 @@ void HypreMatrix::multiplyP1tAP2( HypreMatrix const & P1,
   GEOS_LAI_ASSERT_EQ( numLocalRows(), P1.numLocalRows() );
   GEOS_LAI_ASSERT_EQ( numLocalCols(), P2.numLocalRows() );
 
+#if defined(HYPRE_RELEASE_NUMBER) && HYPRE_RELEASE_NUMBER < 30100
+  // Older hypre: hypre_ParCSRMatrixRAPKT( R, A, P, keep_transpose )
+  HYPRE_ParCSRMatrix const dst_parcsr = hypre_ParCSRMatrixRAPKT( P1.unwrapped(),
+                                                                 m_parcsr_mat,
+                                                                 P2.unwrapped(),
+                                                                 0 );
+#else
+  // hypre >= 3.1.0: hypre_ParCSRMatrixRAPKT( R, A, P, keep_transpose, has_diagonal )
   HYPRE_ParCSRMatrix const dst_parcsr = hypre_ParCSRMatrixRAPKT( P1.unwrapped(),
                                                                  m_parcsr_mat,
                                                                  P2.unwrapped(),
                                                                  0,
                                                                  0 );
+#endif
 
   dst.parCSRtoIJ( dst_parcsr );
 }

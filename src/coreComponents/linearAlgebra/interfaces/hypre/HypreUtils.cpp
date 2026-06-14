@@ -125,7 +125,13 @@ HYPRE_Int SuperLUDistSolve( HYPRE_Solver solver,
 {
   GEOS_UNUSED_VAR( A );
 #if defined(GEOS_USE_SUPERLU_DIST)
+#if defined(HYPRE_RELEASE_NUMBER) && HYPRE_RELEASE_NUMBER < 30100
+  // Older hypre: hypre_SLUDistSolve( solver, b, x )
+  return hypre_SLUDistSolve( solver, b, x );
+#else
+  // hypre >= 3.1.0: hypre_SLUDistSolve( solver, A, b, x )
   return hypre_SLUDistSolve( solver, A, b, x );
+#endif
 #else
   GEOS_UNUSED_VAR( solver );
   GEOS_UNUSED_VAR( b );

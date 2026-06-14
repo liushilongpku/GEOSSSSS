@@ -410,11 +410,18 @@ void HyprePreconditioner::setup( Matrix const & mat )
         m_precond->destroy( m_precond->ptr );
       }
 #if defined(GEOS_USE_SUPERLU_DIST)
+#if defined(HYPRE_RELEASE_NUMBER) && HYPRE_RELEASE_NUMBER < 30100
+      // Older hypre: setup allocates the solver and takes a print level;
+      // there is no separate hypre_SLUDistCreate().
+      hypre_SLUDistSetup( &m_precond->ptr, precondMat.unwrapped(), 0 );
+#else
+      // hypre >= 3.1.0: split Create/Setup, Setup takes ( solver, A, b, x ).
       if( !m_precond->ptr )
       {
         m_precond->ptr = (HYPRE_Solver)hypre_SLUDistCreate();
       }
       hypre_SLUDistSetup( m_precond->ptr, precondMat.unwrapped(), nullptr, nullptr );
+#endif
 #endif
     }
   }
