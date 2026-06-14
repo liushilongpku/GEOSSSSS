@@ -156,6 +156,7 @@
       fimNewtonRelaxation="0.5"
       enableFractureMechanicsCoupling="1"
       enableFimCrossStorage="1"
+      autoInitializeStress="1"
       stabilizationType="None"
       isThermal="0">
       <NonlinearSolverParameters
@@ -200,13 +201,13 @@
   </FieldSpecifications>
 
   <Events maxTime="630720000.0">
-    <PeriodicEvent name="outputs" timeFrequency="100.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="outputs" timeFrequency="15768000.0" target="/Outputs/vtkOutput"/>
     <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="1.0" forceDt="0.1" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase1" beginTime="1.0" endTime="10.0" forceDt="1.0" target="/Solvers/poroSolver"/>
+    <!-- <PeriodicEvent name="solverPhase1" beginTime="1.0" endTime="10.0" forceDt="1.0" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase2" beginTime="10.0" endTime="100.0" forceDt="10.0" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase3" beginTime="100.0" endTime="1000.0" forceDt="100.0" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase4" beginTime="1000.0" endTime="86400.0" forceDt="1000.0" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase5" beginTime="86400.0" endTime="31536000.0" maxEventDt="86400.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase4" beginTime="1000.0" endTime="86400.0" forceDt="1000.0" target="/Solvers/poroSolver"/> -->
+    <PeriodicEvent name="solverPhase5" beginTime="1.0" endTime="31536000.0" maxEventDt="86400.0" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase6" beginTime="31536000.0" endTime="630720000.0" maxEventDt="31536000.0" target="/Solvers/poroSolver"/>
   </Events>
 

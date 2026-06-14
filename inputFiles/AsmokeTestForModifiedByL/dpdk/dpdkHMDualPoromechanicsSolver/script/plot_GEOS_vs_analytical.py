@@ -151,7 +151,7 @@ def main():
 
     fig.suptitle('DPDP N=2 Mandel — GEOS vs analytical', fontsize=13)
     fig.tight_layout()
-    out = os.path.join(HERE, "GEOS_vs_analytical.png")
+    out = os.path.join(HERE, "GEOS_vs_analytical1.png")
     fig.savefig(out, dpi=120)
     print("saved %s" % out)
 

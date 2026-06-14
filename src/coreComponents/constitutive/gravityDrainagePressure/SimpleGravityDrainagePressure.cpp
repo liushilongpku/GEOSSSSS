@@ -53,6 +53,7 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressure(arrayView3d< re
 {
   // GDP is stored as a single scalar per element (phase index 0).
   // Per-phase GDP values are not currently used by the flow kernels.
+  GEOS_UNUSED_VAR( matrixPhaseVolumeFraction );
   localIndex const numE = m_gravityDrainagePressure.size(0);
   auto gravDrainPressView = m_gravityDrainagePressure.toView();
 

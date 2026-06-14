@@ -38,11 +38,13 @@ GravityDrainagePressureBase::GravityDrainagePressureBase( string const & name,
 void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView2d< real64 const > const matrixFluidDensity, arrayView2d< real64 const > const fractureFluidDensity, real64 gravityCoefficient, real64 Lz ) const
 {
   // Default implementation: do nothing, let derived classes override if needed
+  GEOS_UNUSED_VAR( matrixFluidDensity, fractureFluidDensity, gravityCoefficient, Lz );
 }
 
 void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView3d< real64 const > const matrixFluidDensity, arrayView3d< real64 const > const fractureFluidDensity, real64 m_fracSpacingLz ) const
 {
   // Default implementation: do nothing, let derived classes override if needed
+  GEOS_UNUSED_VAR( matrixFluidDensity, fractureFluidDensity, m_fracSpacingLz );
 }
 
 void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView3d< real64 const> const matrixFluidDensity,
@@ -52,6 +54,7 @@ void GravityDrainagePressureBase::setupGravityDrainagePressure(arrayView3d< real
                                    real64 Lz ) const
 {
   // Default implementation: do nothing, let derived classes override if needed
+  GEOS_UNUSED_VAR( matrixFluidDensity, matrixPhaseVolumeFraction, fractureFluidDensity, gravityCoefficient, Lz );
 }
 
 void GravityDrainagePressureBase::allocateConstitutiveData( dataRepository::Group & parent,
