@@ -1,10 +1,21 @@
 <?xml version="1.0" ?>
 
 <!--
-  以 dpdkHMCompositional_4layer_400x200_fault_wells_seq_initStress_2km.xml 为蓝本，
-  两处升级：
+  ★★ 4.3 = 测试【部分双重介质 (partial dual-continuum)】★★
+  在 4.2（5 地质体 + 全双重介质 + 重力）基础上，仅让【裂缝发育】的 reservoir + fault 为双重介质（基质+裂缝），
+  aquifer / cap / basement 退化为【单孔隙】（只有基质连续介质，不建裂缝 region）。
+    实现：mesh2 只定义 reservoirF / faultF 两个裂缝 region；
+          dualFlow/crossflow 的 matrixRegionList/fractureRegionList 只列 {reservoirM,faultM}/{reservoirF,faultF}；
+          fractureFlow 只 target reservoirF/faultF；matrixFlow/solidMech 仍 target 全部 5 个基质体。
+    代码依据：DualContinuumFlowSolverBase 仅要求 matrix/fracture 列表【等长】(成对数)，DOF 由各子求解器各自的
+              target 合并；crossflow 对不在列表中的基质体 findRegionIndexInList 返回 -1 直接跳过 => 单孔隙。
+    物理动机：盖层/基底/含水层通常无显著裂缝网络；且全双重介质下这些致密体的裂缝行被大 dt 触发奇异
+              (umfpack_dl_numeric failed)，单孔隙化可去掉这些病态行。
+
+  其余继承 4.2：
     (1) 网格不同地质体赋予不同属性（按 gmsh Physical Volume id 切分 cellBlock）；
-    (2) 打开重力 gravityVector={0,0,-9.81}。
+    (2) 打开重力 gravityVector={0,0,-9.81}；
+    (3) cap/basement 基质渗透率/孔隙度已适度上调 (perm 1e-17, poro 0.08) 以缓解致密体大 dt 奇异。
 
   ★ 网格 reservoir_4layer_400x200_fault_wells.vtk（X[0,400] Y[0,200] Z[-150,0]）的 5 个 Physical Volume：
         id 52 aquifer    z∈[-30,  0]     含水层（盖层之上）
@@ -60,12 +71,15 @@
     <CellElementRegion name="reservoirM" meshBody="mesh1" cellBlocks="{ 54_hexahedra }" materialList="{ reservoir_mRock, fluid, relperm }"/>
     <CellElementRegion name="basementM"  meshBody="mesh1" cellBlocks="{ 55_hexahedra }" materialList="{ basement_mRock,  fluid, relperm }"/>
     <CellElementRegion name="faultM"     meshBody="mesh1" cellBlocks="{ 56_hexahedra }" materialList="{ fault_mRock,     fluid, relperm }"/>
-    <!-- ===== 裂缝连续介质（mesh2），同 id 切 5 块 ===== -->
-    <CellElementRegion name="aquiferF"   meshBody="mesh2" cellBlocks="{ 52_hexahedra }" materialList="{ aquifer_fRock,   fluid, relperm }"/>
-    <CellElementRegion name="capF"       meshBody="mesh2" cellBlocks="{ 53_hexahedra }" materialList="{ cap_fRock,       fluid, relperm }"/>
+    <!-- ===== 裂缝连续介质（mesh2）：仅【裂缝发育】的 reservoir + fault 建裂缝 region（部分双重介质）=====
+         aquifer/cap/basement 不建裂缝 region => 这三体退化为单孔隙（仅基质连续介质求解）。
+         mesh2 仍导入整套 VTK，但 52/53/55_hexahedra 不被任何 region 认领 => 自动忽略。 -->
     <CellElementRegion name="reservoirF" meshBody="mesh2" cellBlocks="{ 54_hexahedra }" materialList="{ reservoir_fRock, fluid, relperm }"/>
-    <CellElementRegion name="basementF"  meshBody="mesh2" cellBlocks="{ 55_hexahedra }" materialList="{ basement_fRock,  fluid, relperm }"/>
     <CellElementRegion name="faultF"     meshBody="mesh2" cellBlocks="{ 56_hexahedra }" materialList="{ fault_fRock,     fluid, relperm }"/>
+    <!-- GEOS 强制【每个 cellBlock 必须被某 region 认领】。aquifer/cap/basement 在 mesh2 上不做裂缝连续介质，
+         故把它们的 52/53/55_hexahedra 收进一个【惰性 region】：不被任何 solver target、不参与流动/力学，仅满足
+         网格完整性。materialList 只给 reservoir_fRock（无 fluid/relperm），且不施加初值，保持完全 inert。 -->
+    <CellElementRegion name="inactiveF"  meshBody="mesh2" cellBlocks="{ 52_hexahedra, 53_hexahedra, 55_hexahedra }" materialList="{ reservoir_fRock }"/>
   </ElementRegions>
 
   <Constitutive>
@@ -94,8 +108,8 @@
     <PorousElasticIsotropic name="aquifer_mRock" solidModelName="aquifer_mSolid" porosityModelName="aquifer_mPoro" permeabilityModelName="aquifer_mPerm"/>
     <!-- cap (seal) -->
     <ElasticIsotropic name="cap_mSolid" defaultDensity="2700.0" defaultBulkModulus="5.0e9" defaultShearModulus="3.0e9"/>
-    <BiotPorosity     name="cap_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.05" defaultBiotCoefficient="0.8"/>
-    <ConstantPermeability name="cap_mPerm" permeabilityComponents="{ 1.0e-18, 1.0e-18, 1.0e-18 }"/>
+    <BiotPorosity     name="cap_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.08" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="cap_mPerm" permeabilityComponents="{ 1.0e-17, 1.0e-17, 1.0e-17 }"/>
     <PorousElasticIsotropic name="cap_mRock" solidModelName="cap_mSolid" porosityModelName="cap_mPoro" permeabilityModelName="cap_mPerm"/>
     <!-- reservoir (storage target) -->
     <ElasticIsotropic name="reservoir_mSolid" defaultDensity="2650.0" defaultBulkModulus="1.0e9" defaultShearModulus="0.6e9"/>
@@ -104,8 +118,8 @@
     <PorousElasticIsotropic name="reservoir_mRock" solidModelName="reservoir_mSolid" porosityModelName="reservoir_mPoro" permeabilityModelName="reservoir_mPerm"/>
     <!-- basement (stiff crystalline) -->
     <ElasticIsotropic name="basement_mSolid" defaultDensity="2750.0" defaultBulkModulus="2.0e10" defaultShearModulus="1.2e10"/>
-    <BiotPorosity     name="basement_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.02" defaultBiotCoefficient="0.8"/>
-    <ConstantPermeability name="basement_mPerm" permeabilityComponents="{ 1.0e-19, 1.0e-19, 1.0e-19 }"/>
+    <BiotPorosity     name="basement_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.08" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="basement_mPerm" permeabilityComponents="{ 1.0e-17, 1.0e-17, 1.0e-17 }"/>
     <PorousElasticIsotropic name="basement_mRock" solidModelName="basement_mSolid" porosityModelName="basement_mPoro" permeabilityModelName="basement_mPerm"/>
     <!-- fault (damage zone: softer, more permeable matrix) -->
     <ElasticIsotropic name="fault_mSolid" defaultDensity="2650.0" defaultBulkModulus="0.5e9" defaultShearModulus="0.3e9"/>
@@ -113,28 +127,13 @@
     <ConstantPermeability name="fault_mPerm" permeabilityComponents="{ 1.0e-14, 1.0e-14, 1.0e-14 }"/>
     <PorousElasticIsotropic name="fault_mRock" solidModelName="fault_mSolid" porosityModelName="fault_mPoro" permeabilityModelName="fault_mPerm"/>
 
-    <!-- ================= 裂缝 (fracture) 各地质体 =================
-         裂缝连续介质：高孔（裂缝体积分数）、高渗；盖层/基底裂缝弱发育，断层带为高渗通道。 -->
-    <!-- aquifer -->
-    <ElasticIsotropic name="aquifer_fSolid" defaultDensity="2600.0" defaultBulkModulus="2.0e8" defaultShearModulus="1.2e8"/>
-    <BiotPorosity     name="aquifer_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.90" defaultBiotCoefficient="0.8"/>
-    <ConstantPermeability name="aquifer_fPerm" permeabilityComponents="{ 1.0e-12, 1.0e-12, 1.0e-12 }"/>
-    <PorousElasticIsotropic name="aquifer_fRock" solidModelName="aquifer_fSolid" porosityModelName="aquifer_fPoro" permeabilityModelName="aquifer_fPerm"/>
-    <!-- cap -->
-    <ElasticIsotropic name="cap_fSolid" defaultDensity="2700.0" defaultBulkModulus="5.0e8" defaultShearModulus="3.0e8"/>
-    <BiotPorosity     name="cap_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.30" defaultBiotCoefficient="0.8"/>
-    <ConstantPermeability name="cap_fPerm" permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
-    <PorousElasticIsotropic name="cap_fRock" solidModelName="cap_fSolid" porosityModelName="cap_fPoro" permeabilityModelName="cap_fPerm"/>
+    <!-- ================= 裂缝 (fracture) 连续介质：仅 reservoir + fault =================
+         （aquifer/cap/basement 为单孔隙，无裂缝连续介质，故不定义其 fracture 本构）。 -->
     <!-- reservoir -->
     <ElasticIsotropic name="reservoir_fSolid" defaultDensity="2650.0" defaultBulkModulus="2.0e8" defaultShearModulus="1.2e8"/>
     <BiotPorosity     name="reservoir_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.90" defaultBiotCoefficient="0.8"/>
     <ConstantPermeability name="reservoir_fPerm" permeabilityComponents="{ 1.0e-12, 1.0e-12, 1.0e-12 }"/>
     <PorousElasticIsotropic name="reservoir_fRock" solidModelName="reservoir_fSolid" porosityModelName="reservoir_fPoro" permeabilityModelName="reservoir_fPerm"/>
-    <!-- basement -->
-    <ElasticIsotropic name="basement_fSolid" defaultDensity="2750.0" defaultBulkModulus="1.0e9" defaultShearModulus="0.6e9"/>
-    <BiotPorosity     name="basement_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.20" defaultBiotCoefficient="0.8"/>
-    <ConstantPermeability name="basement_fPerm" permeabilityComponents="{ 1.0e-16, 1.0e-16, 1.0e-16 }"/>
-    <PorousElasticIsotropic name="basement_fRock" solidModelName="basement_fSolid" porosityModelName="basement_fPoro" permeabilityModelName="basement_fPerm"/>
     <!-- fault (high-perm conduit) -->
     <ElasticIsotropic name="fault_fSolid" defaultDensity="2650.0" defaultBulkModulus="1.0e8" defaultShearModulus="0.6e8"/>
     <BiotPorosity     name="fault_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.95" defaultBiotCoefficient="0.8"/>
@@ -162,7 +161,7 @@
       temperature="348.15"
       useMass="0"
       maxCompFractionChange="0.5"
-      targetRegions="{ mesh2/aquiferF, mesh2/capF, mesh2/reservoirF, mesh2/basementF, mesh2/faultF }">
+      targetRegions="{ mesh2/reservoirF, mesh2/faultF }">
       <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>
     </CompositionalMultiphaseFVM>
@@ -179,17 +178,17 @@
       logLevel="1"
       flowSolverName="matrixFlow"
       flowSolverName1="fractureFlow"
-      matrixRegionList="{ aquiferM, capM, reservoirM, basementM, faultM }"
-      fractureRegionList="{ aquiferF, capF, reservoirF, basementF, faultF }"
+      matrixRegionList="{ reservoirM, faultM }"
+      fractureRegionList="{ reservoirF, faultF }"
       targetRegions="{ mesh1/aquiferM, mesh1/capM, mesh1/reservoirM, mesh1/basementM, mesh1/faultM,
-                       mesh2/aquiferF, mesh2/capF, mesh2/reservoirF, mesh2/basementF, mesh2/faultF }">
+                       mesh2/reservoirF, mesh2/faultF }">
       <DualContinuumCrossFlow
         fractureSpacingLx="0.1"
         fractureSpacingLy="0.1"
         fractureSpacingLz="0.1"
         fractureVolumeFraction="0.1"
-        matrixRegionList="{ aquiferM, capM, reservoirM, basementM, faultM }"
-        fractureRegionList="{ aquiferF, capF, reservoirF, basementF, faultF }"/>
+        matrixRegionList="{ reservoirM, faultM }"
+        fractureRegionList="{ reservoirF, faultF }"/>
       <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>
     </CompositionalMultiPhaseDualContinuumFVM>
@@ -200,7 +199,7 @@
       dualcontinuumSolverName="dualFlow"
       solidSolverName="solidMech"
       targetRegions="{ mesh1/aquiferM, mesh1/capM, mesh1/reservoirM, mesh1/basementM, mesh1/faultM,
-                       mesh2/aquiferF, mesh2/capF, mesh2/reservoirF, mesh2/basementF, mesh2/faultF }"
+                       mesh2/reservoirF, mesh2/faultF }"
       fractureVolumeFraction="0.1"
       fimNewtonRelaxation="0.5"
       enableFractureMechanicsCoupling="1"
@@ -226,11 +225,15 @@
          运行的 geosx 二进制（/home/hello/ 旧构建）尚无 targetMesh 过滤补丁，区域限定路径会在两套网格上搜索而报错，
          故显式写出 mesh1/mesh2 以只在对应网格解析。 -->
     <FieldSpecification name="initPressureM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="20.0e6"/>
-    <FieldSpecification name="initPressureF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="20.0e6"/>
+    <!-- mesh2 初值只施加到【活跃裂缝 region】(reservoirF/faultF)，跳过 inactiveF（无流动场） -->
+    <FieldSpecification name="initPressureF_res" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions/reservoirF" fieldName="pressure" scale="20.0e6"/>
+    <FieldSpecification name="initPressureF_flt" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions/faultF"     fieldName="pressure" scale="20.0e6"/>
     <FieldSpecification name="initCo2M"   initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
     <FieldSpecification name="initWaterM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
-    <FieldSpecification name="initCo2F"   initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
-    <FieldSpecification name="initWaterF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="initCo2F_res"   initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions/reservoirF" fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="initWaterF_res" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions/reservoirF" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="initCo2F_flt"   initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions/faultF"     fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="initWaterF_flt" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions/faultF"     fieldName="globalCompFraction" component="1" scale="0.994"/>
 
     <!--
       ===== 2km 初始有效应力（均匀，写到各基质体的 <unit>_mSolid 应力张量；0/1/2 = xx/yy/zz，Voigt，压为负）=====
@@ -271,7 +274,9 @@
 
       <!-- 10 年 -->
   <Events maxTime="315360000.0">
-    <PeriodicEvent name="outputs" timeFrequency="15768000.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="outputs1" beginTime="0.0" endTime="10000.0" timeFrequency="1000.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="outputs2" beginTime="10000.0" endTime="315360000.0" timeFrequency="1576800.0" target="/Outputs/vtkOutput"/>
+
     <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="1.0" forceDt="0.1" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase6" beginTime="1.0" endTime="315360000.0" maxEventDt="31536000.0" target="/Solvers/poroSolver"/>
   </Events>
