@@ -63,19 +63,26 @@ public:
    *
    * @param path The path string
    * @param meshBodies  The Group that contains all MeshBody objects
+   * @param targetMesh The name of the MeshBody this path is restricted to. When non-empty and the
+   *   path does not explicitly name a MeshBody, the path is resolved only within this MeshBody
+   *   instead of every MeshBody. This matches the targetMesh filtering done when the field is
+   *   applied, and lets a path reference a region that only exists in one mesh (e.g. dual-continuum).
    * @throw InputError when the input path is wrong.
    */
   MeshObjectPath( string const path,
-                  dataRepository::Group const & meshBodies );
+                  dataRepository::Group const & meshBodies,
+                  string const & targetMesh = "" );
 
   /**
    * @brief Processes the path string into the permutation container
    *
    * @param path The path string
    * @param meshBodies  The Group that contains all MeshBody objects
+   * @param targetMesh The name of the MeshBody this path is restricted to (see constructor).
    */
   void processPath( string const path,
-                    dataRepository::Group const & meshBodies );
+                    dataRepository::Group const & meshBodies,
+                    string const & targetMesh = "" );
 
   /**
    * @brief Get the Object Type object
@@ -206,10 +213,12 @@ private:
    * @brief Create a tokenized version of the path
    * @param path The input path
    * @param meshBodies The Group that contains the MeshBody objects on the domain
+   * @param targetMesh The name of the MeshBody this path is restricted to (see constructor).
    * @return stdVector< string >  A tokenized representation of the path.
    */
   stdVector< string > fillPathTokens( string const & path,
-                                      dataRepository::Group const & meshBodies ) const;
+                                      dataRepository::Group const & meshBodies,
+                                      string const & targetMesh = "" ) const;
 
   /**
    * @brief Convert the tokenized path into a collection of permutations and fill

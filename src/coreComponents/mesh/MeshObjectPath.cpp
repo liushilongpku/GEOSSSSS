@@ -52,17 +52,19 @@ MeshObjectPath::ObjectTypes extractObjectType( string const & path )
 }
 
 MeshObjectPath::MeshObjectPath( string const path,
-                                dataRepository::Group const & meshBodies ):
+                                dataRepository::Group const & meshBodies,
+                                string const & targetMesh ):
   m_objectType( extractObjectType( path ) ),
   m_pathPermutations()
 {
-  processPath( path, meshBodies );
+  processPath( path, meshBodies, targetMesh );
 }
 
 
 stdVector< string >
 MeshObjectPath::fillPathTokens( string const & path,
-                                dataRepository::Group const & meshBodies ) const
+                                dataRepository::Group const & meshBodies,
+                                string const & targetMesh ) const
 {
   stdVector< string > pathTokens = stringutilities::tokenize( path, "/" );
 
@@ -91,11 +93,14 @@ MeshObjectPath::fillPathTokens( string const & path,
                            MeshLevel::groupStructKeys::elemManagerString() ),
                  InputError );
 
-  // No MeshBody or MeshLevels were specified. add all of them
+  // No MeshBody or MeshLevels were specified. add all of them.
+  // If a targetMesh is given, restrict the MeshBody token to it instead of the "{*}" wildcard so
+  // the path is resolved only within that MeshBody (e.g. a region that exists in a single mesh of a
+  // dual-continuum setup). This mirrors the targetMesh filtering done at field-application time.
   if( objectIndex==0 )
   {
     pathTokens.insert( pathTokens.begin(), "{*}" );
-    pathTokens.insert( pathTokens.begin(), "{*}" );
+    pathTokens.insert( pathTokens.begin(), targetMesh.empty() ? "{*}" : targetMesh );
   }
   // MeshBody OR MeshLevel specified. Check which one, and add all of the other.
   else if( objectIndex==1 )
@@ -284,9 +289,10 @@ void MeshObjectPath::processPathTokens( stdVector< string > const & pathTokens,
 
 
 void MeshObjectPath::processPath( string const objectPath,
-                                  dataRepository::Group const & meshBodies )
+                                  dataRepository::Group const & meshBodies,
+                                  string const & targetMesh )
 {
-  stdVector< string > pathTokens = fillPathTokens( objectPath, meshBodies );
+  stdVector< string > pathTokens = fillPathTokens( objectPath, meshBodies, targetMesh );
   processPathTokens( pathTokens, meshBodies );
 }
 

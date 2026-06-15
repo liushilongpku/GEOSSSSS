@@ -1,0 +1,280 @@
+<?xml version="1.0" ?>
+
+<!--
+  以 dpdkHMCompositional_4layer_400x200_fault_wells_seq_initStress_2km.xml 为蓝本，
+  两处升级：
+    (1) 网格不同地质体赋予不同属性（按 gmsh Physical Volume id 切分 cellBlock）；
+    (2) 打开重力 gravityVector={0,0,-9.81}。
+
+  ★ 网格 reservoir_4layer_400x200_fault_wells.vtk（X[0,400] Y[0,200] Z[-150,0]）的 5 个 Physical Volume：
+        id 52 aquifer    z∈[-30,  0]     含水层（盖层之上）
+        id 53 cap        z∈[-50, -30]    盖层 / 封盖（低渗封闭）
+        id 54 reservoir  z∈[-130,-50]    主储层（CO2 封存目标，井所在层）
+        id 55 basement   z∈[-150,-130]   基底（致密、刚硬）
+        id 56 fault      z∈[-150,  0]    断层带（贯穿各层）
+    gmsh 把 region 写进 VTK 的 "CellEntityIds" 字段（非 GEOS 默认的 "attribute"），
+    故 VTKMesh 上设 regionAttribute="CellEntityIds"，GEOS 按 id 切 cellBlock：
+    六面体 -> "52_hexahedra" … "56_hexahedra"（即 <id>_hexahedra）；四边形面 57..62 不入任何 region（忽略）。
+
+  ★ 双重连续介质：mesh1=基质、mesh2=裂缝，二者导入同一 VTK、同样切 5 块。
+    每个地质体 = 1 个基质 region(*M) + 1 个裂缝 region(*F)，crossflow 按列表【同序号】配对（基质↔裂缝同 id、同单元数）。
+
+   2 km 埋深现场梯度（与蓝本一致，仍用均匀初值 + 顶面 traction 表征上覆）
+    p=20 MPa；S_v=45 MPa；σ'_v=25；S_h=K0·σ'_v+p=37.5（K0=0.7）。
+    Sequential 有效孔压耦合 Φ_eff=α_m·p=0.8·20=16 MPa（复合压力）：
+      σ'_zz=-45+16=-29.0 MPa；σ'_xx=σ'_yy=-37.5+16=-21.5 MPa；顶面 t_z=-45 MPa。
+    ⚠ 重力已打开：初始均匀孔压/应力在 150 m 柱内不再严格静水/自重平衡（量级 ρgh≈1.5 MPa 孔压、≈3.9 MPa 自重），
+       视作初值，前几步 QuasiStatic 求解会自洽调整；如需精确平衡可改用 HydrostaticEquilibrium IC + 自重应力。
+-->
+<Problem>
+  <NumericalMethods>
+    <FiniteElements>
+      <FiniteElementSpace name="FE1" order="1"/>
+    </FiniteElements>
+    <FiniteVolume>
+      <TwoPointFluxApproximation name="fluidTPFA"/>
+    </FiniteVolume>
+  </NumericalMethods>
+
+  <Mesh>
+    <VTKMesh name="mesh1" file="reservoir_4layer_400x200_fault_wells.vtk" regionAttribute="CellEntityIds"/>
+    <VTKMesh name="mesh2" file="reservoir_4layer_400x200_fault_wells.vtk" regionAttribute="CellEntityIds"/>
+  </Mesh>
+
+  <Geometry>
+    <!-- 井 box 各选中 1 个 reservoir(id54) 单元（井位 x=100/300, 近 y=0, z≈-126）。已按“全节点入 box”规则核验。-->
+    <Box name="injectorBox" xMin="{ 95.0,  -1.0, -131.0 }" xMax="{ 105.0, 11.0, -121.0 }"/>
+    <Box name="producerBox" xMin="{ 295.0, -1.0, -131.0 }" xMax="{ 305.0, 11.0, -121.0 }"/>
+    <Box name="xneg" xMin="{ -1.0,   -1.0,  -151.0 }" xMax="{ 1.0,   201.0, 1.0 }"/>
+    <Box name="xpos" xMin="{ 399.0,  -1.0,  -151.0 }" xMax="{ 401.0, 201.0, 1.0 }"/>
+    <Box name="yneg" xMin="{ -1.0,   -1.0,  -151.0 }" xMax="{ 401.0, 1.0,   1.0 }"/>
+    <Box name="ypos" xMin="{ -1.0,   199.0, -151.0 }" xMax="{ 401.0, 201.0, 1.0 }"/>
+    <Box name="zneg" xMin="{ -1.0,   -1.0,  -151.0 }" xMax="{ 401.0, 201.0, -149.0 }"/>
+    <Box name="zpos" xMin="{ -1.0,   -1.0,  -1.0 }"   xMax="{ 401.0, 201.0, 1.0 }"/>
+  </Geometry>
+
+  <ElementRegions>
+    <!-- ===== 基质连续介质（mesh1），按 id 切 5 块 ===== -->
+    <CellElementRegion name="aquiferM"   meshBody="mesh1" cellBlocks="{ 52_hexahedra }" materialList="{ aquifer_mRock,   fluid, relperm }"/>
+    <CellElementRegion name="capM"       meshBody="mesh1" cellBlocks="{ 53_hexahedra }" materialList="{ cap_mRock,       fluid, relperm }"/>
+    <CellElementRegion name="reservoirM" meshBody="mesh1" cellBlocks="{ 54_hexahedra }" materialList="{ reservoir_mRock, fluid, relperm }"/>
+    <CellElementRegion name="basementM"  meshBody="mesh1" cellBlocks="{ 55_hexahedra }" materialList="{ basement_mRock,  fluid, relperm }"/>
+    <CellElementRegion name="faultM"     meshBody="mesh1" cellBlocks="{ 56_hexahedra }" materialList="{ fault_mRock,     fluid, relperm }"/>
+    <!-- ===== 裂缝连续介质（mesh2），同 id 切 5 块 ===== -->
+    <CellElementRegion name="aquiferF"   meshBody="mesh2" cellBlocks="{ 52_hexahedra }" materialList="{ aquifer_fRock,   fluid, relperm }"/>
+    <CellElementRegion name="capF"       meshBody="mesh2" cellBlocks="{ 53_hexahedra }" materialList="{ cap_fRock,       fluid, relperm }"/>
+    <CellElementRegion name="reservoirF" meshBody="mesh2" cellBlocks="{ 54_hexahedra }" materialList="{ reservoir_fRock, fluid, relperm }"/>
+    <CellElementRegion name="basementF"  meshBody="mesh2" cellBlocks="{ 55_hexahedra }" materialList="{ basement_fRock,  fluid, relperm }"/>
+    <CellElementRegion name="faultF"     meshBody="mesh2" cellBlocks="{ 56_hexahedra }" materialList="{ fault_fRock,     fluid, relperm }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CO2BrinePhillipsFluid
+      name="fluid"
+      phaseNames="{ gas, water }"
+      componentNames="{ co2, water }"
+      componentMolarWeight="{ 44e-3, 18e-3 }"
+      phasePVTParaFiles="{ pvtgas.txt, pvtliquid.txt }"
+      flashModelParaFile="co2flash.txt"/>
+
+    <BrooksCoreyRelativePermeability
+      name="relperm"
+      phaseNames="{ gas, water }"
+      phaseMinVolumeFraction="{ 0.0, 0.0 }"
+      phaseRelPermExponent="{ 1.5, 1.5 }"
+      phaseRelPermMaxValue="{ 0.9, 0.9 }"/>
+
+    <!-- ================= 基质 (matrix) 各地质体 =================
+         perm/poro 主导流动；K/G 给出地质合理刚度对比（盖层、基底刚硬，断层带软弱）。
+         grainBulkModulus=4.0e10 统一（> 所有 drained K，保证 Biot 自洽）。 -->
+    <!-- aquifer -->
+    <ElasticIsotropic name="aquifer_mSolid" defaultDensity="2600.0" defaultBulkModulus="2.0e9" defaultShearModulus="1.2e9"/>
+    <BiotPorosity     name="aquifer_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.25" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="aquifer_mPerm" permeabilityComponents="{ 1.0e-13, 1.0e-13, 1.0e-13 }"/>
+    <PorousElasticIsotropic name="aquifer_mRock" solidModelName="aquifer_mSolid" porosityModelName="aquifer_mPoro" permeabilityModelName="aquifer_mPerm"/>
+    <!-- cap (seal) -->
+    <ElasticIsotropic name="cap_mSolid" defaultDensity="2700.0" defaultBulkModulus="5.0e9" defaultShearModulus="3.0e9"/>
+    <BiotPorosity     name="cap_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.05" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="cap_mPerm" permeabilityComponents="{ 1.0e-18, 1.0e-18, 1.0e-18 }"/>
+    <PorousElasticIsotropic name="cap_mRock" solidModelName="cap_mSolid" porosityModelName="cap_mPoro" permeabilityModelName="cap_mPerm"/>
+    <!-- reservoir (storage target) -->
+    <ElasticIsotropic name="reservoir_mSolid" defaultDensity="2650.0" defaultBulkModulus="1.0e9" defaultShearModulus="0.6e9"/>
+    <BiotPorosity     name="reservoir_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.22" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="reservoir_mPerm" permeabilityComponents="{ 5.0e-14, 5.0e-14, 5.0e-14 }"/>
+    <PorousElasticIsotropic name="reservoir_mRock" solidModelName="reservoir_mSolid" porosityModelName="reservoir_mPoro" permeabilityModelName="reservoir_mPerm"/>
+    <!-- basement (stiff crystalline) -->
+    <ElasticIsotropic name="basement_mSolid" defaultDensity="2750.0" defaultBulkModulus="2.0e10" defaultShearModulus="1.2e10"/>
+    <BiotPorosity     name="basement_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.02" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="basement_mPerm" permeabilityComponents="{ 1.0e-19, 1.0e-19, 1.0e-19 }"/>
+    <PorousElasticIsotropic name="basement_mRock" solidModelName="basement_mSolid" porosityModelName="basement_mPoro" permeabilityModelName="basement_mPerm"/>
+    <!-- fault (damage zone: softer, more permeable matrix) -->
+    <ElasticIsotropic name="fault_mSolid" defaultDensity="2650.0" defaultBulkModulus="0.5e9" defaultShearModulus="0.3e9"/>
+    <BiotPorosity     name="fault_mPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.15" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="fault_mPerm" permeabilityComponents="{ 1.0e-14, 1.0e-14, 1.0e-14 }"/>
+    <PorousElasticIsotropic name="fault_mRock" solidModelName="fault_mSolid" porosityModelName="fault_mPoro" permeabilityModelName="fault_mPerm"/>
+
+    <!-- ================= 裂缝 (fracture) 各地质体 =================
+         裂缝连续介质：高孔（裂缝体积分数）、高渗；盖层/基底裂缝弱发育，断层带为高渗通道。 -->
+    <!-- aquifer -->
+    <ElasticIsotropic name="aquifer_fSolid" defaultDensity="2600.0" defaultBulkModulus="2.0e8" defaultShearModulus="1.2e8"/>
+    <BiotPorosity     name="aquifer_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.90" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="aquifer_fPerm" permeabilityComponents="{ 1.0e-12, 1.0e-12, 1.0e-12 }"/>
+    <PorousElasticIsotropic name="aquifer_fRock" solidModelName="aquifer_fSolid" porosityModelName="aquifer_fPoro" permeabilityModelName="aquifer_fPerm"/>
+    <!-- cap -->
+    <ElasticIsotropic name="cap_fSolid" defaultDensity="2700.0" defaultBulkModulus="5.0e8" defaultShearModulus="3.0e8"/>
+    <BiotPorosity     name="cap_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.30" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="cap_fPerm" permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
+    <PorousElasticIsotropic name="cap_fRock" solidModelName="cap_fSolid" porosityModelName="cap_fPoro" permeabilityModelName="cap_fPerm"/>
+    <!-- reservoir -->
+    <ElasticIsotropic name="reservoir_fSolid" defaultDensity="2650.0" defaultBulkModulus="2.0e8" defaultShearModulus="1.2e8"/>
+    <BiotPorosity     name="reservoir_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.90" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="reservoir_fPerm" permeabilityComponents="{ 1.0e-12, 1.0e-12, 1.0e-12 }"/>
+    <PorousElasticIsotropic name="reservoir_fRock" solidModelName="reservoir_fSolid" porosityModelName="reservoir_fPoro" permeabilityModelName="reservoir_fPerm"/>
+    <!-- basement -->
+    <ElasticIsotropic name="basement_fSolid" defaultDensity="2750.0" defaultBulkModulus="1.0e9" defaultShearModulus="0.6e9"/>
+    <BiotPorosity     name="basement_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.20" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="basement_fPerm" permeabilityComponents="{ 1.0e-16, 1.0e-16, 1.0e-16 }"/>
+    <PorousElasticIsotropic name="basement_fRock" solidModelName="basement_fSolid" porosityModelName="basement_fPoro" permeabilityModelName="basement_fPerm"/>
+    <!-- fault (high-perm conduit) -->
+    <ElasticIsotropic name="fault_fSolid" defaultDensity="2650.0" defaultBulkModulus="1.0e8" defaultShearModulus="0.6e8"/>
+    <BiotPorosity     name="fault_fPoro"  defaultGrainBulkModulus="4.0e10" defaultReferencePorosity="0.95" defaultBiotCoefficient="0.8"/>
+    <ConstantPermeability name="fault_fPerm" permeabilityComponents="{ 1.0e-11, 1.0e-11, 1.0e-11 }"/>
+    <PorousElasticIsotropic name="fault_fRock" solidModelName="fault_fSolid" porosityModelName="fault_fPoro" permeabilityModelName="fault_fPerm"/>
+  </Constitutive>
+
+  <Solvers gravityVector="{ 0.0, 0.0, -9.81 }">
+    <CompositionalMultiphaseFVM
+      name="matrixFlow"
+      logLevel="1"
+      discretization="fluidTPFA"
+      temperature="348.15"
+      useMass="0"
+      maxCompFractionChange="0.5"
+      targetRegions="{ mesh1/aquiferM, mesh1/capM, mesh1/reservoirM, mesh1/basementM, mesh1/faultM }">
+      <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+
+    <CompositionalMultiphaseFVM
+      name="fractureFlow"
+      logLevel="1"
+      discretization="fluidTPFA"
+      temperature="348.15"
+      useMass="0"
+      maxCompFractionChange="0.5"
+      targetRegions="{ mesh2/aquiferF, mesh2/capF, mesh2/reservoirF, mesh2/basementF, mesh2/faultF }">
+      <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+
+    <SolidMechanicsLagrangianFEM
+      name="solidMech"
+      logLevel="1"
+      discretization="FE1"
+      targetRegions="{ mesh1/aquiferM, mesh1/capM, mesh1/reservoirM, mesh1/basementM, mesh1/faultM }"
+      timeIntegrationOption="QuasiStatic"/>
+
+    <CompositionalMultiPhaseDualContinuumFVM
+      name="dualFlow"
+      logLevel="1"
+      flowSolverName="matrixFlow"
+      flowSolverName1="fractureFlow"
+      matrixRegionList="{ aquiferM, capM, reservoirM, basementM, faultM }"
+      fractureRegionList="{ aquiferF, capF, reservoirF, basementF, faultF }"
+      targetRegions="{ mesh1/aquiferM, mesh1/capM, mesh1/reservoirM, mesh1/basementM, mesh1/faultM,
+                       mesh2/aquiferF, mesh2/capF, mesh2/reservoirF, mesh2/basementF, mesh2/faultF }">
+      <DualContinuumCrossFlow
+        fractureSpacingLx="0.1"
+        fractureSpacingLy="0.1"
+        fractureSpacingLz="0.1"
+        fractureVolumeFraction="0.1"
+        matrixRegionList="{ aquiferM, capM, reservoirM, basementM, faultM }"
+        fractureRegionList="{ aquiferF, capF, reservoirF, basementF, faultF }"/>
+      <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiPhaseDualContinuumFVM>
+
+    <CompositionalMultiphaseDualContinuumPoromechanics
+      name="poroSolver"
+      logLevel="1"
+      dualcontinuumSolverName="dualFlow"
+      solidSolverName="solidMech"
+      targetRegions="{ mesh1/aquiferM, mesh1/capM, mesh1/reservoirM, mesh1/basementM, mesh1/faultM,
+                       mesh2/aquiferF, mesh2/capF, mesh2/reservoirF, mesh2/basementF, mesh2/faultF }"
+      fractureVolumeFraction="0.1"
+      fimNewtonRelaxation="0.5"
+      enableFractureMechanicsCoupling="1"
+      enableFimCrossStorage="1"
+      autoInitializeStress="0"
+      stabilizationType="None"
+      isThermal="0">
+      <NonlinearSolverParameters
+        couplingType="Sequential"
+        newtonTol="5.0e-3"
+        newtonMinIter="1"
+        newtonMaxIter="60"
+        lineSearchAction="None"
+        maxSubSteps="1000"
+        maxTimeStepCuts="8"
+        timeStepCutFactor="0.5"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiphaseDualContinuumPoromechanics>
+  </Solvers>
+
+  <FieldSpecifications>
+    <!-- 储层初始孔压 ≈ 20 MPa；objectPath="ElementRegions" 覆盖该网格全部 region -->
+    <FieldSpecification name="initPressureM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="20.0e6"/>
+    <FieldSpecification name="initPressureF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="20.0e6"/>
+    <FieldSpecification name="initCo2M"   initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="initWaterM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="initCo2F"   initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
+    <FieldSpecification name="initWaterF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
+
+    <!--
+      ===== 2km 初始有效应力（均匀，写到各基质体的 <unit>_mSolid 应力张量；0/1/2 = xx/yy/zz，Voigt，压为负）=====
+      σ'_zz=-29.0 MPa；σ'_xx=σ'_yy=-21.5 MPa（Φ_eff=16 MPa 见文件头）。各基质 region 各一组（应力字段名随 solid 模型名）。
+    -->
+    <FieldSpecification name="aq_sxx"  initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/aquiferM"   fieldName="aquifer_mSolid_stress"   component="0" scale="-21.5e6"/>
+    <FieldSpecification name="aq_syy"  initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/aquiferM"   fieldName="aquifer_mSolid_stress"   component="1" scale="-21.5e6"/>
+    <FieldSpecification name="aq_szz"  initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/aquiferM"   fieldName="aquifer_mSolid_stress"   component="2" scale="-29.0e6"/>
+    <FieldSpecification name="cap_sxx" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/capM"       fieldName="cap_mSolid_stress"       component="0" scale="-21.5e6"/>
+    <FieldSpecification name="cap_syy" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/capM"       fieldName="cap_mSolid_stress"       component="1" scale="-21.5e6"/>
+    <FieldSpecification name="cap_szz" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/capM"       fieldName="cap_mSolid_stress"       component="2" scale="-29.0e6"/>
+    <FieldSpecification name="res_sxx" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/reservoirM" fieldName="reservoir_mSolid_stress" component="0" scale="-21.5e6"/>
+    <FieldSpecification name="res_syy" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/reservoirM" fieldName="reservoir_mSolid_stress" component="1" scale="-21.5e6"/>
+    <FieldSpecification name="res_szz" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/reservoirM" fieldName="reservoir_mSolid_stress" component="2" scale="-29.0e6"/>
+    <FieldSpecification name="bas_sxx" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/basementM"  fieldName="basement_mSolid_stress"  component="0" scale="-21.5e6"/>
+    <FieldSpecification name="bas_syy" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/basementM"  fieldName="basement_mSolid_stress"  component="1" scale="-21.5e6"/>
+    <FieldSpecification name="bas_szz" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/basementM"  fieldName="basement_mSolid_stress"  component="2" scale="-29.0e6"/>
+    <FieldSpecification name="flt_sxx" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/faultM"     fieldName="fault_mSolid_stress"     component="0" scale="-21.5e6"/>
+    <FieldSpecification name="flt_syy" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/faultM"     fieldName="fault_mSolid_stress"     component="1" scale="-21.5e6"/>
+    <FieldSpecification name="flt_szz" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions/faultM"     fieldName="fault_mSolid_stress"     component="2" scale="-29.0e6"/>
+
+    <!-- 顶面 overburden traction：t_z=-45 MPa（2km 上覆） -->
+    <Traction name="topTraction" objectPath="faceManager" targetMesh="mesh1" setNames="{ zpos }" tractionType="vector" direction="{ 0.0, 0.0, -1.0 }" scale="4.5e7"/>
+
+    <!-- 注入井（CO2 注入裂缝连续介质的 reservoir 体，单元 x=100,y≈0,z≈-126）。useMass=0 => scale 单位 mol/s；<0 注入。 -->
+    <SourceFlux name="injCo2F"   targetMesh="mesh2" objectPath="ElementRegions/reservoirF" setNames="{ injectorBox }" component="0" scale="-200.0"/>
+    <SourceFlux name="injWaterF" targetMesh="mesh2" objectPath="ElementRegions/reservoirF" setNames="{ injectorBox }" component="1" scale="0.0"/>
+
+    <!-- 生产井（reservoir 体定压 20 MPa 泄流，x=300,y≈0,z≈-126） -->
+    <FieldSpecification name="producerPressure1" setNames="{ producerBox }" targetMesh="mesh1" objectPath="ElementRegions/reservoirM" fieldName="pressure" scale="20.0e6"/>
+    <FieldSpecification name="producerPressure2" setNames="{ producerBox }" targetMesh="mesh2" objectPath="ElementRegions/reservoirF" fieldName="pressure" scale="20.0e6"/>
+
+    <!-- 力学边界：侧向 roller + 底面固定（nodeManager 为网格级，不分 region） -->
+    <FieldSpecification name="xFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xneg,xpos }"/>
+    <FieldSpecification name="yFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="1" scale="0.0" setNames="{ yneg,ypos }"/>
+    <FieldSpecification name="znegFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="2" scale="0.0" setNames="{ zneg }"/>
+  </FieldSpecifications>
+
+      <!-- 10 年 -->
+  <Events maxTime="315360000.0">
+    <PeriodicEvent name="outputs" timeFrequency="15768000.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="1.0" forceDt="0.1" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase6" beginTime="1.0" endTime="315360000.0" maxEventDt="31536000.0" target="/Solvers/poroSolver"/>
+  </Events>
+
+  <Outputs>
+    <VTK name="vtkOutput"/>
+  </Outputs>
+</Problem>

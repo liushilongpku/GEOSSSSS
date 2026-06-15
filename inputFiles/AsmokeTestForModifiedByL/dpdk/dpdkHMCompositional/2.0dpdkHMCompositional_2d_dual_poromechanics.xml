@@ -184,19 +184,25 @@
   <FieldSpecifications>
     <FieldSpecification name="initPressureM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="1.0e6"/>
     <FieldSpecification name="initPressureF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="1.0e6"/>
-    <FieldSpecification name="initCo2M" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
-    <FieldSpecification name="initWaterM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
-    <FieldSpecification name="initCo2F" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
-    <FieldSpecification name="initWaterF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="initCo2M" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.001"/>
+    <FieldSpecification name="initWaterM" initialCondition="1" setNames="{ all }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.999"/>
+    <FieldSpecification name="initCo2F" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.001"/>
+    <FieldSpecification name="initWaterF" initialCondition="1" setNames="{ all }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.999"/>
 
     <FieldSpecification name="lowerPressureM" setNames="{ source }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="1.2e6"/>
     <FieldSpecification name="lowerPressureF" setNames="{ source }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="1.2e6"/>
+    <FieldSpecification name="lowerCo2M" setNames="{ source }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.999"/>
+    <FieldSpecification name="lowerWaterM" setNames="{ source }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.001"/>
+    <FieldSpecification name="lowerCo2F" setNames="{ source }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.999"/>
+    <FieldSpecification name="lowerWaterF" setNames="{ source }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.001"/>
+
+
     <FieldSpecification name="upperPressureM" setNames="{ sink }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="pressure" scale="0.8e6"/>
     <FieldSpecification name="upperPressureF" setNames="{ sink }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="pressure" scale="0.8e6"/>
-    <FieldSpecification name="lowerCo2M" setNames="{ sink }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
-    <FieldSpecification name="lowerWaterM" setNames="{ sink }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
-    <FieldSpecification name="lowerCo2F" setNames="{ sink }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.006"/>
-    <FieldSpecification name="lowerWaterF" setNames="{ sink }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.994"/>
+    <FieldSpecification name="upperCo2M" setNames="{ sink }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.001"/>
+    <FieldSpecification name="upperWaterM" setNames="{ sink }" targetMesh="mesh1" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.999"/>
+    <FieldSpecification name="upperCo2F" setNames="{ sink }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="0" scale="0.001"/>
+    <FieldSpecification name="upperWaterF" setNames="{ sink }" targetMesh="mesh2" objectPath="ElementRegions" fieldName="globalCompFraction" component="1" scale="0.999"/>
 
     <FieldSpecification name="xFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="0" scale="0.0" setNames="{ xneg, xpos }"/>
     <FieldSpecification name="yFix" objectPath="nodeManager" targetMesh="mesh1" fieldName="totalDisplacement" component="1" scale="0.0" setNames="{ yneg, ypos }"/>
@@ -204,7 +210,7 @@
   </FieldSpecifications>
 
   <Events maxTime="1000.0">
-    <PeriodicEvent name="outputs" timeFrequency="1.0" target="/Outputs/vtkOutput"/>
+    <PeriodicEvent name="outputs" timeFrequency="100.0" target="/Outputs/vtkOutput"/>
     <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="1.0" forceDt="0.1" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase1" beginTime="1.0" endTime="100.0" forceDt="1.0" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase2" beginTime="100.0" endTime="1000.0" forceDt="100.0" target="/Solvers/poroSolver"/>
