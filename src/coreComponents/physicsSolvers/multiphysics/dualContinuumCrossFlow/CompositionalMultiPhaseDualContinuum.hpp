@@ -59,9 +59,22 @@ public:
 
   virtual void updateState( DomainPartition & domain ) override;
 
+  virtual void implicitStepSetup( real64 const & time_n,
+                                  real64 const & dt,
+                                  DomainPartition & domain ) override;
+
 protected:
 
 private:
+
+  /**
+   * @brief Recompute the (explicit) Kazemi gravity-drainage pressure from the current
+   *        matrix/fracture densities. Treated as an explicit source term, so it is updated
+   *        once per timestep (in implicitStepSetup) and held FROZEN during the Newton
+   *        iterations - recomputing it every iteration creates a lagged feedback loop that
+   *        prevents the flow Newton residual from converging below the GDP perturbation.
+   */
+  void updateGravityDrainagePressure( DomainPartition & domain );
 
 };
 

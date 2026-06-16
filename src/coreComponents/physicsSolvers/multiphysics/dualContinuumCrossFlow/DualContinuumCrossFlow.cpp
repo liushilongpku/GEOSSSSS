@@ -323,13 +323,16 @@ void DualContinuumCrossFlow::setupGravityDrainagePressure( MeshLevel & meshMatri
           constitutive::MultiFluidBase const * multiFluidMatrix = matrixConstitutiveModels.getGroupPointer< constitutive::MultiFluidBase >( fluidNameMatrix );
           if( multiFluidMatrix )
           {
-            arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > const matrixFluidDensity = multiFluidMatrix->phaseDensity();
-            arrayView2d< real64 const > matrixPhaseVolumeFraction = matrixSubRegion.getField< fields::flow::phaseVolumeFraction >();
+            // Use TOTAL densities on both sides so the density contrast (rho_f - rho_m)
+            // is dimensionally consistent (mixing a single matrix phase density with the
+            // fracture total density is physically meaningless). The 2-arg overload
+            // computes the SIGNED Kazemi gravity-drainage pressure.
+            arrayView2d< real64 const > const matrixFluidTotalDensity = multiFluidMatrix->totalDensity();
 
             constitutive::MultiFluidBase const & fluidFracture = fractureConstitutiveModels.getGroup< constitutive::MultiFluidBase >( fluidNameFracture );
             arrayView2d< real64 const > const fractureFluidTotalDensity = fluidFracture.totalDensity();
 
-            gdModel.setupGravityDrainagePressure( matrixFluidDensity, matrixPhaseVolumeFraction, fractureFluidTotalDensity, gravityCoefficient, m_fracSpacingLz );
+            gdModel.setupGravityDrainagePressure( matrixFluidTotalDensity, fractureFluidTotalDensity, gravityCoefficient, m_fracSpacingLz );
           }
           else
           {

@@ -358,35 +358,54 @@ template <typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
 void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>::updateState( geos::DomainPartition & domain )
 {
   Base::updateState(domain);
+  // NOTE: the gravity-drainage pressure (GDP) is intentionally NOT updated here.
+  // updateState() is invoked once per Newton iteration; recomputing the explicitly-lagged
+  // GDP every iteration creates a fixed-point feedback that stalls the flow Newton residual
+  // (period-2 limit cycle above newtonTol). GDP is instead refreshed once per timestep in
+  // implicitStepSetup() and held frozen during the Newton iterations.
+}
+
+template <typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
+void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>::implicitStepSetup( real64 const & time_n,
+                                                                                                            real64 const & dt,
+                                                                                                            geos::DomainPartition & domain )
+{
+  Base::implicitStepSetup( time_n, dt, domain );
   if( this->getGravityDrainageFlag() )
   {
-    // Update gravity drainage pressure for compositional dual continuum flow
-    GEOS_LOG("Updating gravity drainage pressure for compositional dual continuum flow");
-    
-    // Get primary and secondary solvers
-    PRIMARY_FLOW_SOLVER const * primarySolver = this->primarySolver();
-    
-    // Get meshes for matrix and fracture
-    std::vector<MeshLevel const*> meshLevelPtrs;
-    this->forDiscretizationOnMeshTargets(
-      domain.getMeshBodies(),
-      [&]( string const &,
-           MeshLevel const & mesh,
-           string_array const & )
-      {
-        meshLevelPtrs.push_back( &mesh );
-      }
-    );
-    
-    if( meshLevelPtrs.size() >= 2 )
-    {
-      // Get gravity coefficient from primary solver
-      real64 gravityCoefficient = primarySolver->gravityVector()[2];  // z-component
-      MeshLevel  &  matrixMesh = const_cast<MeshLevel&>(* meshLevelPtrs[0]);
-      MeshLevel  &  fractureMesh = const_cast<MeshLevel&>(* meshLevelPtrs[1]);
+    updateGravityDrainagePressure( domain );
+  }
+}
 
-      Base::updateGravityPressure(matrixMesh,fractureMesh, gravityCoefficient);
+template <typename PRIMARY_FLOW_SOLVER, typename SECONDARY_FLOW_SOLVER>
+void CompositionalMultiPhaseDualContinuumFVM<PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER>::updateGravityDrainagePressure( geos::DomainPartition & domain )
+{
+  // Update gravity drainage pressure for compositional dual continuum flow (once per timestep)
+  GEOS_LOG_RANK_0( "Updating gravity drainage pressure for compositional dual continuum flow" );
+
+  // Get primary and secondary solvers
+  PRIMARY_FLOW_SOLVER const * primarySolver = this->primarySolver();
+
+  // Get meshes for matrix and fracture
+  std::vector<MeshLevel const*> meshLevelPtrs;
+  this->forDiscretizationOnMeshTargets(
+    domain.getMeshBodies(),
+    [&]( string const &,
+         MeshLevel const & mesh,
+         string_array const & )
+    {
+      meshLevelPtrs.push_back( &mesh );
     }
+  );
+
+  if( meshLevelPtrs.size() >= 2 )
+  {
+    // Get gravity coefficient from primary solver
+    real64 gravityCoefficient = primarySolver->gravityVector()[2];  // z-component
+    MeshLevel  &  matrixMesh = const_cast<MeshLevel&>(* meshLevelPtrs[0]);
+    MeshLevel  &  fractureMesh = const_cast<MeshLevel&>(* meshLevelPtrs[1]);
+
+    Base::updateGravityPressure(matrixMesh,fractureMesh, gravityCoefficient);
   }
 }
 // Explicit instantiation for default template

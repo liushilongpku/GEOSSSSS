@@ -40,8 +40,15 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressure(arrayView2d< re
 
   forAll< parallelDevicePolicy<> >( numE, [=] GEOS_HOST_DEVICE ( localIndex const ei )
   {
+    // SIGNED gravity drainage pressure (Kazemi). Do NOT take the absolute value:
+    // the sign carries the drive direction. With gravityCoefficient = g_z (< 0) and
+    // (rho_f - rho_m), this evaluates to |g|*(rho_m - rho_f)*Lz/2, i.e. > 0 when the
+    // matrix fluid is denser than the fracture fluid. A positive value is added to the
+    // matrix-side potential (see PotGrad), so the denser matrix fluid drains to the
+    // fracture (and the lighter fracture fluid imbibes into the matrix) - the
+    // conventional gravity-drainage direction. When the contrast reverses, so does GDP.
     real64 const densityDifference = fractureFluidDensity[ei][0] - matrixFluidDensity[ei][0];
-    gravDrainPressView[ei][0] = std::abs( gravityCoefficient * densityDifference * Lz / 2 );
+    gravDrainPressView[ei][0] = gravityCoefficient * densityDifference * Lz / 2;
   } );
 }
 
@@ -59,8 +66,12 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressure(arrayView3d< re
 
   forAll< parallelDevicePolicy<> >( numE, [=] GEOS_HOST_DEVICE ( localIndex const ei )
   {
-    // Use the first phase's density difference as representative GDP
-    gravDrainPressView[ei][0] = std::abs( gravityCoefficient * ( matrixFluidDensity[ei][0][0] - fractureTotalDensity[ei][0] ) * Lz / 2 );
+    // SIGNED GDP, consistent with the (rho_f - rho_m) convention used elsewhere.
+    // NOTE: this 3-arg overload only has the matrix per-phase density available, so it
+    // falls back to the first phase as a representative density. The compositional
+    // setup path instead passes matrix/fracture TOTAL densities to the 2-arg overload,
+    // which is dimensionally consistent and should be preferred.
+    gravDrainPressView[ei][0] = gravityCoefficient * ( fractureTotalDensity[ei][0] - matrixFluidDensity[ei][0][0] ) * Lz / 2;
   } );
 }
 
@@ -75,8 +86,9 @@ void SimpleGravityDrainagePressure::updateState( real64 const gravityCoefficient
 
   forAll< parallelDevicePolicy<> >( numElements, [=] GEOS_HOST_DEVICE ( localIndex const k )
   {
+    // SIGNED GDP (see setupGravityDrainagePressure): the sign encodes the drive direction.
     real64 const densityDifference = densityFracture[k] - densityMatrix[k];
-    gravDrainPressView[k][0] = std::abs( gravityCoefficient * densityDifference * halfLz );
+    gravDrainPressView[k][0] = gravityCoefficient * densityDifference * halfLz;
   } );
 }
 

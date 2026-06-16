@@ -182,15 +182,14 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
   real64 sumWeightGrav = 0.0;
   real64 potScale = 0.0;
 
-  // GDP Jacobian: dP_grav/dP = sign_arg * g * Lz/2 * (+/- dRho/dP)
+  // GDP Jacobian: GDP = g * (rho_f - rho_m) * Lz/2 is now SIGNED (no absolute value),
+  // so its derivative is simply d(GDP)/dP = g * Lz/2 * (dRho_f/dP - dRho_m/dP), with no
+  // sign() factor. (Previously the stored value used std::abs while this derivative used
+  // sign(arg) - i.e. d|arg|/dP - which was inconsistent with the residual.)
   real64 dGdp_dP[2] = {0.0, 0.0};
   if( hasGravityDrainage )
   {
-    real64 const rho_m = dens[seri[0]][sesri[0]][sei[0]][0];
-    real64 const rho_f = dens_fracture[seri[1]][sesri[1]][sei[1]][0];
-    real64 const arg = gravityCoefficient * ( rho_f - rho_m ) * 0.5 * fractureSpacingLz;
-    real64 const signArg = ( arg > 0.0 ) ? 1.0 : ( arg < 0.0 ) ? -1.0 : 0.0;
-    real64 const coeff = signArg * gravityCoefficient * 0.5 * fractureSpacingLz;
+    real64 const coeff = gravityCoefficient * 0.5 * fractureSpacingLz;
     dGdp_dP[0] = coeff * ( -dDens[seri[0]][sesri[0]][sei[0]][0][DerivOffset::dP] );
     dGdp_dP[1] = coeff * dDens_fracture[seri[1]][sesri[1]][sei[1]][0][DerivOffset::dP];
   }
