@@ -186,7 +186,7 @@
         matrixRegionList="{ reservoirM, faultM }"
         fractureRegionList="{ reservoirF, faultF }"/>
       <NonlinearSolverParameters newtonTol="5.0e-3" newtonMinIter="0" newtonMaxIter="40" lineSearchAction="None"/>
-      <LinearSolverParameters solverType="gmres" preconditionerType="iluk" krylovTol="1.0e-6" krylovMaxIter="1000" krylovAdaptiveTol="1"/>
+      <LinearSolverParameters solverType="gmres" preconditionerType="iluk" iluFill="2" krylovTol="1.0e-6" krylovMaxIter="1000" krylovAdaptiveTol="1"/>
     </CompositionalMultiPhaseDualContinuumFVM>
 
     <CompositionalMultiphaseDualContinuumPoromechanics
