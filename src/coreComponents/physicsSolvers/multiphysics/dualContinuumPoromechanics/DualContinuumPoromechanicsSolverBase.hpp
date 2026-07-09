@@ -46,6 +46,7 @@
 #include "mesh/utilities/AverageOverQuadraturePointsKernel.hpp"
 #include "codingUtilities/Utilities.hpp"
 #include "common/logger/Logger.hpp"
+#include <cmath>
 #include <vector>
 
 namespace geos
@@ -109,12 +110,26 @@ public:
       setDescription( "Assemble the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) "
                       "in the FullyImplicit path. Requires the cross-mesh node<->elem sparsity." );
 
+    this->registerWrapper( viewKeyStruct::enableFracturePorosityStrainCouplingString(), &m_enableFracturePorosityStrainCoupling ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( 1 ).
+      setDescription( "Diagnostic FullyImplicit switch for the mechanics->fracture-mass half of the "
+                      "fracture-mechanics coupling. When 0, K_upf is kept but the fracture porosity "
+                      "strain injection and K_pfu are disabled." );
+
     this->registerWrapper( viewKeyStruct::enableFimCrossStorageString(), &m_enableFimCrossStorage ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
       setApplyDefaultValue( 1 ).
       setDescription( "Enable the multi-porosity (Mehrabian S_ij) cross-storage correction in the "
                       "FullyImplicit path (adds the matrix<->fracture off-diagonal storage that "
                       "drives the Mandel-Cryer matrix decay)." );
+
+    this->registerWrapper( viewKeyStruct::logFimCouplingDiagnosticsString(), &m_logFimCouplingDiagnostics ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( 0 ).
+      setDescription( "Diagnostic switch for FullyImplicit dual-continuum poromechanics. When nonzero, "
+                      "logs norms of hand-assembled FIM coupling blocks and pressure updates "
+                      "(K_upf, cross-storage, dp_m/dp_f). Does not change the assembled system." );
 
     this->registerWrapper( viewKeyStruct::useIntrinsicInputString(), &m_useIntrinsicInput ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
@@ -149,6 +164,8 @@ public:
                    GEOS_FMT( "{} {}: Primary and secondary flow solvers must have the same thermal setting",
                              this->getCatalogName(), this->getName() ),
                    InputError );
+
+    validateDualContinuumVolumeFractions();
 
     // Enable fixed-stress poromechanics update BEFORE registerDataOnMesh is called.
     // registerDataOnMesh runs on sub-solvers before the coupled solver, so the flags
@@ -310,7 +327,7 @@ public:
     // Picard-style porosity refresh alone. Single-phase: d(phi_f rho V)/dU = rho alpha_f gradN.
     // Multiphase: per-component d(phi_f * compDens_c * V)/dU = compDens_c * alpha_f * gradN
     // (with the useTotalMassEquation row transform applied to match the fracture accumulation).
-    if( m_enableFractureMechanicsCoupling )
+    if( m_enableFractureMechanicsCoupling && m_enableFracturePorosityStrainCoupling )
     {
       if constexpr ( isMultiphaseFlow )
         assembleFractureToMechanicsCouplingMultiphase( domain, dofManager, localMatrix, localRhs );
@@ -359,6 +376,11 @@ public:
     if( this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::FullyImplicit )
     {
       scalingFactor *= m_fimNewtonRelaxation;
+    }
+    if( m_logFimCouplingDiagnostics != 0 &&
+        this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::FullyImplicit )
+    {
+      logFimPressureUpdateDiagnostics( domain, dofManager, localSolution, scalingFactor );
     }
     return scalingFactor;
   }
@@ -521,6 +543,185 @@ public:
 
 private:
 
+  void logFimPressureUpdateDiagnostics( DomainPartition & domain,
+                                        DofManager const & dofManager,
+                                        arrayView1d< real64 const > const & localSolution,
+                                        real64 const scalingFactor )
+  {
+    if constexpr ( !isMultiphaseFlow )
+    {
+      GEOS_UNUSED_VAR( domain, dofManager, localSolution, scalingFactor );
+      return;
+    }
+    else
+    {
+      if( domain.getMeshBodies().numSubGroups() < 2 ) return;
+
+      MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
+      MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
+      MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
+      MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
+      using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+      DualFlow & dualFlow = *this->flowSolver();
+      string_array const & matrixRegions   = dualFlow.template getReference< string_array >( "matrixRegionList" );
+      string_array const & fractureRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
+      string const dofKey = dofManager.getKey( CompositionalMultiphaseBase::viewKeyStruct::elemDofFieldString() );
+      globalIndex const rankOffset = dofManager.rankOffset();
+
+      real64 maxAbsRawDpM = 0.0;
+      real64 maxAbsRawDpF = 0.0;
+      real64 maxAbsScaledDpM = 0.0;
+      real64 maxAbsScaledDpF = 0.0;
+      real64 minPredPM = LvArray::NumericLimits< real64 >::max;
+      real64 minPredPF = LvArray::NumericLimits< real64 >::max;
+      real64 minPM = LvArray::NumericLimits< real64 >::max;
+      real64 minPF = LvArray::NumericLimits< real64 >::max;
+
+      for( size_t ir = 0; ir < matrixRegions.size(); ++ir )
+      {
+        ElementRegionBase const & matReg  = meshLevel1.getElemManager().getRegion( matrixRegions[ir] );
+        ElementRegionBase const & fracReg = meshLevel2.getElemManager().getRegion( fractureRegions[ir] );
+
+        matReg.template forElementSubRegionsIndex< CellElementSubRegion >(
+          [&]( localIndex const isr, CellElementSubRegion const & matSR )
+        {
+          if( isr >= fracReg.numSubRegions() ) return;
+          CellElementSubRegion const & fracSR =
+            dynamic_cast< CellElementSubRegion const & >( fracReg.getSubRegion( isr ) );
+
+          arrayView1d< globalIndex const > const dofM =
+            matSR.template getReference< array1d< globalIndex > >( dofKey );
+          arrayView1d< globalIndex const > const dofF =
+            fracSR.template getReference< array1d< globalIndex > >( dofKey );
+          arrayView1d< integer const > const ghostM = matSR.ghostRank();
+          arrayView1d< integer const > const ghostF = fracSR.ghostRank();
+          arrayView1d< real64 const > const pM = matSR.template getField< fields::flow::pressure >();
+          arrayView1d< real64 const > const pF = fracSR.template getField< fields::flow::pressure >();
+          arrayView1d< real64 const > pressureScalingM;
+          arrayView1d< real64 const > pressureScalingF;
+          bool const hasLocalPressureScalingM = matSR.hasWrapper( fields::flow::pressureScalingFactor::key() );
+          bool const hasLocalPressureScalingF = fracSR.hasWrapper( fields::flow::pressureScalingFactor::key() );
+          if( hasLocalPressureScalingM )
+          {
+            pressureScalingM = matSR.template getField< fields::flow::pressureScalingFactor >();
+          }
+          if( hasLocalPressureScalingF )
+          {
+            pressureScalingF = fracSR.template getField< fields::flow::pressureScalingFactor >();
+          }
+
+          for( localIndex k = 0; k < matSR.size(); ++k )
+          {
+            if( ghostM[k] < 0 )
+            {
+              localIndex const lid = LvArray::integerConversion< localIndex >( dofM[k] - rankOffset );
+              if( lid >= 0 && lid < localSolution.size() )
+              {
+                real64 const raw = localSolution[lid];
+                real64 const localScale = hasLocalPressureScalingM ? pressureScalingM[k] : 1.0;
+                real64 const scaled = scalingFactor * localScale * raw;
+                maxAbsRawDpM = LvArray::math::max( maxAbsRawDpM, LvArray::math::abs( raw ) );
+                maxAbsScaledDpM = LvArray::math::max( maxAbsScaledDpM, LvArray::math::abs( scaled ) );
+                minPM = LvArray::math::min( minPM, pM[k] );
+                minPredPM = LvArray::math::min( minPredPM, pM[k] + scaled );
+              }
+            }
+          }
+
+          for( localIndex kf = 0; kf < fracSR.size(); ++kf )
+          {
+            if( ghostF[kf] < 0 )
+            {
+              localIndex const lid = LvArray::integerConversion< localIndex >( dofF[kf] - rankOffset );
+              if( lid >= 0 && lid < localSolution.size() )
+              {
+                real64 const raw = localSolution[lid];
+                real64 const localScale = hasLocalPressureScalingF ? pressureScalingF[kf] : 1.0;
+                real64 const scaled = scalingFactor * localScale * raw;
+                maxAbsRawDpF = LvArray::math::max( maxAbsRawDpF, LvArray::math::abs( raw ) );
+                maxAbsScaledDpF = LvArray::math::max( maxAbsScaledDpF, LvArray::math::abs( scaled ) );
+                minPF = LvArray::math::min( minPF, pF[kf] );
+                minPredPF = LvArray::math::min( minPredPF, pF[kf] + scaled );
+              }
+            }
+          }
+        } );
+      }
+
+      maxAbsRawDpM = MpiWrapper::max( maxAbsRawDpM );
+      maxAbsRawDpF = MpiWrapper::max( maxAbsRawDpF );
+      maxAbsScaledDpM = MpiWrapper::max( maxAbsScaledDpM );
+      maxAbsScaledDpF = MpiWrapper::max( maxAbsScaledDpF );
+      minPM = MpiWrapper::min( minPM );
+      minPF = MpiWrapper::min( minPF );
+      minPredPM = MpiWrapper::min( minPredPM );
+      minPredPF = MpiWrapper::min( minPredPF );
+
+      GEOS_LOG_RANK_0( GEOS_FMT( "{}: FIM pressure-update diagnostics: "
+                                 "scale={:.6e}, max|raw dpM|={:.6e}, max|scaled dpM|={:.6e}, "
+                                 "min pM {:.6e}->{:.6e}; "
+                                 "max|raw dpF|={:.6e}, max|scaled dpF|={:.6e}, min pF {:.6e}->{:.6e}",
+                                 this->getName(), scalingFactor,
+                                 maxAbsRawDpM, maxAbsScaledDpM, minPM, minPredPM,
+                                 maxAbsRawDpF, maxAbsScaledDpF, minPF, minPredPF ) );
+    }
+  }
+
+  void validateDualContinuumVolumeFractions() const
+  {
+    real64 const flowFractureVolumeFraction = this->flowSolver()->getFractureVolumeFraction();
+    bool const mechanicsHasVolumeFraction = m_fractureVolumeFraction >= 0.0;
+    bool const flowHasVolumeFraction = flowFractureVolumeFraction >= 0.0;
+
+    if( mechanicsHasVolumeFraction )
+    {
+      GEOS_THROW_IF( m_fractureVolumeFraction <= 0.0 || m_fractureVolumeFraction >= 1.0,
+                     GEOS_FMT( "{}: fractureVolumeFraction on the dual-continuum poromechanics solver "
+                               "must be in (0,1), got {}",
+                               this->getName(), m_fractureVolumeFraction ),
+                     InputError );
+    }
+
+    if( flowHasVolumeFraction )
+    {
+      GEOS_THROW_IF( flowFractureVolumeFraction <= 0.0 || flowFractureVolumeFraction >= 1.0,
+                     GEOS_FMT( "{}: DualContinuumCrossFlow fractureVolumeFraction must be in (0,1), got {}",
+                               this->getName(), flowFractureVolumeFraction ),
+                     InputError );
+    }
+
+    GEOS_THROW_IF( mechanicsHasVolumeFraction != flowHasVolumeFraction,
+                   GEOS_FMT( "{}: fractureVolumeFraction must be set consistently in both the "
+                             "dual-continuum poromechanics solver and its DualContinuumCrossFlow block. "
+                             "The poromechanics value controls effective mechanics/Biot terms, while "
+                             "the cross-flow value controls pore-volume scaling and multi-porosity "
+                             "storage. Got poromechanics={}, DualContinuumCrossFlow={}.",
+                             this->getName(), m_fractureVolumeFraction, flowFractureVolumeFraction ),
+                   InputError );
+
+    if( mechanicsHasVolumeFraction )
+    {
+      GEOS_THROW_IF( std::fabs( m_fractureVolumeFraction - flowFractureVolumeFraction ) > 1e-12,
+                     GEOS_FMT( "{}: inconsistent fractureVolumeFraction values. The dual-continuum "
+                               "poromechanics solver has {}, but DualContinuumCrossFlow has {}. "
+                               "Both must represent the same REV fracture volume fraction v_f.",
+                               this->getName(), m_fractureVolumeFraction, flowFractureVolumeFraction ),
+                     InputError );
+    }
+
+    if( this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::FullyImplicit )
+    {
+      bool const fimRequiresVolumeFraction = ( m_useIntrinsicInput != 0 ) || ( m_enableFimCrossStorage != 0 );
+      GEOS_THROW_IF( fimRequiresVolumeFraction && !mechanicsHasVolumeFraction,
+                     GEOS_FMT( "{}: FullyImplicit dual-continuum poromechanics with useIntrinsicInput={} "
+                               "and enableFimCrossStorage={} requires an explicit fractureVolumeFraction "
+                               "in both the poromechanics solver and DualContinuumCrossFlow. This is the "
+                               "REV volume fraction v_f, not the intrinsic fracture porosity.",
+                               this->getName(), m_useIntrinsicInput, m_enableFimCrossStorage ),
+                     InputError );
+    }
+  }
+
   // Copy p_f from mesh2 to mesh1 fracture wrappers directly (bypasses
   // DofManager, needed in sequential mode where mapFractureDataToMatrix
   // is not called).
@@ -578,6 +779,7 @@ private:
         }
       } );
     }
+
   }
 
   // useIntrinsicInput=1 path (FullyImplicit only): homogenize the INTRINSIC matrix/fracture
@@ -744,6 +946,20 @@ private:
     string_array const & matrixRegions   = dualFlow.template getReference< string_array >( "matrixRegionList" );
     string_array const & fractureRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
 
+    real64 maxAbsStorageM = 0.0;
+    real64 maxAbsStorageF = 0.0;
+    real64 maxAbsCorrDiagM = 0.0;
+    real64 maxAbsCorrDiagF = 0.0;
+    real64 maxAbsCorrOff = 0.0;
+    real64 maxAbsDpM = 0.0;
+    real64 maxAbsDpF = 0.0;
+    real64 sumAbsStorageM = 0.0;
+    real64 sumAbsStorageF = 0.0;
+    real64 minPM = LvArray::NumericLimits< real64 >::max;
+    real64 minPF = LvArray::NumericLimits< real64 >::max;
+    real64 maxPM = -LvArray::NumericLimits< real64 >::max;
+    real64 maxPF = -LvArray::NumericLimits< real64 >::max;
+
     for( size_t ir = 0; ir < matrixRegions.size(); ++ir )
     {
       ElementRegionBase const & matReg  = meshLevel1.getElemManager().getRegion( matrixRegions[ir] );
@@ -803,9 +1019,14 @@ private:
           real64 const Kbar = 1.0 / ( v_m/KmI + v_f/KfI );
           real64 const abm  = Kbar*v_m*aMI/KmI;
           real64 const abf  = Kbar*v_f*aFI/KfI;
+          // phiM/phiF have already been scaled by dual-continuum netToGross, so they are REV pore
+          // fractions (v_i * phi_i). The intrinsic skeleton storage needs the continuum-local
+          // porosity phi_i; recover it here before applying Mehrabian's M_bar formula.
+          real64 const phiMI = phiM[k] / v_m;
+          real64 const phiFI = phiF[kf] / v_f;
           // skeleton-only intrinsic storage (no fluid compressibility; multiphase flash carries it)
-          real64 const invMmI = (aMI-phiM[k])/KsM[k];
-          real64 const invMfI = (aFI-phiF[kf])/KsF[kf];
+          real64 const invMmI = (aMI-phiMI)/KsM[k];
+          real64 const invMfI = (aFI-phiFI)/KsF[kf];
           real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
           real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
           // what the compositional accumulation already put on the diagonal: skeleton (alpha-phi)/Ks
@@ -817,6 +1038,16 @@ private:
 
           real64 const dpM = pM[k]-pMn[k];
           real64 const dpF = pF[kf]-pFn[kf];
+
+          maxAbsCorrDiagM = LvArray::math::max( maxAbsCorrDiagM, LvArray::math::abs( corrDiagM ) );
+          maxAbsCorrDiagF = LvArray::math::max( maxAbsCorrDiagF, LvArray::math::abs( corrDiagF ) );
+          maxAbsCorrOff = LvArray::math::max( maxAbsCorrOff, LvArray::math::abs( corrOff ) );
+          maxAbsDpM = LvArray::math::max( maxAbsDpM, LvArray::math::abs( dpM ) );
+          maxAbsDpF = LvArray::math::max( maxAbsDpF, LvArray::math::abs( dpF ) );
+          minPM = LvArray::math::min( minPM, pM[k] );
+          minPF = LvArray::math::min( minPF, pF[kf] );
+          maxPM = LvArray::math::max( maxPM, pM[k] );
+          maxPF = LvArray::math::max( maxPF, pF[kf] );
 
           // per-component coefficients (compDens_c), with optional total-mass row transform
           real64 coeffM[ maxNumComp ] = {};
@@ -838,6 +1069,8 @@ private:
           {
             real64 const V = volM[k];
             real64 const storageIncrement = V * ( corrDiagM * dpM + corrOff * dpF );
+            maxAbsStorageM = LvArray::math::max( maxAbsStorageM, LvArray::math::abs( storageIncrement ) );
+            sumAbsStorageM += LvArray::math::abs( storageIncrement );
             globalIndex const colP_self  = dofM[k];       // matrix pressure DOF (offset 0)
             globalIndex const colP_other = dofF[kf];      // fracture pressure DOF (offset 0)
             for( integer i = 0; i < numComp; ++i )
@@ -870,6 +1103,8 @@ private:
           {
             real64 const V = volF[kf];
             real64 const storageIncrement = V * ( corrDiagF * dpF + corrOff * dpM );
+            maxAbsStorageF = LvArray::math::max( maxAbsStorageF, LvArray::math::abs( storageIncrement ) );
+            sumAbsStorageF += LvArray::math::abs( storageIncrement );
             globalIndex const colP_self  = dofF[kf];      // fracture pressure DOF (offset 0)
             globalIndex const colP_other = dofM[k];       // matrix pressure DOF (offset 0)
             for( integer i = 0; i < numComp; ++i )
@@ -899,6 +1134,36 @@ private:
           }
         }
       } );
+    }
+
+    if( m_logFimCouplingDiagnostics != 0 )
+    {
+      maxAbsStorageM = MpiWrapper::max( maxAbsStorageM );
+      maxAbsStorageF = MpiWrapper::max( maxAbsStorageF );
+      maxAbsCorrDiagM = MpiWrapper::max( maxAbsCorrDiagM );
+      maxAbsCorrDiagF = MpiWrapper::max( maxAbsCorrDiagF );
+      maxAbsCorrOff = MpiWrapper::max( maxAbsCorrOff );
+      maxAbsDpM = MpiWrapper::max( maxAbsDpM );
+      maxAbsDpF = MpiWrapper::max( maxAbsDpF );
+      sumAbsStorageM = MpiWrapper::sum( sumAbsStorageM );
+      sumAbsStorageF = MpiWrapper::sum( sumAbsStorageF );
+      minPM = MpiWrapper::min( minPM );
+      minPF = MpiWrapper::min( minPF );
+      maxPM = MpiWrapper::max( maxPM );
+      maxPF = MpiWrapper::max( maxPF );
+
+      GEOS_LOG_RANK_0( GEOS_FMT( "{}: FIM cross-storage diagnostics: "
+                                 "max|storage_m|={:.6e}, sum|storage_m|={:.6e}, "
+                                 "max|storage_f|={:.6e}, sum|storage_f|={:.6e}, "
+                                 "max|corrDiagM|={:.6e}, max|corrDiagF|={:.6e}, max|corrOff|={:.6e}, "
+                                 "max|dpM|={:.6e}, max|dpF|={:.6e}, "
+                                 "pM=[{:.6e},{:.6e}], pF=[{:.6e},{:.6e}]",
+                                 this->getName(),
+                                 maxAbsStorageM, sumAbsStorageM,
+                                 maxAbsStorageF, sumAbsStorageF,
+                                 maxAbsCorrDiagM, maxAbsCorrDiagF, maxAbsCorrOff,
+                                 maxAbsDpM, maxAbsDpF,
+                                 minPM, maxPM, minPF, maxPF ) );
     }
   }
 
@@ -1559,6 +1824,9 @@ private:
             nodeManager, mesh.getEdgeManager(), mesh.getFaceManager(), subRegion, meshData );
 
           RAJA::ReduceMax< parallelDeviceReduce, real64 > fractureMaxForce( 0.0 );
+          RAJA::ReduceMax< parallelDeviceReduce, real64 > fractureMaxJac( 0.0 );
+          RAJA::ReduceSum< parallelDeviceReduce, real64 > fractureAbsForce( 0.0 );
+          RAJA::ReduceSum< parallelDeviceReduce, real64 > fractureAbsJac( 0.0 );
 
           forAll< parallelDevicePolicy<> >( subRegion.size(),
             [=] GEOS_HOST_DEVICE ( localIndex const k )
@@ -1575,10 +1843,15 @@ private:
                 localRowDofIndex[ numDofPerNode * a + dim ] = dofNumber[ nodeIndex ] + dim;
             }
 
-            real64 localResidualMomentum[ numNodesPerElem * numDofPerNode ] = {};
-            real64 dLocalResMomentum_dFracPressure[ numNodesPerElem * numDofPerNode ] = {};
             real64 const alpha_f = fractureMechanicsScale[ k ] * fractureBiotCoeff[ k ];
             real64 const p_f     = fracturePressure[ k ];
+            if( fractureMechanicsScale[ k ] <= 0.0 || fractureDofNumber[ k ] < 0 )
+            {
+              return;
+            }
+
+            real64 localResidualMomentum[ numNodesPerElem * numDofPerNode ] = {};
+            real64 dLocalResMomentum_dFracPressure[ numNodesPerElem * numDofPerNode ] = {};
 
             for( integer q = 0; q < FE_TYPE::numQuadraturePoints; ++q )
             {
@@ -1620,7 +1893,10 @@ private:
                 {
                   RAJA::atomicAdd< parallelDeviceAtomic >( &localRhs[ dof ], localResidualMomentum[ localRow ] );
                   fractureMaxForce.max( fabs( localResidualMomentum[ localRow ] ) );
+                  fractureAbsForce += fabs( localResidualMomentum[ localRow ] );
                 }
+                fractureMaxJac.max( fabs( dLocalResMomentum_dFracPressure[ localRow ] ) );
+                fractureAbsJac += fabs( dLocalResMomentum_dFracPressure[ localRow ] );
                 localMatrix.template addToRowBinarySearchUnsorted< parallelDeviceAtomic >(
                   dof, &fractureDofNumber[ k ], &dLocalResMomentum_dFracPressure[ localRow ], 1 );
               }
@@ -1631,6 +1907,15 @@ private:
           {
             this->solidMechanicsSolver()->getMaxForce() =
               LvArray::math::max( this->solidMechanicsSolver()->getMaxForce(), fractureMaxForce.get() );
+          }
+          if( m_logFimCouplingDiagnostics != 0 )
+          {
+            GEOS_LOG_RANK_0( GEOS_FMT( "{}: K_upf diagnostics on subRegion '{}': "
+                                       "max|R_upf|={:.6e}, sum|R_upf|={:.6e}, "
+                                       "max|dR_upf/dp_f|={:.6e}, sum|dR_upf/dp_f|={:.6e}",
+                                       this->getName(), subRegion.getName(),
+                                       fractureMaxForce.get(), fractureAbsForce.get(),
+                                       fractureMaxJac.get(), fractureAbsJac.get() ) );
           }
         } ); // dispatch3D
       } ); // forElementSubRegions
@@ -1713,8 +1998,13 @@ private:
                 localColDofIndex[ numDofPerNode * a + dim ] = dofNumber[ nodeIndex ] + dim;
             }
 
-            real64 dFracMass_dU[ numNodesPerElem * numDofPerNode ] = {};
             real64 const alpha_f = fractureMechanicsScale[ k ] * fractureBiotCoeff[ k ];
+            if( fractureMechanicsScale[ k ] <= 0.0 || fractureDofNumber[ k ] < 0 )
+            {
+              return;
+            }
+
+            real64 dFracMass_dU[ numNodesPerElem * numDofPerNode ] = {};
 
             for( integer q = 0; q < FE_TYPE::numQuadraturePoints; ++q )
             {
@@ -2149,7 +2439,7 @@ private:
     // fracture continuum is then coupled to the matrix only through cross-flow, and its
     // porosity follows pressure alone (with a consistent Jacobian from the fracture flow
     // accumulation). When K_pfu is implemented and enabled, the strain term is applied here.
-    if( !m_enableFractureMechanicsCoupling ) return;
+    if( !m_enableFractureMechanicsCoupling || !m_enableFracturePorosityStrainCoupling ) return;
 
     if( domain.getMeshBodies().numSubGroups() < 2 ) return;
 
@@ -2340,12 +2630,12 @@ private:
         region.forElementSubRegions< CellElementSubRegion >( [&]( CellElementSubRegion & subRegion )
         {
           subRegion.registerWrapper< array1d< real64 > >( viewKeyStruct::fracturePressureString() )
-            .setApplyDefaultValue( -1 )
+            .setApplyDefaultValue( 0.0 )
             .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
             .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
 
           subRegion.registerWrapper< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() )
-            .setApplyDefaultValue( -1 )
+            .setApplyDefaultValue( 0.0 )
             .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
             .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
 
@@ -2355,7 +2645,7 @@ private:
             .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
 
           subRegion.registerWrapper< array1d< real64 > >( viewKeyStruct::fractureMechanicsScaleString() )
-            .setApplyDefaultValue( 1.0 )
+            .setApplyDefaultValue( 0.0 )
             .setPlotLevel( dataRepository::PlotLevel::NOPLOT )
             .setRestartFlags( dataRepository::RestartFlags::NO_WRITE );
 
@@ -2478,7 +2768,10 @@ public:
     static constexpr char const * fractureVolumeFractionString() { return "fractureVolumeFraction"; }
     static constexpr char const * fimNewtonRelaxationString() { return "fimNewtonRelaxation"; }
     static constexpr char const * enableFractureMechanicsCouplingString() { return "enableFractureMechanicsCoupling"; }
+    static constexpr char const * enableFracturePorosityStrainCouplingString()
+    { return "enableFracturePorosityStrainCoupling"; }
     static constexpr char const * enableFimCrossStorageString() { return "enableFimCrossStorage"; }
+    static constexpr char const * logFimCouplingDiagnosticsString() { return "logFimCouplingDiagnostics"; }
     static constexpr char const * useIntrinsicInputString() { return "useIntrinsicInput"; }
     static constexpr char const * autoInitializeStressString() { return "autoInitializeStress"; }
     static constexpr char const * effectiveBulkModulusString() { return "effectiveBulkModulus"; }
@@ -2502,6 +2795,8 @@ public:
   // path. Used to isolate the effect of those terms during convergence debugging.
   integer m_enableFractureMechanicsCoupling = 1;
 
+  integer m_enableFracturePorosityStrainCoupling = 1;
+
   // Fixed Newton step relaxation applied in FullyImplicit (FIM) mode to damp the period-2
   // (lambda~=-1) pressure-block oscillation. 0.5 is near-optimal (midpoint = exact solution);
   // 1.0 disables relaxation.
@@ -2509,6 +2804,8 @@ public:
 
   // Toggle the multi-porosity (Mehrabian S_ij) cross-storage correction in the FIM path.
   integer m_enableFimCrossStorage = 1;
+
+  integer m_logFimCouplingDiagnostics = 0;
 
   // Input mode for the FIM effective-medium parameters (default 0 = OFF, backward compatible):
   //   0 (effective): the deck sets the HOMOGENIZED effective moduli/Biot directly on the matrix

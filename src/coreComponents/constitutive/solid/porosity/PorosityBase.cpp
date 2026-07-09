@@ -33,8 +33,11 @@ PorosityBase::PorosityBase( string const & name, Group * const parent ):
   ConstitutiveBase( name, parent )
 {
   registerWrapper( viewKeyStruct::defaultReferencePorosityString(), &m_defaultReferencePorosity ).
-    setInputFlag( InputFlags::REQUIRED ).
-    setDescription( "Default value of the reference porosity" );
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDefaultValue( -1.0 ).
+    setDescription( "Default value of the reference porosity. "
+                    "For dual-continuum fracture continua this is the intrinsic fracture-continuum "
+                    "porosity, not the fracture REV volume fraction." );
 
   registerField< fields::porosity::porosity >( &m_newPorosity );
 
@@ -62,8 +65,11 @@ void PorosityBase::allocateConstitutiveData( Group & parent, localIndex const nu
 
 void PorosityBase::postInputInitialization()
 {
+  if( m_defaultReferencePorosity > 0.0 )
+  {
     getField< fields::porosity::referencePorosity >().
-    setApplyDefaultValue( m_defaultReferencePorosity );
+      setApplyDefaultValue( m_defaultReferencePorosity );
+  }
 }
 
 void PorosityBase::scaleReferencePorosity( arrayView1d< real64 const > scalingFactors ) const

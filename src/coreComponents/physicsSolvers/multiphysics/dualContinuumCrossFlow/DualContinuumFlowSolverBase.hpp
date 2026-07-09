@@ -17,6 +17,8 @@
 
 #include "physicsSolvers/multiphysics/CoupledSolver.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBase.hpp"
+#include "constitutive/solid/porosity/PorosityBase.hpp"
+#include "constitutive/solid/CoupledSolidBase.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBase.hpp"
 #include "physicsSolvers/fluidFlow/CompositionalMultiphaseBase.hpp"
@@ -129,6 +131,82 @@ public:
     MeshLevel & secondaryMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
     this->registerMeshConnectivity( domain );
     m_crossFlow.setupCrossFlow( domain, primaryMesh, secondaryMesh );//TODO@LSL 这块需要对多region进行支持，可能会报错
+
+    // Apply the dual-continuum volume fractions through the existing netToGross field.
+    // Flow accumulation kernels use V_elem * porosity. In double-continuum decks mesh1 and mesh2
+    // often cover the same REV volume, so the pore volume must be V_REV * v_i * phi_i.
+    // Scaling reference porosity via netToGross keeps the standard accumulation kernels unchanged.
+    real64 const fv = m_crossFlow.getFractureVolumeFraction();
+    if( fv > 0.0 && !m_fractureRegionList.empty() && !m_volumeFractionsAppliedToNetToGross )
+    {
+      GEOS_THROW_IF( fv >= 1.0,
+                     GEOS_FMT( "{}: fractureVolumeFraction must be in (0,1), got {}",
+                               this->getName(), fv ),
+                     std::runtime_error );
+      real64 const mv = 1.0 - fv;
+
+      secondaryMesh.getElemManager().forElementSubRegions( m_fractureRegionList,
+        [&]( localIndex const, ElementSubRegionBase & subRegion )
+        {
+          string const & solidName = subRegion.template getReference< string >(
+            FlowSolverBase::viewKeyStruct::solidNamesString() );
+          constitutive::CoupledSolidBase & solid =
+            subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
+          constitutive::PorosityBase & poro = solid.getBasePorosityModel();
+          if( poro.getDefaultReferencePorosity() < 0.0 )
+          {
+            GEOS_THROW( GEOS_FMT( "{}: fracture subregion '{}' has fractureVolumeFraction={} but no "
+                                  "defaultReferencePorosity. These are different quantities: "
+                                  "fractureVolumeFraction is the REV volume fraction v_f, while "
+                                  "defaultReferencePorosity must be the intrinsic fracture-continuum "
+                                  "porosity phi_f (for example, v_f=0.1 and phi_f=0.9 gives an REV "
+                                  "pore fraction of 0.09). Please set defaultReferencePorosity explicitly.",
+                                  this->getName(), subRegion.getName(), fv ),
+                        std::runtime_error );
+          }
+
+          real64 const phi = poro.getDefaultReferencePorosity();
+          GEOS_THROW_IF( phi <= 0.0 || phi >= 1.0,
+                         GEOS_FMT( "{}: fracture subregion '{}' has invalid intrinsic "
+                                   "defaultReferencePorosity={}. Expected a porosity in (0,1).",
+                                   this->getName(), subRegion.getName(), phi ),
+                         std::runtime_error );
+          if( phi <= fv )
+          {
+            GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: fracture subregion '" << subRegion.getName()
+                             << "': defaultReferencePorosity (" << phi
+                             << ") is not larger than fractureVolumeFraction (" << fv
+                             << "). This is allowed, but note that defaultReferencePorosity is interpreted "
+                             << "as intrinsic fracture porosity and flow accumulation will use v_f*phi_f = "
+                             << fv * phi << "." );
+          }
+        } );
+
+      primaryMesh.getElemManager().forElementSubRegions( m_matrixRegionList,
+        [&]( localIndex const, ElementSubRegionBase & subRegion )
+        {
+          arrayView1d< real64 > const netToGross = subRegion.template getField< fields::flow::netToGross >();
+          forAll< parallelHostPolicy >( subRegion.size(), [=] ( localIndex const k )
+          {
+            netToGross[k] *= mv;
+          } );
+        } );
+
+      secondaryMesh.getElemManager().forElementSubRegions( m_fractureRegionList,
+        [&]( localIndex const, ElementSubRegionBase & subRegion )
+        {
+          arrayView1d< real64 > const netToGross = subRegion.template getField< fields::flow::netToGross >();
+          forAll< parallelHostPolicy >( subRegion.size(), [=] ( localIndex const k )
+          {
+            netToGross[k] *= fv;
+          } );
+        } );
+
+      GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: applying dual-continuum volume fractions through "
+                       "netToGross: matrix v_m=" << mv << ", fracture v_f=" << fv
+                       << ". Fracture defaultReferencePorosity remains intrinsic; flow pore volume uses v_f*phi_f." );
+      m_volumeFractionsAppliedToNetToGross = true;
+    }
   };
 
   virtual void initializePostInitialConditionsPostSubGroups() override
@@ -966,6 +1044,7 @@ private:
   DualContinuumCrossFlow m_crossFlow;
   real64 m_transferCoefficient;
   bool m_enableCrossStorageCorrection = true;  // sequential-only; disabled for FullyImplicit coupling
+  bool m_volumeFractionsAppliedToNetToGross = false;
   
   // TracAI: Added to store dual continuum region pairs from XML
   string_array m_matrixRegionList;

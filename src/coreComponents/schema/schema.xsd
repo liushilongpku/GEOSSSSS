@@ -6696,8 +6696,8 @@ Information output from lower logLevels is added with the desired log level
 		<xsd:attribute name="defaultGrainBulkModulus" type="real64" use="required" />
 		<!--defaultPorosityTEC => Default thermal expansion coefficient-->
 		<xsd:attribute name="defaultPorosityTEC" type="real64" default="0" />
-		<!--defaultReferencePorosity => Default value of the reference porosity-->
-		<xsd:attribute name="defaultReferencePorosity" type="real64" use="required" />
+		<!--defaultReferencePorosity => Default value of the reference porosity. In a dual-continuum fracture continuum this may be omitted when fractureVolumeFraction is set on the coupled flow solver; the solver will propagate that value here automatically.-->
+		<xsd:attribute name="defaultReferencePorosity" type="real64" default="-1" />
 		<!--useUniaxialFixedStress => Flag enabling uniaxial approximation in fixed stress update-->
 		<xsd:attribute name="useUniaxialFixedStress" type="integer" default="0" />
 		<!--name => A name is required for any non-unique nodes-->
@@ -8207,8 +8207,8 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 	<xsd:complexType name="PressurePorosityType">
 		<!--compressibility => Solid compressibility-->
 		<xsd:attribute name="compressibility" type="real64" use="required" />
-		<!--defaultReferencePorosity => Default value of the reference porosity-->
-		<xsd:attribute name="defaultReferencePorosity" type="real64" use="required" />
+		<!--defaultReferencePorosity => Default value of the reference porosity. In a dual-continuum fracture continuum this may be omitted when fractureVolumeFraction is set on the coupled flow solver; the solver will propagate that value here automatically.-->
+		<xsd:attribute name="defaultReferencePorosity" type="real64" default="-1" />
 		<!--referencePressure => Reference pressure for solid compressibility-->
 		<xsd:attribute name="referencePressure" type="real64" use="required" />
 		<!--name => A name is required for any non-unique nodes-->
@@ -8223,8 +8223,8 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="ProppantPorosityType">
-		<!--defaultReferencePorosity => Default value of the reference porosity-->
-		<xsd:attribute name="defaultReferencePorosity" type="real64" use="required" />
+		<!--defaultReferencePorosity => Default value of the reference porosity. In a dual-continuum fracture continuum this may be omitted when fractureVolumeFraction is set on the coupled flow solver; the solver will propagate that value here automatically.-->
+		<xsd:attribute name="defaultReferencePorosity" type="real64" default="-1" />
 		<!--maxProppantConcentration => Maximum proppant concentration -->
 		<xsd:attribute name="maxProppantConcentration" type="real64" use="required" />
 		<!--name => A name is required for any non-unique nodes-->

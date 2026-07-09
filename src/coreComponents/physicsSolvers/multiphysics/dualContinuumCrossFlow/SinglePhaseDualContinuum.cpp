@@ -216,10 +216,15 @@ namespace geos
               real64 const abf  = Kbar*v_f*aFI/KfI;
               real64 const cfM  = dDensM[k][0][0]/densM[k][0];
               real64 const cfF  = dDensF[k][0][0]/densF[k][0];
+              // phiM/phiF have already been scaled by dual-continuum netToGross, so they are REV pore
+              // fractions (v_i * phi_i). The intrinsic storage formula needs continuum-local porosity.
+              real64 const phiMI = phiM[k] / v_m;
+              real64 const phiFI = phiF[k] / v_f;
+
               // Analytical constant-strain storage built from INTRINSIC params:
               //   1/Mbar_ii = v_i(1/M_i^intr + alpha_i^2/K_i) - abar_i^2/Kbar,  abar_i = Kbar v_i alpha_i/K_i.
-              real64 const invMmI = (aMI-phiM[k])/KsM[k] + phiM[k]*cfM;
-              real64 const invMfI = (aFI-phiF[k])/KsF[k] + phiF[k]*cfF;
+              real64 const invMmI = (aMI-phiMI)/KsM[k] + phiMI*cfM;
+              real64 const invMfI = (aFI-phiFI)/KsF[k] + phiFI*cfF;
               // Paper-exact constant-strain diagonal storage 1/Mbar_ii = a_ii - abar_i^2/Kbar,
               // a_ii = v_i(1/M_i + alpha_i^2/K_i) (Mehrabian 2014 eq A24/A25).
               real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;

@@ -964,9 +964,53 @@ void CompositionalMultiphaseFVM::applySystemSolution( DofManager const & dofMana
   GEOS_MARK_FUNCTION;
 
   bool const localScaling = m_scalingType == ScalingType::Local;
+  GEOS_ERROR_IF( localScaling && scalingFactor <= 0.0,
+                 GEOS_FMT( "{}: local solution scaling requires a positive global scaling factor, got {}",
+                           getName(), scalingFactor ) );
 
   DofManager::CompMask pressureMask( m_numDofPerCell, 0, 1 );
   DofManager::CompMask componentMask( m_numDofPerCell, 1, m_numComponents+1 );
+
+  auto scaleLocalScalingFields = [&]( real64 const factor )
+  {
+    if( !localScaling )
+    {
+      return;
+    }
+
+    forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&]( string const &,
+                                                                 MeshLevel & mesh,
+                                                                 string_array const & regionNames )
+    {
+      mesh.getElemManager().forElementSubRegions( regionNames,
+                                                  [&]( localIndex const,
+                                                       ElementSubRegionBase & subRegion )
+      {
+        arrayView1d< real64 > pressureScalingFactor = subRegion.getField< flow::pressureScalingFactor >();
+        arrayView1d< real64 > componentScalingFactor =
+          m_formulationType == CompositionalMultiphaseFormulationType::OverallComposition
+          ? subRegion.getField< flow::globalCompFractionScalingFactor >()
+          : subRegion.getField< flow::globalCompDensityScalingFactor >();
+        arrayView1d< real64 > temperatureScalingFactor;
+        if( m_isThermal )
+        {
+          temperatureScalingFactor = subRegion.getField< flow::temperatureScalingFactor >();
+        }
+
+        forAll< parallelDevicePolicy<> >( subRegion.size(), [=] GEOS_HOST_DEVICE ( localIndex const ei )
+        {
+          pressureScalingFactor[ei] *= factor;
+          componentScalingFactor[ei] *= factor;
+          if( temperatureScalingFactor.size() > 0 )
+          {
+            temperatureScalingFactor[ei] *= factor;
+          }
+        } );
+      } );
+    } );
+  };
+
+  scaleLocalScalingFields( scalingFactor );
 
   if( localScaling )
   {
@@ -1044,6 +1088,8 @@ void CompositionalMultiphaseFVM::applySystemSolution( DofManager const & dofMana
                                    temperatureMask );
     }
   }
+
+  scaleLocalScalingFields( 1.0 / scalingFactor );
 
   // if component density chopping is allowed, some component densities may be negative after the update
   // these negative component densities are set to zero in this function

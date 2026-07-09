@@ -169,6 +169,23 @@ public:
    */
   arrayView1d< real64 const > const  getReferencePorosity() const { return m_referencePorosity; }
 
+  real64 getDefaultReferencePorosity() const { return m_defaultReferencePorosity; }
+
+  /**
+   * @brief Override the reference porosity for every element in this model.
+   *        Intended for tests and specialized initialization paths.
+   * @param phi new reference porosity value
+   */
+  void setReferencePorosity( real64 const phi )
+  {
+    m_defaultReferencePorosity = phi;
+    arrayView1d< real64 > refPoro = m_referencePorosity;
+    forAll< serialPolicy >( refPoro.size(), [=]( localIndex const k )
+    {
+      refPoro[k] = phi;
+    } );
+  }
+
 
   /**
    * @brief Const/non-mutable accessor for dPorosity_dPressure
