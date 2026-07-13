@@ -31,6 +31,7 @@
 #include "linearAlgebra/interfaces/hypre/mgrStrategies/LagrangianContactMechanics.hpp"
 #include "linearAlgebra/interfaces/hypre/mgrStrategies/LagrangianContactMechanicsBubbleStabilization.hpp"
 #include "linearAlgebra/interfaces/hypre/mgrStrategies/MultiphasePoromechanics.hpp"
+#include "linearAlgebra/interfaces/hypre/mgrStrategies/MultiphaseDualContinuumPoromechanics.hpp"
 #include "linearAlgebra/interfaces/hypre/mgrStrategies/MultiphasePoromechanicsReservoirFVM.hpp"
 #include "linearAlgebra/interfaces/hypre/mgrStrategies/ReactiveCompositionalMultiphaseOBL.hpp"
 #include "linearAlgebra/interfaces/hypre/mgrStrategies/SinglePhaseHybridFVM.hpp"
@@ -154,6 +155,11 @@ void hypre::mgr::createMGR( LinearSolverParameters const & params,
     case LinearSolverParameters::MGR::StrategyType::multiphasePoromechanics:
     {
       setStrategy< MultiphasePoromechanics >( params.mgr, numComponentsPerField, precond, mgrData );
+      break;
+    }
+    case LinearSolverParameters::MGR::StrategyType::multiphaseDualContinuumPoromechanics:
+    {
+      setStrategy< MultiphaseDualContinuumPoromechanics >( params.mgr, numComponentsPerField, precond, mgrData );
       break;
     }
     case LinearSolverParameters::MGR::StrategyType::multiphasePoromechanicsReservoirFVM:

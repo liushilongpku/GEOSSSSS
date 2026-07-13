@@ -3347,6 +3347,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="enableFimCrossStorage" type="integer" default="1" />
 		<!--enableFractureMechanicsCoupling => Assemble the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) in the FullyImplicit path. Requires the cross-mesh node<->elem sparsity.-->
 		<xsd:attribute name="enableFractureMechanicsCoupling" type="integer" default="1" />
+		<!--enableFracturePorosityStrainCoupling => Diagnostic FullyImplicit switch for the mechanics->fracture-mass half of the fracture-mechanics coupling. When 0, K_upf is kept but the fracture porosity strain injection and K_pfu are disabled.-->
+		<xsd:attribute name="enableFracturePorosityStrainCoupling" type="integer" default="1" />
 		<!--fimNewtonRelaxation => FullyImplicit Newton step under-relaxation factor (0,1]. The monolithic dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable.-->
 		<xsd:attribute name="fimNewtonRelaxation" type="real64" default="0.5" />
 		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). Default (<0) computes v_f from mesh element volumes. Set explicitly when the mesh does not reflect the physical volume fractions (e.g. dual-continuum models with co-located meshes).-->
@@ -3355,6 +3357,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
 		<!--isThermal => Flag indicating whether the problem is thermal or not. Set isThermal="1" to enable the thermal coupling-->
 		<xsd:attribute name="isThermal" type="integer" default="0" />
+		<!--logFimCouplingDiagnostics => Diagnostic switch for FullyImplicit dual-continuum poromechanics. When nonzero, logs norms of hand-assembled FIM coupling blocks and pressure updates (K_upf, cross-storage, dp_m/dp_f). Does not change the assembled system.-->
+		<xsd:attribute name="logFimCouplingDiagnostics" type="integer" default="0" />
 		<!--logLevel => Sets the level of information to write in the standard output (the console typically).
 Information output from lower logLevels is added with the desired log level
 1
@@ -5106,6 +5110,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="enableFimCrossStorage" type="integer" default="1" />
 		<!--enableFractureMechanicsCoupling => Assemble the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) in the FullyImplicit path. Requires the cross-mesh node<->elem sparsity.-->
 		<xsd:attribute name="enableFractureMechanicsCoupling" type="integer" default="1" />
+		<!--enableFracturePorosityStrainCoupling => Diagnostic FullyImplicit switch for the mechanics->fracture-mass half of the fracture-mechanics coupling. When 0, K_upf is kept but the fracture porosity strain injection and K_pfu are disabled.-->
+		<xsd:attribute name="enableFracturePorosityStrainCoupling" type="integer" default="1" />
 		<!--fimNewtonRelaxation => FullyImplicit Newton step under-relaxation factor (0,1]. The monolithic dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable.-->
 		<xsd:attribute name="fimNewtonRelaxation" type="real64" default="0.5" />
 		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). Default (<0) computes v_f from mesh element volumes. Set explicitly when the mesh does not reflect the physical volume fractions (e.g. dual-continuum models with co-located meshes).-->
@@ -5114,6 +5120,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
 		<!--isThermal => Flag indicating whether the problem is thermal or not. Set isThermal="1" to enable the thermal coupling-->
 		<xsd:attribute name="isThermal" type="integer" default="0" />
+		<!--logFimCouplingDiagnostics => Diagnostic switch for FullyImplicit dual-continuum poromechanics. When nonzero, logs norms of hand-assembled FIM coupling blocks and pressure updates (K_upf, cross-storage, dp_m/dp_f). Does not change the assembled system.-->
+		<xsd:attribute name="logFimCouplingDiagnostics" type="integer" default="0" />
 		<!--logLevel => Sets the level of information to write in the standard output (the console typically).
 Information output from lower logLevels is added with the desired log level
 1
@@ -6696,7 +6704,7 @@ Information output from lower logLevels is added with the desired log level
 		<xsd:attribute name="defaultGrainBulkModulus" type="real64" use="required" />
 		<!--defaultPorosityTEC => Default thermal expansion coefficient-->
 		<xsd:attribute name="defaultPorosityTEC" type="real64" default="0" />
-		<!--defaultReferencePorosity => Default value of the reference porosity. In a dual-continuum fracture continuum this may be omitted when fractureVolumeFraction is set on the coupled flow solver; the solver will propagate that value here automatically.-->
+		<!--defaultReferencePorosity => Default value of the reference porosity. For dual-continuum fracture continua this is the intrinsic fracture-continuum porosity, not the fracture REV volume fraction.-->
 		<xsd:attribute name="defaultReferencePorosity" type="real64" default="-1" />
 		<!--useUniaxialFixedStress => Flag enabling uniaxial approximation in fixed stress update-->
 		<xsd:attribute name="useUniaxialFixedStress" type="integer" default="0" />
@@ -8207,7 +8215,7 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 	<xsd:complexType name="PressurePorosityType">
 		<!--compressibility => Solid compressibility-->
 		<xsd:attribute name="compressibility" type="real64" use="required" />
-		<!--defaultReferencePorosity => Default value of the reference porosity. In a dual-continuum fracture continuum this may be omitted when fractureVolumeFraction is set on the coupled flow solver; the solver will propagate that value here automatically.-->
+		<!--defaultReferencePorosity => Default value of the reference porosity. For dual-continuum fracture continua this is the intrinsic fracture-continuum porosity, not the fracture REV volume fraction.-->
 		<xsd:attribute name="defaultReferencePorosity" type="real64" default="-1" />
 		<!--referencePressure => Reference pressure for solid compressibility-->
 		<xsd:attribute name="referencePressure" type="real64" use="required" />
@@ -8223,7 +8231,7 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="ProppantPorosityType">
-		<!--defaultReferencePorosity => Default value of the reference porosity. In a dual-continuum fracture continuum this may be omitted when fractureVolumeFraction is set on the coupled flow solver; the solver will propagate that value here automatically.-->
+		<!--defaultReferencePorosity => Default value of the reference porosity. For dual-continuum fracture continua this is the intrinsic fracture-continuum porosity, not the fracture REV volume fraction.-->
 		<xsd:attribute name="defaultReferencePorosity" type="real64" default="-1" />
 		<!--maxProppantConcentration => Maximum proppant concentration -->
 		<xsd:attribute name="maxProppantConcentration" type="real64" use="required" />

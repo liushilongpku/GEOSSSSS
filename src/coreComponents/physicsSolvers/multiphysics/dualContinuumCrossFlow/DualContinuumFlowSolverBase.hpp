@@ -119,10 +119,6 @@ public:
   virtual void initializePostInitialConditionsPreSubGroups() override
   {
     Base::initializePostInitialConditionsPreSubGroups();
-    forEachArgInTuple( m_solvers, [&]( auto & solver, auto )
-    {
-      solver->initializePostInitialConditionsPreSubGroupsPublic();
-    } );
 
     DomainPartition& domain = this->template getGroupByPath< DomainPartition >( "/Problem/domain" );
     MeshBody & matrix = domain.getMeshBody("mesh1");
@@ -135,7 +131,8 @@ public:
     // Apply the dual-continuum volume fractions through the existing netToGross field.
     // Flow accumulation kernels use V_elem * porosity. In double-continuum decks mesh1 and mesh2
     // often cover the same REV volume, so the pore volume must be V_REV * v_i * phi_i.
-    // Scaling reference porosity via netToGross keeps the standard accumulation kernels unchanged.
+    // FlowSolverBase::initializeState later folds netToGross into reference porosity, so this must
+    // run before the child flow solvers initialize their porosity/permeability state.
     real64 const fv = m_crossFlow.getFractureVolumeFraction();
     if( fv > 0.0 && !m_fractureRegionList.empty() && !m_volumeFractionsAppliedToNetToGross )
     {
@@ -173,10 +170,22 @@ public:
                          std::runtime_error );
           if( phi <= fv )
           {
+            if( fv <= 0.25 )
+            {
+              GEOS_THROW( GEOS_FMT( "{}: fracture subregion '{}' has defaultReferencePorosity={} "
+                                    "not larger than fractureVolumeFraction={}. In dual-continuum "
+                                    "input, defaultReferencePorosity must be the intrinsic fracture "
+                                    "porosity phi_f, not the REV pore fraction v_f*phi_f. For example, "
+                                    "v_f=0.1 and intrinsic phi_f=0.9 should be entered as "
+                                    "defaultReferencePorosity=\"0.9\"; the code will form the REV "
+                                    "pore fraction 0.09 internally.",
+                                    this->getName(), subRegion.getName(), phi, fv ),
+                          std::runtime_error );
+            }
             GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: fracture subregion '" << subRegion.getName()
                              << "': defaultReferencePorosity (" << phi
                              << ") is not larger than fractureVolumeFraction (" << fv
-                             << "). This is allowed, but note that defaultReferencePorosity is interpreted "
+                             << "). This is unusual for a fracture continuum. It is interpreted "
                              << "as intrinsic fracture porosity and flow accumulation will use v_f*phi_f = "
                              << fv * phi << "." );
           }
@@ -207,6 +216,11 @@ public:
                        << ". Fracture defaultReferencePorosity remains intrinsic; flow pore volume uses v_f*phi_f." );
       m_volumeFractionsAppliedToNetToGross = true;
     }
+
+    forEachArgInTuple( m_solvers, [&]( auto & solver, auto )
+    {
+      solver->initializePostInitialConditionsPreSubGroupsPublic();
+    } );
   };
 
   virtual void initializePostInitialConditionsPostSubGroups() override

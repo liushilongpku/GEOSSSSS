@@ -159,6 +159,8 @@ public:
   {
     Base::postInputInitialization();
 
+    setMGRStrategy();
+
     // Additional checks for dual continuum, e.g., ensure flow solvers are compatible
     GEOS_THROW_IF( this->flowSolver()->primarySolver()->isThermal() != this->flowSolver()->secondarySolver()->isThermal(),
                    GEOS_FMT( "{} {}: Primary and secondary flow solvers must have the same thermal setting",
@@ -221,6 +223,38 @@ public:
                                                   fields::solidMechanics::totalDisplacement::key(),
                                                   SECONDARY_FLOW_SOLVER::viewKeyStruct::elemDofFieldString(),
                                                   DofManager::Connector::Elem );
+  }
+
+  virtual void setMGRStrategy()
+  {
+    LinearSolverParameters & linearSolverParameters = this->m_linearSolverParameters.get();
+
+    if( linearSolverParameters.preconditionerType != LinearSolverParameters::PreconditionerType::mgr )
+      return;
+
+    GEOS_THROW_IF( this->m_isThermal,
+                   GEOS_FMT( "{}: MGR strategy is not implemented for thermal {}",
+                             this->getName(), this->getCatalogName() ),
+                   InputError );
+
+    linearSolverParameters.mgr.separateComponents = true;
+    linearSolverParameters.dofsPerNode = 3;
+
+    if constexpr ( isMultiphaseFlow )
+    {
+      linearSolverParameters.mgr.strategy = LinearSolverParameters::MGR::StrategyType::multiphaseDualContinuumPoromechanics;
+    }
+    else
+    {
+      GEOS_THROW( GEOS_FMT( "{}: MGR strategy is not implemented for {}",
+                            this->getName(), this->getCatalogName() ),
+                  InputError );
+    }
+
+    GEOS_LOG_LEVEL_RANK_0( logInfo::LinearSolver,
+                           GEOS_FMT( "{}: MGR strategy set to {}", this->getName(),
+                                     EnumStrings< LinearSolverParameters::MGR::StrategyType >::toString(
+                                       linearSolverParameters.mgr.strategy ) ) );
   }
 
   // TODO@LSL: Monolithic poromechanics kernel for the MATRIX continuum (u + p_m).
@@ -1404,6 +1438,7 @@ private:
         constitutive::BiotPorosity & matPor =
           dynamic_cast< constitutive::BiotPorosity & >( matSolid.getBasePorosityModel() );
         arrayView1d< real64 > const alpha_m = matPor.getBiotCoefficientWritable();
+        typename constitutive::BiotPorosity::KernelWrapper matPorUpdates = matPor.createKernelUpdates();
 
         // fracture constitutive
         string const & fracSolidName = fracSubReg.template getReference< string >(
@@ -1419,6 +1454,8 @@ private:
         constitutive::BiotPorosity & fracPor =
           dynamic_cast< constitutive::BiotPorosity & >( fracSolid.getBasePorosityModel() );
         arrayView1d< real64 > const alpha_f = fracPor.getBiotCoefficientWritable();
+        arrayView1d< real64 > const effectiveFractureBiot =
+          matSubReg.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
 
         bool const useMeshVolumes = ( m_fractureVolumeFraction < 0.0 );
         arrayView1d< real64 const > V_m, V_f;
@@ -1447,8 +1484,11 @@ private:
           real64 const abar_f = Kbar * v_f * alpha_f[kf] / K_f[kf];
 
           K_m[k] = Kbar;  G_m[k] = Gbar;   // matrix mechanics → effective drained moduli
+          matPorUpdates.updateBiotCoefficientAndAssignModuli( k, Kbar, Gbar );
           alpha_m[k] = abar_m;             // matrix Biot → effective (kernel K_upm)
-          alpha_f[kf] = abar_f;            // fracture Biot → effective (K_upf / K_pfu)
+          effectiveFractureBiot[k] = abar_f; // fracture mechanics Biot → effective (K_upf / K_pfu)
+                                             // Keep fracture constitutive alpha intrinsic so its
+                                             // porosity/storage derivative is not polluted by abar_f.
         }
       } );
     }
@@ -1760,7 +1800,12 @@ private:
                          << " is outside fracture subregion " << fractureSubRegion.getName()
                          << " size " << fractureSubRegion.size() );
           fracturePressure[ k ]  = p_f[ kf ];
-          fractureBiotCoeff[ k ] = alpha_f[ kf ];
+          if( !( m_useIntrinsicInput != 0 &&
+                 this->getNonlinearSolverParameters().couplingType() ==
+                 NonlinearSolverParameters::CouplingType::FullyImplicit ) )
+          {
+            fractureBiotCoeff[ k ] = alpha_f[ kf ];
+          }
           fractureDofNumber[ k ] = p_f_dof[ kf ];
           fractureMechanicsScale[ k ] = 1.0;
         }

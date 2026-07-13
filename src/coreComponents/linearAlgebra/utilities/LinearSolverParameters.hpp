@@ -313,6 +313,7 @@ struct LinearSolverParameters
       thermalCompositionalMultiphaseFVM,         ///< finite volume thermal compositional multiphase flow
       thermalCompositionalMultiphaseReservoirFVM,///< finite volume thermal compositional multiphase flow
       multiphasePoromechanics,                   ///< multiphase poromechanics with finite volume compositional multiphase flow
+      multiphaseDualContinuumPoromechanics,      ///< multiphase poromechanics with dual-continuum compositional multiphase flow
       multiphasePoromechanicsReservoirFVM,       ///< multiphase poromechanics with finite volume compositional multiphase flow with wells
       thermalMultiphasePoromechanics,            ///< thermal multiphase poromechanics with finite volume compositional multiphase flow
       hydrofracture,                             ///< hydrofracture
@@ -588,6 +589,7 @@ ENUM_STRINGS( LinearSolverParameters::MGR::StrategyType,
               "thermalCompositionalMultiphaseFVM",
               "thermalCompositionalMultiphaseReservoirFVM",
               "multiphasePoromechanics",
+              "multiphaseDualContinuumPoromechanics",
               "multiphasePoromechanicsReservoirFVM",
               "thermalMultiphasePoromechanics",
               "hydrofracture",
