@@ -84,6 +84,18 @@ void PorosityBase::scaleReferencePorosity( arrayView1d< real64 const > scalingFa
   } );
 }
 
+void PorosityBase::scaleReferencePorosity( real64 const scalingFactor ) const
+{
+  localIndex const numE = numElem();
+
+  arrayView1d< real64 > referencePorosity = m_referencePorosity;
+
+  forAll< parallelDevicePolicy<> >( numE, [=] GEOS_HOST_DEVICE ( localIndex const k )
+  {
+    referencePorosity[k] *= scalingFactor;
+  } );
+}
+
 void PorosityBase::saveConvergedState() const
 {
   m_porosity_n.setValues< parallelDevicePolicy<> >( m_newPorosity.toViewConst() );

@@ -285,6 +285,14 @@ protected:
   /// enable the fixed stress poromechanics update of porosity
   bool m_isFixedStressPoromechanicsUpdate;
 
+public:
+  bool isFixedStressPoromechanicsUpdateEnabled() const
+  {
+    return m_isFixedStressPoromechanicsUpdate;
+  }
+
+protected:
+
   /// enable pressure jump stabilzation for fixed-stress poromechanics
   bool m_isJumpStabilized;
 

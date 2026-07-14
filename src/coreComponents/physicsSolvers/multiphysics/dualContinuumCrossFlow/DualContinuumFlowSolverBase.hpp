@@ -128,13 +128,14 @@ public:
     this->registerMeshConnectivity( domain );
     m_crossFlow.setupCrossFlow( domain, primaryMesh, secondaryMesh );//TODO@LSL 这块需要对多region进行支持，可能会报错
 
-    // Apply the dual-continuum volume fractions through the existing netToGross field.
+    // Apply the dual-continuum volume fractions directly to reference porosity.
     // Flow accumulation kernels use V_elem * porosity. In double-continuum decks mesh1 and mesh2
     // often cover the same REV volume, so the pore volume must be V_REV * v_i * phi_i.
-    // FlowSolverBase::initializeState later folds netToGross into reference porosity, so this must
-    // run before the child flow solvers initialize their porosity/permeability state.
+    // Do not route this through netToGross: FlowSolverBase folds netToGross into both porosity
+    // and horizontal permeability, while dual-continuum decks provide permeability as the intended
+    // continuum Darcy contribution. Only storage should be volume-fraction scaled here.
     real64 const fv = m_crossFlow.getFractureVolumeFraction();
-    if( fv > 0.0 && !m_fractureRegionList.empty() && !m_volumeFractionsAppliedToNetToGross )
+    if( fv > 0.0 && !m_fractureRegionList.empty() && !m_volumeFractionsAppliedToReferencePorosity )
     {
       GEOS_THROW_IF( fv >= 1.0,
                      GEOS_FMT( "{}: fractureVolumeFraction must be in (0,1), got {}",
@@ -194,33 +195,38 @@ public:
       primaryMesh.getElemManager().forElementSubRegions( m_matrixRegionList,
         [&]( localIndex const, ElementSubRegionBase & subRegion )
         {
-          arrayView1d< real64 > const netToGross = subRegion.template getField< fields::flow::netToGross >();
-          forAll< parallelHostPolicy >( subRegion.size(), [=] ( localIndex const k )
-          {
-            netToGross[k] *= mv;
-          } );
+          string const & solidName = subRegion.template getReference< string >(
+            FlowSolverBase::viewKeyStruct::solidNamesString() );
+          constitutive::CoupledSolidBase & solid =
+            subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
+          solid.getBasePorosityModel().scaleReferencePorosity( mv );
         } );
 
       secondaryMesh.getElemManager().forElementSubRegions( m_fractureRegionList,
         [&]( localIndex const, ElementSubRegionBase & subRegion )
         {
-          arrayView1d< real64 > const netToGross = subRegion.template getField< fields::flow::netToGross >();
-          forAll< parallelHostPolicy >( subRegion.size(), [=] ( localIndex const k )
-          {
-            netToGross[k] *= fv;
-          } );
+          string const & solidName = subRegion.template getReference< string >(
+            FlowSolverBase::viewKeyStruct::solidNamesString() );
+          constitutive::CoupledSolidBase & solid =
+            subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
+          solid.getBasePorosityModel().scaleReferencePorosity( fv );
         } );
 
-      GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: applying dual-continuum volume fractions through "
-                       "netToGross: matrix v_m=" << mv << ", fracture v_f=" << fv
-                       << ". Fracture defaultReferencePorosity remains intrinsic; flow pore volume uses v_f*phi_f." );
-      m_volumeFractionsAppliedToNetToGross = true;
+      GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: applying dual-continuum storage volume fractions "
+                       "to reference porosity: matrix v_m=" << mv << ", fracture v_f=" << fv
+                       << ". Permeability is not scaled here; deck permeability is interpreted as "
+                       << "the continuum Darcy contribution." );
+      m_volumeFractionsAppliedToReferencePorosity = true;
     }
 
-    forEachArgInTuple( m_solvers, [&]( auto & solver, auto )
+    if( !m_childSolversInitializedForDualContinuum )
     {
-      solver->initializePostInitialConditionsPreSubGroupsPublic();
-    } );
+      forEachArgInTuple( m_solvers, [&]( auto & solver, auto )
+      {
+        solver->initializePostInitialConditionsPreSubGroupsPublic();
+      } );
+      m_childSolversInitializedForDualContinuum = true;
+    }
   };
 
   virtual void initializePostInitialConditionsPostSubGroups() override
@@ -393,6 +399,18 @@ public:
   {
     primarySolver()->enableFixedStressPoromechanicsUpdate();
     secondarySolver()->enableFixedStressPoromechanicsUpdate();
+  }
+
+  bool isFixedStressPoromechanicsUpdateEnabled() const
+  {
+    return primarySolver()->isFixedStressPoromechanicsUpdateEnabled() ||
+           secondarySolver()->isFixedStressPoromechanicsUpdateEnabled();
+  }
+
+  virtual void saveSequentialIterationState( DomainPartition & domain ) override
+  {
+    primarySolver()->saveSequentialIterationState( domain );
+    secondarySolver()->saveSequentialIterationState( domain );
   }
 
   void enableJumpStabilization()
@@ -1058,7 +1076,8 @@ private:
   DualContinuumCrossFlow m_crossFlow;
   real64 m_transferCoefficient;
   bool m_enableCrossStorageCorrection = true;  // sequential-only; disabled for FullyImplicit coupling
-  bool m_volumeFractionsAppliedToNetToGross = false;
+  bool m_volumeFractionsAppliedToReferencePorosity = false;
+  bool m_childSolversInitializedForDualContinuum = false;
   
   // TracAI: Added to store dual continuum region pairs from XML
   string_array m_matrixRegionList;

@@ -245,6 +245,11 @@ public:
 
   virtual string getCatalogName() const override { return catalogName(); }
 
+  integer useUniaxialFixedStress() const
+  {
+    return m_useUniaxialFixedStress;
+  }
+
   virtual void allocateConstitutiveData( dataRepository::Group & parent, localIndex const numPts ) override;
 
   struct viewKeyStruct : public PorosityBase::viewKeyStruct

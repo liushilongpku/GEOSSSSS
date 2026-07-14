@@ -229,8 +229,10 @@ namespace geos
               // a_ii = v_i(1/M_i + alpha_i^2/K_i) (Mehrabian 2014 eq A24/A25).
               real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
               real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
-              // Subtract what the monolithic kernel / secondary solver ALREADY put on the diagonal,
-              // which uses the (possibly effective) MATERIAL Biot: 1/M_i^mat.
+              // Subtract what the monolithic kernel / secondary solver already put on the physical
+              // storage diagonal. Do not remove the fixed-stress term here: in a converged
+              // Sequential fixed-stress iteration it vanishes because p -> p_k, while during the
+              // outer iteration it is the stabilizing term that makes the split solve contract.
               real64 const invMmMat = (aM[k]-phiM[k])/KsM[k] + phiM[k]*cfM;
               real64 const invMfMat = (aF[k]-phiF[k])/KsF[k] + phiF[k]*cfF;
               real64 const corrDiagM = SbarMM - invMmMat;

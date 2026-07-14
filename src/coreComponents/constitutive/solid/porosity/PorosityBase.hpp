@@ -205,6 +205,12 @@ public:
    */
   void scaleReferencePorosity( arrayView1d< real64 const > scalingFactors ) const;
 
+  /**
+   * @brief Utility function to scale the reference porosity by a constant factor.
+   * @param[in] scalingFactor the scaling factor to apply to every cell
+   */
+  void scaleReferencePorosity( real64 scalingFactor ) const;
+
   /// Save state data in preparation for next timestep
   virtual void saveConvergedState() const override;
 
