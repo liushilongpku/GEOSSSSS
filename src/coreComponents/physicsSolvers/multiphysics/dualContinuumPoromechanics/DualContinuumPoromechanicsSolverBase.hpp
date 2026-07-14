@@ -104,6 +104,13 @@ public:
                       "dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton "
                       "oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable." );
 
+    this->registerWrapper( viewKeyStruct::sequentialPressureRelaxationString(), &m_sequentialPressureRelaxation ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( 1.0 ).
+      setDescription( "Sequential outer-loop pressure under-relaxation factor (0,1]. Values below 1 "
+                      "mix the dual-flow pressure solution with the previous outer iterate before "
+                      "mapping pressure to mechanics. Set 1.0 to disable." );
+
     this->registerWrapper( viewKeyStruct::enableFractureMechanicsCouplingString(), &m_enableFractureMechanicsCoupling ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
       setApplyDefaultValue( 1 ).
@@ -167,6 +174,11 @@ public:
                    GEOS_FMT( "{}: useIntrinsicInput must be 0 (effective input, no homogenization) "
                              "or 1 (intrinsic input, apply default homogenization), got {}.",
                              this->getName(), m_useIntrinsicInput ),
+                   InputError );
+    GEOS_THROW_IF( m_sequentialPressureRelaxation <= 0.0 || m_sequentialPressureRelaxation > 1.0,
+                   GEOS_FMT( "{}: {} must be in (0, 1], got {}.",
+                             this->getName(), viewKeyStruct::sequentialPressureRelaxationString(),
+                             m_sequentialPressureRelaxation ),
                    InputError );
 
     // Additional checks for dual continuum, e.g., ensure flow solvers are compatible
@@ -470,8 +482,9 @@ public:
       // The dual-flow subsolver must remain FullyImplicit internally so matrix and
       // fracture pressures are solved together. Therefore the generic outer
       // CoupledSolver does not call saveSequentialIterationState() for it. Do it
-      // here before mapping pressures to mechanics so pressure_k records the
-      // previous outer iterate and SolutionIncrements sees the real flow change.
+      // here before mapping pressures to mechanics so pressure_k records the previous
+      // accepted outer iterate and SolutionIncrements sees the applied flow change.
+      relaxSequentialFlowPressure( domain );
       this->flowSolver()->saveSequentialIterationState( domain );
       copyFracturePressureToMesh1( domain );
       if( useCompositePressure )
@@ -480,7 +493,8 @@ public:
       }
       else
       {
-        saveEffectivePressureIncrementForSequential( domain );
+        m_tempCompositePressure.clear();
+        m_tempCompositePressure_n.clear();
       }
       Base::updateBulkDensity( domain );
     }
@@ -498,7 +512,6 @@ public:
       using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
       DualFlow & dualFlow = *this->flowSolver();
       string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
-      localIndex correctionIdx = 0;
       m_tempVolStrainIncr.clear();
       meshLevel.getElemManager().forElementSubRegions< CellElementSubRegion >( matrixRegions,
         [&]( localIndex const, auto & subRegion )
@@ -508,7 +521,6 @@ public:
         constitutive::CoupledSolidBase & solid =
           this->template getConstitutiveModel< constitutive::CoupledSolidBase >( subRegion, solidName );
 
-        arrayView2d< real64 const > const meanTotalStressIncrement_k = solid.getMeanTotalStressIncrement_k();
         arrayView1d< real64 > const averageMeanTotalStressIncrement_k = solid.getAverageMeanTotalStressIncrement_k();
 
         finiteElement::FiniteElementBase & subRegionFE =
@@ -519,10 +531,8 @@ public:
         dispatch3D( subRegionFE, [&]( auto const finiteElement )
         {
           using FE_TYPE = decltype( finiteElement );
-          AverageOverQuadraturePoints1DKernelFactory::
-            createAndLaunch< CellElementSubRegion, FE_TYPE, parallelDevicePolicy<> >(
-              meshLevel.getNodeManager(), meshLevel.getEdgeManager(), meshLevel.getFaceManager(),
-              subRegion, finiteElement, meanTotalStressIncrement_k, averageMeanTotalStressIncrement_k );
+          computeAverageVolumetricStrainIncrement< FE_TYPE >(
+            meshLevel, subRegion, finiteElement, averageMeanTotalStressIncrement_k );
         } );
 
         if( subRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) )
@@ -530,42 +540,31 @@ public:
           arrayView1d< real64 const > const K_view = solid.getBulkModulus();
           for( localIndex k = 0; k < subRegion.size(); ++k )
           {
-            real64 const delta_sigma_v = averageMeanTotalStressIncrement_k[k];
-            real64 delta_eps_v = 0.0;
+            real64 const delta_eps_v = averageMeanTotalStressIncrement_k[k];
             if( useCompositePressure )
             {
               // Intrinsic-input Sequential path: mechanics used p_eq and temporary K_eff.
-              // Convert total stress increment back to shared volumetric strain, then feed
-              // each intrinsic continuum with v_i*K_eff*dEps so alpha_i/K_i gives abar_i*dEps.
-              arrayView1d< real64 const > const alpha_m = solid.getBiotCoefficient();
+              // Feed each intrinsic continuum with v_i*K_eff*dEps so alpha_i/K_i gives abar_i*dEps.
               arrayView1d< real64 const > const K_eff_view =
                 subRegion.template getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() );
-              real64 const delta_p_eq =
-                m_tempCompositePressure[correctionIdx] - m_tempCompositePressure_n[correctionIdx];
-              delta_eps_v = ( delta_sigma_v + alpha_m[k] * delta_p_eq ) / K_eff_view[k];
               averageMeanTotalStressIncrement_k[k] =
                 ( 1.0 - m_fractureVolumeFraction ) * K_eff_view[k] * delta_eps_v;
             }
             else
             {
               // Effective-input Sequential path: mechanics used physical p_m/p_f with
-              // effective Biot coefficients directly. The pressure contribution is
-              // abar_m*dp_m + abar_f*dp_f, saved after the flow step.
-              GEOS_ERROR_IF( correctionIdx >= static_cast< localIndex >( m_tempEffectivePressureIncrement.size() ),
-                             "Missing effective pressure increment for dual-continuum sequential mapping." );
-              delta_eps_v = ( delta_sigma_v + m_tempEffectivePressureIncrement[correctionIdx] ) / K_view[k];
+              // effective Biot coefficients directly.
               averageMeanTotalStressIncrement_k[k] = K_view[k] * delta_eps_v;
             }
             m_tempVolStrainIncr.push_back( delta_eps_v );
-            correctionIdx++;
           }
         }
         this->flowSolver()->updatePorosityAndPermeability( subRegion );
+        this->flowSolver()->primarySolver()->updateFluidState( subRegion );
         this->updateBulkDensity( subRegion );
       } );
       m_tempCompositePressure.clear();
       m_tempCompositePressure_n.clear();
-      m_tempEffectivePressureIncrement.clear();
 
       // Copy matrix avgStressIncr to fracture so the fracture flow
       // solver's fixed-stress porosity update includes the mechanics strain.
@@ -625,6 +624,7 @@ public:
               }
             }
             this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( fracSubReg );
+            this->flowSolver()->secondarySolver()->updateFluidState( fracSubReg );
           } );
         }
       }
@@ -722,6 +722,113 @@ private:
     return m_useIntrinsicInput != 0 &&
            this->getNonlinearSolverParameters().couplingType() ==
            NonlinearSolverParameters::CouplingType::Sequential;
+  }
+
+  void relaxSequentialFlowPressure( DomainPartition & domain ) const
+  {
+    if( m_sequentialPressureRelaxation >= 1.0 ||
+        this->getNonlinearSolverParameters().couplingType() !=
+        NonlinearSolverParameters::CouplingType::Sequential )
+    {
+      return;
+    }
+
+    GEOS_ERROR_IF( m_sequentialPressureRelaxation <= 0.0,
+                   this->getName() << ": " << viewKeyStruct::sequentialPressureRelaxationString()
+                                   << " must be in (0, 1]." );
+
+    using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+    DualFlow & dualFlow = *this->flowSolver();
+    string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+    string_array const & fractureRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
+
+    MeshLevel & meshLevel1 = domain.getMeshBody( "mesh1" ).getMeshLevels().template getGroup< MeshLevel >( 0 );
+    meshLevel1.getElemManager().forElementSubRegions< CellElementSubRegion >( matrixRegions,
+      [&]( localIndex const, CellElementSubRegion & subRegion )
+    {
+      relaxSubRegionPressureToPreviousOuterIteration( subRegion );
+      this->flowSolver()->primarySolver()->updatePorosityAndPermeability( subRegion );
+      this->flowSolver()->primarySolver()->updateFluidState( subRegion );
+    } );
+
+    MeshLevel & meshLevel2 = domain.getMeshBody( "mesh2" ).getMeshLevels().template getGroup< MeshLevel >( 0 );
+    meshLevel2.getElemManager().forElementSubRegions< CellElementSubRegion >( fractureRegions,
+      [&]( localIndex const, CellElementSubRegion & subRegion )
+    {
+      relaxSubRegionPressureToPreviousOuterIteration( subRegion );
+      this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( subRegion );
+      this->flowSolver()->secondarySolver()->updateFluidState( subRegion );
+    } );
+  }
+
+  void relaxSubRegionPressureToPreviousOuterIteration( ElementSubRegionBase & subRegion ) const
+  {
+    arrayView1d< integer const > const ghostRank = subRegion.ghostRank();
+    arrayView1d< real64 > const pressure = subRegion.template getField< fields::flow::pressure >();
+    arrayView1d< real64 const > const pressure_k = subRegion.template getField< fields::flow::pressure_k >();
+    real64 const relaxation = m_sequentialPressureRelaxation;
+
+    forAll< parallelDevicePolicy<> >( subRegion.size(), [=] GEOS_HOST_DEVICE ( localIndex const k )
+    {
+      if( ghostRank[k] < 0 )
+      {
+        pressure[k] = pressure_k[k] + relaxation * ( pressure[k] - pressure_k[k] );
+      }
+    } );
+  }
+
+  template< typename FE_TYPE >
+  void computeAverageVolumetricStrainIncrement(
+    MeshLevel & mesh,
+    CellElementSubRegion const & subRegion,
+    FE_TYPE const & finiteElement,
+    arrayView1d< real64 > const averageVolumetricStrainIncrement ) const
+  {
+    NodeManager & nodeManager = mesh.getNodeManager();
+    arrayView2d< real64 const, nodes::REFERENCE_POSITION_USD > const X = nodeManager.referencePosition();
+    fields::solidMechanics::arrayViewConst2dLayoutIncrDisplacement const uhat =
+      nodeManager.getField< fields::solidMechanics::incrementalDisplacement >();
+    arrayView2d< localIndex const, cells::NODE_MAP_USD > const elemsToNodes = subRegion.nodeList().toViewConst();
+
+    typename FE_TYPE::template MeshData< CellElementSubRegion > meshData;
+    finiteElement::FiniteElementBase::initialize< FE_TYPE >(
+      nodeManager, mesh.getEdgeManager(), mesh.getFaceManager(), subRegion, meshData );
+
+    constexpr localIndex numNodesPerElem = FE_TYPE::maxSupportPoints;
+    forAll< parallelDevicePolicy<> >( subRegion.size(), [=] GEOS_HOST_DEVICE ( localIndex const k )
+    {
+      typename FE_TYPE::StackVariables feStack;
+      finiteElement.template setup< FE_TYPE >( k, meshData, feStack );
+      localIndex const numSupportPoints = finiteElement.template numSupportPoints< FE_TYPE >( feStack );
+
+      real64 xLocal[ numNodesPerElem ][ 3 ] = {};
+      real64 uhatLocal[ numNodesPerElem ][ 3 ] = {};
+      for( localIndex a = 0; a < numSupportPoints; ++a )
+      {
+        localIndex const nodeIndex = elemsToNodes( k, a );
+        for( integer dim = 0; dim < 3; ++dim )
+        {
+          xLocal[ a ][ dim ] = X[ nodeIndex ][ dim ];
+          uhatLocal[ a ][ dim ] = uhat[ nodeIndex ][ dim ];
+        }
+      }
+
+      real64 volume = 0.0;
+      real64 integratedVolumetricStrainIncrement = 0.0;
+      for( integer q = 0; q < FE_TYPE::numQuadraturePoints; ++q )
+      {
+        real64 dNdX[ numNodesPerElem ][ 3 ];
+        real64 const detJxW = finiteElement.template getGradN< FE_TYPE >( k, q, xLocal, feStack, dNdX );
+
+        real64 strainIncrement[ 6 ] = {};
+        FE_TYPE::symmetricGradient( dNdX, uhatLocal, strainIncrement );
+        integratedVolumetricStrainIncrement +=
+          detJxW * ( strainIncrement[0] + strainIncrement[1] + strainIncrement[2] );
+        volume += detJxW;
+      }
+      averageVolumetricStrainIncrement[k] =
+        LvArray::math::abs( volume ) > 0.0 ? integratedVolumetricStrainIncrement / volume : 0.0;
+    } );
   }
 
   void logFimPressureUpdateDiagnostics( DomainPartition & domain,
@@ -1041,72 +1148,6 @@ private:
       } );
     }
 
-  }
-
-  void saveEffectivePressureIncrementForSequential( DomainPartition & domain )
-  {
-    m_tempEffectivePressureIncrement.clear();
-    m_tempCompositePressure.clear();
-    m_tempCompositePressure_n.clear();
-
-    MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
-    MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
-    MeshLevel & meshLevel1 = mesh1.getMeshLevels().getGroup< MeshLevel >( 0 );
-    MeshLevel & meshLevel2 = mesh2.getMeshLevels().getGroup< MeshLevel >( 0 );
-    using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
-    DualFlow & dualFlow = *this->flowSolver();
-    string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
-    string_array const & fractureRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
-
-    for( size_t i = 0; i < matrixRegions.size(); ++i )
-    {
-      ElementRegionBase & matRegion = meshLevel1.getElemManager().getRegion( matrixRegions[i] );
-      ElementRegionBase & fracRegion = meshLevel2.getElemManager().getRegion( fractureRegions[i] );
-
-      matRegion.forElementSubRegionsIndex< CellElementSubRegion >(
-        [&]( localIndex const subRegIdx, CellElementSubRegion & matSubReg )
-      {
-        if( subRegIdx >= fracRegion.numSubRegions() ) return;
-        if( !matSubReg.hasWrapper( viewKeyStruct::fracturePressureString() ) ) return;
-
-        CellElementSubRegion & fracSubReg =
-          dynamic_cast< CellElementSubRegion & >( fracRegion.getSubRegion( subRegIdx ) );
-
-        arrayView1d< real64 const > const p_m = matSubReg.getField< fields::flow::pressure >();
-        arrayView1d< real64 const > const p_m_n = matSubReg.getField< fields::flow::pressure_n >();
-        arrayView1d< real64 const > const p_f =
-          matSubReg.getReference< array1d< real64 > >( viewKeyStruct::fracturePressureString() );
-        arrayView1d< real64 const > const p_f_n = fracSubReg.getField< fields::flow::pressure_n >();
-        arrayView1d< real64 const > const alpha_f =
-          matSubReg.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
-        arrayView1d< real64 > const K_eff_wrapper =
-          matSubReg.getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() );
-
-        string const & matSolidName = matSubReg.template getReference< string >(
-          Base::viewKeyStruct::porousMaterialNamesString() );
-        constitutive::CoupledSolidBase & matSolid =
-          this->template getConstitutiveModel< constitutive::CoupledSolidBase >( matSubReg, matSolidName );
-        arrayView1d< real64 const > const alpha_m = matSolid.getBiotCoefficient();
-        arrayView1d< real64 const > const K_m = matSolid.getBulkModulus();
-
-        arrayView1d< localIndex const > const matrixToFracture =
-          matSubReg.getReference< array1d< localIndex > >( "mesh1ToMesh2Connectivity" );
-
-        for( localIndex k = 0; k < matSubReg.size(); ++k )
-        {
-          localIndex const kf = matrixToFracture[k];
-          GEOS_ERROR_IF( kf < 0 || kf >= fracSubReg.size(),
-                         "Invalid dual-continuum effective-input pressure increment connectivity for matrix subregion "
-                         << matSubReg.getName() << ", local element " << k
-                         << ": mapped fracture element " << kf
-                         << " is outside fracture subregion " << fracSubReg.getName()
-                         << " size " << fracSubReg.size() );
-          K_eff_wrapper[k] = K_m[k];
-          m_tempEffectivePressureIncrement.push_back( alpha_m[k] * ( p_m[k] - p_m_n[k] )
-                                                      + alpha_f[k] * ( p_f[k] - p_f_n[kf] ) );
-        }
-      } );
-    }
   }
 
   // useIntrinsicInput=1 FullyImplicit path: homogenize the INTRINSIC matrix/fracture
@@ -3114,6 +3155,7 @@ public:
     static constexpr char const * fractureMechanicsScaleString() { return "fractureMechanicsScale"; }
     static constexpr char const * fractureVolumeFractionString() { return "fractureVolumeFraction"; }
     static constexpr char const * fimNewtonRelaxationString() { return "fimNewtonRelaxation"; }
+    static constexpr char const * sequentialPressureRelaxationString() { return "sequentialPressureRelaxation"; }
     static constexpr char const * enableFractureMechanicsCouplingString() { return "enableFractureMechanicsCoupling"; }
     static constexpr char const * enableFracturePorosityStrainCouplingString()
     { return "enableFracturePorosityStrainCoupling"; }
@@ -3137,7 +3179,6 @@ public:
   std::vector< real64 > m_tempCompositePressure;    // p_eq during mechanics step
   std::vector< real64 > m_tempVolStrainIncr;        // shared dEps_v fed to both continua
   std::vector< real64 > m_tempCompositePressure_n;  // p_eq_n during mechanics step
-  std::vector< real64 > m_tempEffectivePressureIncrement; // abar_m*dp_m + abar_f*dp_f for effective-input Seq
 
   // Toggle for the explicit fracture<->mechanics Jacobian coupling (K_upf / K_pfu) in the FIM
   // path. Used to isolate the effect of those terms during convergence debugging.
@@ -3149,6 +3190,8 @@ public:
   // (lambda~=-1) pressure-block oscillation. 0.5 is near-optimal (midpoint = exact solution);
   // 1.0 disables relaxation.
   real64 m_fimNewtonRelaxation = 0.5;
+
+  real64 m_sequentialPressureRelaxation = 1.0;
 
   // Toggle the multi-porosity (Mehrabian S_ij) cross-storage correction in the FIM path.
   integer m_enableFimCrossStorage = 1;

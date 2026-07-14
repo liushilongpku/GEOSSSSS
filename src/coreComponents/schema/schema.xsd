@@ -3372,6 +3372,8 @@ Information output from lower logLevels is added with the desired log level
 2
  - The summary of declared fields and coupling-->
 		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--sequentialPressureRelaxation => Sequential outer-loop pressure under-relaxation factor (0,1]. Values below 1 mix the dual-flow pressure solution with the previous outer iterate before mapping pressure to mechanics. Set 1.0 to disable.-->
+		<xsd:attribute name="sequentialPressureRelaxation" type="real64" default="1" />
 		<!--solidSolverName => Name of the solid solver used by the coupled solver-->
 		<xsd:attribute name="solidSolverName" type="groupNameRef" use="required" />
 		<!--stabilizationMultiplier => Constant multiplier of stabilization strength-->
@@ -3385,7 +3387,7 @@ Local- Add jump stabilization on interior of macro elements-->
 		<xsd:attribute name="stabilizationType" type="geos_stabilization_StabilizationType" default="None" />
 		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
 		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
-		<!--useIntrinsicInput => Material input mode for the FullyImplicit effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver homogenizes (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i) at initialization and overwrites the constitutive effective values + feeds the intrinsics to the storage. FullyImplicit only; default is fully backward-compatible.-->
+		<!--useIntrinsicInput => Material input mode for the dual-continuum effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. The solver does not homogenize these values again. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver uses its default homogenization algorithm (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit homogenizes once at initialization; Sequential uses the runtime composite-pressure mapping. Default is fully backward-compatible for effective-input decks.-->
 		<xsd:attribute name="useIntrinsicInput" type="integer" default="0" />
 		<!--usePhysicsScaling => Enable physics-based scaling of the linear system. Default: true.-->
 		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
@@ -5135,6 +5137,8 @@ Information output from lower logLevels is added with the desired log level
 2
  - The summary of declared fields and coupling-->
 		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--sequentialPressureRelaxation => Sequential outer-loop pressure under-relaxation factor (0,1]. Values below 1 mix the dual-flow pressure solution with the previous outer iterate before mapping pressure to mechanics. Set 1.0 to disable.-->
+		<xsd:attribute name="sequentialPressureRelaxation" type="real64" default="1" />
 		<!--solidSolverName => Name of the solid solver used by the coupled solver-->
 		<xsd:attribute name="solidSolverName" type="groupNameRef" use="required" />
 		<!--stabilizationMultiplier => Constant multiplier of stabilization strength-->
@@ -5148,7 +5152,7 @@ Local- Add jump stabilization on interior of macro elements-->
 		<xsd:attribute name="stabilizationType" type="geos_stabilization_StabilizationType" default="None" />
 		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
 		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
-		<!--useIntrinsicInput => Material input mode for the FullyImplicit effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver homogenizes (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i) at initialization and overwrites the constitutive effective values + feeds the intrinsics to the storage. FullyImplicit only; default is fully backward-compatible.-->
+		<!--useIntrinsicInput => Material input mode for the dual-continuum effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. The solver does not homogenize these values again. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver uses its default homogenization algorithm (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit homogenizes once at initialization; Sequential uses the runtime composite-pressure mapping. Default is fully backward-compatible for effective-input decks.-->
 		<xsd:attribute name="useIntrinsicInput" type="integer" default="0" />
 		<!--usePhysicsScaling => Enable physics-based scaling of the linear system. Default: true.-->
 		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
