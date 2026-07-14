@@ -177,6 +177,15 @@ namespace geos
             arrayView1d< real64 const > const pMn = matSR.template getField< fields::flow::pressure_n >();
             arrayView1d< real64 const > const pF  = fracSR.template getField< fields::flow::pressure >();
             arrayView1d< real64 const > const pFn = fracSR.template getField< fields::flow::pressure_n >();
+            // In Sequential fixed-stress, lag the off-diagonal storage to the previous outer iterate.
+            // The fixed point is unchanged, while the dual-flow subproblem remains contractive.
+            bool const useSequentialLaggedOffdiag =
+              matSR.hasWrapper( fields::flow::pressure_k::key() ) &&
+              fracSR.hasWrapper( fields::flow::pressure_k::key() );
+            arrayView1d< real64 const > const pMk =
+              useSequentialLaggedOffdiag ? matSR.template getField< fields::flow::pressure_k >() : pM;
+            arrayView1d< real64 const > const pFk =
+              useSequentialLaggedOffdiag ? fracSR.template getField< fields::flow::pressure_k >() : pF;
             arrayView1d< real64 const > const vol = matSR.getElementVolume();
 
             string const & solidMn = matSR.template getReference< string >( FlowSolverBase::viewKeyStruct::solidNamesString() );
@@ -267,24 +276,44 @@ namespace geos
               real64 const corrOffFM = -abm*abf/Kbar * offScale;  // fracture row, vs p_m
               real64 const dpM = pM[k]-pMn[k];
               real64 const dpF = pF[k]-pFn[k];
+              real64 const dpMOffdiag = pMk[k]-pMn[k];
+              real64 const dpFOffdiag = pFk[k]-pFn[k];
 
               if( ghostM[k] < 0 )
               {
                 localIndex const row = LvArray::integerConversion< localIndex >( dofM[k]-rankOffset );
                 real64 const rv = densM[k][0]*vol[k];
-                localRhs[row] += rv*( corrDiagM*dpM + corrOffMF*dpF );
-                globalIndex cols[2] = { dofM[k], dofF[k] };
-                real64 vals[2] = { rv*corrDiagM, rv*corrOffMF };
-                localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 2 );
+                localRhs[row] += rv*( corrDiagM*dpM + corrOffMF*dpFOffdiag );
+                if( useSequentialLaggedOffdiag )
+                {
+                  globalIndex cols[1] = { dofM[k] };
+                  real64 vals[1] = { rv*corrDiagM };
+                  localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 1 );
+                }
+                else
+                {
+                  globalIndex cols[2] = { dofM[k], dofF[k] };
+                  real64 vals[2] = { rv*corrDiagM, rv*corrOffMF };
+                  localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 2 );
+                }
               }
               if( ghostF[k] < 0 )
               {
                 localIndex const row = LvArray::integerConversion< localIndex >( dofF[k]-rankOffset );
                 real64 const rv = densF[k][0]*vol[k];
-                localRhs[row] += rv*( corrDiagF*dpF + corrOffFM*dpM );
-                globalIndex cols[2] = { dofF[k], dofM[k] };
-                real64 vals[2] = { rv*corrDiagF, rv*corrOffFM };
-                localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 2 );
+                localRhs[row] += rv*( corrDiagF*dpF + corrOffFM*dpMOffdiag );
+                if( useSequentialLaggedOffdiag )
+                {
+                  globalIndex cols[1] = { dofF[k] };
+                  real64 vals[1] = { rv*corrDiagF };
+                  localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 1 );
+                }
+                else
+                {
+                  globalIndex cols[2] = { dofF[k], dofM[k] };
+                  real64 vals[2] = { rv*corrDiagF, rv*corrOffFM };
+                  localMatrix.template addToRowBinarySearchUnsorted< serialAtomic >( row, cols, vals, 2 );
+                }
               }
             }
           } );
