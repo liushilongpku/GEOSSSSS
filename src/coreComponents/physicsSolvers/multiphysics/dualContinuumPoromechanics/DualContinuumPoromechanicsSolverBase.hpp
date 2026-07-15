@@ -538,23 +538,31 @@ public:
         if( subRegion.hasWrapper( viewKeyStruct::fracturePressureString() ) )
         {
           arrayView1d< real64 const > const K_view = solid.getBulkModulus();
+          arrayView1d< real64 const > const alpha_view = solid.getBiotCoefficient();
+          arrayView1d< real64 const > const pressure =
+            subRegion.template getField< fields::flow::pressure >();
+          arrayView1d< real64 const > const pressure_n =
+            subRegion.template getField< fields::flow::pressure_n >();
           for( localIndex k = 0; k < subRegion.size(); ++k )
           {
             real64 const delta_eps_v = averageMeanTotalStressIncrement_k[k];
+            real64 const totalStressPressureIncrement = alpha_view[k] * ( pressure[k] - pressure_n[k] );
             if( useCompositePressure )
             {
               // Intrinsic-input Sequential path: mechanics used p_eq and temporary K_eff.
-              // Feed each intrinsic continuum with v_i*K_eff*dEps so alpha_i/K_i gives abar_i*dEps.
+              // Feed each intrinsic continuum with v_i*K_eff*dEps - alpha_i*dp_i so the fixed-stress
+              // porosity update receives the mean total stress increment.
               arrayView1d< real64 const > const K_eff_view =
                 subRegion.template getReference< array1d< real64 > >( viewKeyStruct::effectiveBulkModulusString() );
               averageMeanTotalStressIncrement_k[k] =
-                ( 1.0 - m_fractureVolumeFraction ) * K_eff_view[k] * delta_eps_v;
+                ( 1.0 - m_fractureVolumeFraction ) * K_eff_view[k] * delta_eps_v
+                - totalStressPressureIncrement;
             }
             else
             {
               // Effective-input Sequential path: mechanics used physical p_m/p_f with
               // effective Biot coefficients directly.
-              averageMeanTotalStressIncrement_k[k] = K_view[k] * delta_eps_v;
+              averageMeanTotalStressIncrement_k[k] = K_view[k] * delta_eps_v - totalStressPressureIncrement;
             }
             m_tempVolStrainIncr.push_back( delta_eps_v );
           }
@@ -594,11 +602,15 @@ public:
               this->template getConstitutiveModel< constitutive::CoupledSolidBase >( fracSubReg, fracSolidName );
             arrayView1d< real64 > const fracAvgStressIncr = fracSolid.getAverageMeanTotalStressIncrement_k();
             arrayView1d< real64 const > const K_f = fracSolid.getBulkModulus();
+            arrayView1d< real64 const > const alpha_f = fracSolid.getBiotCoefficient();
+            arrayView1d< real64 const > const p_f = fracSubReg.template getField< fields::flow::pressure >();
+            arrayView1d< real64 const > const p_f_n = fracSubReg.template getField< fields::flow::pressure_n >();
 
             // Fracture receives the SAME shared volumetric strain increment dEps_v as
             // the matrix. Intrinsic-input Sequential uses avgStress_f=v_f*K_eff*dEps_v.
             // Effective-input Sequential uses the fracture constitutive Biot as abar_f,
-            // so avgStress_f=K_f*dEps_v gives abar_f*dEps_v.
+            // so avgStress_f=K_f*dEps_v gives abar_f*dEps_v. In both cases subtract
+            // alpha_f*dp_f because BiotPorosity expects a mean total stress increment.
             if( matSubReg.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
             {
               arrayView1d< real64 const > const K_eff_frac =
@@ -618,9 +630,11 @@ public:
                 GEOS_ERROR_IF( strainIdx >= static_cast< localIndex >( m_tempVolStrainIncr.size() ),
                                "Missing volumetric strain increment for dual-continuum fracture mapping." );
                 real64 const delta_eps_v = m_tempVolStrainIncr[strainIdx++];
-                fracAvgStressIncr[kf] = useCompositePressure
-                                        ? v_f * K_eff_frac[k] * delta_eps_v
-                                        : K_f[kf] * delta_eps_v;
+                real64 const pressureStressIncrement = alpha_f[kf] * ( p_f[kf] - p_f_n[kf] );
+                fracAvgStressIncr[kf] =
+                  useCompositePressure
+                  ? v_f * K_eff_frac[k] * delta_eps_v - pressureStressIncrement
+                  : K_f[kf] * delta_eps_v - pressureStressIncrement;
               }
             }
             this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( fracSubReg );
