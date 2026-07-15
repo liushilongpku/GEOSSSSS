@@ -6,7 +6,7 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 
 2026-07-15 清理后，目录中只保留三个可运行 XML 输入：
 
-1. `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml`：FIM 0.911，当前最佳拟合。
+1. `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml`：FIM 0.911，经验拟合对照。
 2. `DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml`：FIM 1.0，无 cross-storage offdiag 经验修正。
 3. `DPDP_N2_dispdriven_seq_eff.xml`：当前 Seq。
 
@@ -38,6 +38,8 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 
 这两个 CSV 是本验证流程的压力主基准，不应当被脚本重新生成或覆盖。脚本解析解
 `script/dpdp_mandel_analytical.py` 可作为辅助检查，但最终误差表应以这两个手动 CSV 为准。
+当前 findings 记录了手动 Fig. 5c CSV 与解析脚本曲线不一致的问题；在该问题解决前，不能把
+解析脚本生成的位移加载函数视为独立物理基准。
 
 `analitical_result/fig5d_analitical.csv` 可作为应力辅助诊断。当前位移驱动算例中，应力需要由
 有效应力和 Biot 压力项重构，不作为主要通过/失败判据。
@@ -52,7 +54,7 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 
 ## 2. 推荐算例
 
-### 2.1 FIM 0.911 主拟合算例
+### 2.1 FIM 0.911 经验拟合算例
 
 基准文件：
 
@@ -68,7 +70,8 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 - 裂缝渗透率采用体积加权后的 bulk flux contribution，即 `kappa_f = v_f * k_f`
 - `defaultReferencePorosity` 输入 intrinsic 孔隙度；程序只将 `v_i` 乘入 storage/reference porosity。
   `permeabilityComponents` 不会再由 dual-continuum 初始化乘 `v_i`，因此本验证中必须直接输入 `kappa_i`
-- 该 deck 作为当前与解析压力曲线拟合最好的 FIM 结果保留
+- 该 deck 作为经验拟合 FIM 对照保留；0.911 的技术定位以
+  `DPDP_Mandel_findings_current_status.md` 为准
 
 ### 2.2 FIM 无修正对照算例
 
@@ -189,7 +192,7 @@ mpirun -np 4 build-ubuntu-lsl-release/bin/geosx -x 4 \
 目标：
 
 - 两个输入除文件头注释和 `crossStorageOffDiagScale` 外应保持一致
-- FIM 0.911 用于当前最佳拟合；FIM 无修正用于检查不使用经验缩放时的偏差
+- FIM 0.911 用作经验拟合对照；FIM 无修正用于检查不使用经验缩放时的偏差
 - 若两者差异异常，应先检查运行使用的 XML 副本是否确实只改变了 `crossStorageOffDiagScale`
 
 ### 4.3 任意 GEOS 案例 vs 解析解
@@ -209,12 +212,12 @@ mpirun -np 4 build-ubuntu-lsl-release/bin/geosx -x 4 \
 
 当前阶段对 Sequential 的最低要求是：
 
-- 裂缝排水时间尺度与手动 Fig. 5c 点基本一致
+- 量化记录裂缝排水时间尺度与手动 Fig. 5c 点的偏差
 - `0.1s-10s`、`8s-30s`、以及 `tau=0.1-10` 范围内，中心点 matrix pressure 不应出现
   由外耦合提前停止造成的锯齿
 - time step cut 为 0 或有明确原因
-- 若 matrix 早期响应和解析解不一致，不在本阶段强行调参补偿；该问题归入后续
-  Mandel-Cryer 过冲/加载方式验证
+- 若 pressure 曲线与解析解不一致，不在本阶段强行调参补偿；该问题归入
+  `DPDP_Mandel_findings_current_status.md` 的 FIM/Seq 精度问题
 
 ### 4.4 GEOS vs 手动解析点
 
@@ -266,7 +269,13 @@ seq_fracture_rel_error
 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_vs_analytical.py
 ```
 
-脚本不固定案例数量。每个案例用 `--case "标签=输出目录"` 传入，输出目录必须包含：
+脚本不固定案例数量。默认压力基准为手动 Fig. 5c CSV：
+
+- matrix: `analitical_result/fig5c_primary_analitical.csv`
+- fracture: `analitical_result/fig5c_secondary_analitical.csv`
+
+解析脚本曲线只作为可选诊断叠加，需要时加 `--show-script-analytical`。每个案例用
+`--case "标签=输出目录"` 传入，输出目录必须包含：
 
 - `pressure_matrix_history.hdf5`
 - `pressure_fracture_history.hdf5`
@@ -278,7 +287,8 @@ python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plo
   --case "FIM 0.911=<fim_0911_output_dir>" \
   --case "FIM 1.0=<fim_noCorrection_output_dir>" \
   --case "Seq=<seq_output_dir>" \
-  --out <plot_output_dir>/geos_vs_analytical_pressure.png
+  --show-script-analytical \
+  --out <plot_output_dir>/geos_vs_fig5c_pressure.png
 ```
 
 以后增加或减少案例时，只需增删 `--case` 参数。例如只比较两个 FIM，传两个 `--case`；
@@ -289,7 +299,7 @@ python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plo
 ```bash
 python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_vs_analytical.py \
   --search-root inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs \
-  --out inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/geos_vs_analytical_pressure.png
+  --out inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/geos_vs_fig5c_pressure.png
 ```
 
 自动搜索时，脚本会把所有包含 matrix/fracture pressure history 的目录都作为案例。标签优先从
@@ -300,12 +310,13 @@ python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plo
 
 - PNG 图：`--out` 指定的文件
 - 同名 PDF
-- `<stem>_summary.csv`，包含每个案例的峰值、终值、以及相对解析解的平均/最大绝对误差
+- `<stem>_summary.csv`，包含每个案例的峰值、终值、以及相对手动 Fig. 5c CSV 的平均/最大绝对误差
+- `<stem>_samples.csv`，包含固定 `tau` 采样点上的手动 CSV、每个 GEOS 案例和绝对误差
 
 若把最终主对比图归档到 `analitical_result/`，文件名必须包含日期时间戳，例如：
 
 ```text
-GEOS_pressure_compare_FIM0911_FIM1000_Seq_analytical_YYYYMMDD_HHMM.png
+GEOS_pressure_compare_FIM0911_FIM1000_Seq_fig5cCSV_YYYYMMDD_HHMM.png
 ```
 
 解析解脚本路径已经改为相对当前验证目录，不再依赖机器上的绝对路径。
@@ -364,14 +375,14 @@ p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
 
 ## 5. 通过标准
 
-### 5.1 阶段性通过：排水时间尺度
+### 5.1 阶段性通过：可运行与可对比
 
 当前阶段只要求：
 
-- Seq 算例完整跑完，time step cut 为 0 或有明确说明
-- fracture 排水时间尺度与手动解析点在同一量级并接近
+- FIM 0.911、FIM 无修正、Sequential 三个保留算例完整跑完，time step cut 为 0 或有明确说明
+- 通用绘图脚本能把三个保留算例与解析解放在同一张图中，并输出误差汇总 CSV
 - 曲线没有由外耦合提前停止导致的锯齿
-- 不使用 `crossStorageOffDiagScale="0.911"` 等历史补偿参数
+- FIM 0.911 明确标记为经验拟合输入，FIM 无修正明确标记为 `crossStorageOffDiagScale="1.0"` 对照
 - 不通过混用 intrinsic/effective K、Biot、孔隙度来“调曲线”
 
 ### 5.2 完整通过：FIM/Seq 物理验证
@@ -380,10 +391,13 @@ p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
 
 - FIM 0.911、FIM 无修正、Sequential 三个保留算例均完整跑完
 - FIM 无修正使用 `crossStorageOffDiagScale="1.0"`，作为无经验缩放对照
-- FIM 0.911 只作为当前最佳拟合对照，不应误写成无修正物理输入
+- FIM 0.911 只作为经验拟合对照，不应误写成无修正物理输入
 - FIM 与手动解析 pressure 点在峰值、平台、排水时间尺度和晚期衰减趋势上合理一致
 - Sequential 与手动解析 pressure 点趋势一致，若与 FIM 有差异，需要给出可解释原因
 - 未出现孔隙度、体积分数、Biot 系数、裂缝参考孔隙度相对体积等输入概念混用
+
+截至 2026-07-15，当前验证只达到 5.1 的可运行与可对比阶段；5.2 的解析一致性仍未完成。
+当前 FIM 和 Seq 与解析解的偏差见 `DPDP_Mandel_findings_current_status.md`。
 
 ## 6. 更新算例时的检查清单
 
@@ -391,6 +405,8 @@ p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
 
 - 是否仍为 10x10 标准网格，除非明确做网格收敛性测试
 - 是否没有覆盖手动解析 CSV
+- 若 `script/dpdp_mandel_analytical.py` 或解析基准发生变化，是否同步重建 XML 中的顶部位移加载函数、
+  初始位移表和相关说明
 - 是否没有把运行结果或试错结论写入 `problem_description/`
 - `mandel_input_tables/` 是否只保留当前 XML 实际引用的表；历史加载/诊断表若删除，是否记录到
   `DPDP_Mandel_trial_history_and_cleanup.md`

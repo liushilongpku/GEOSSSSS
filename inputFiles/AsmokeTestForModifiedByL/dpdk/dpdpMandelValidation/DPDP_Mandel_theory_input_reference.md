@@ -85,8 +85,9 @@ Mehrabian-Abousleiman 恒应变 storage 写成：
 当前约定：
 
 - `crossStorageOffDiagScale="1.0"`：无经验 offdiag 缩放，对照输入。
-- `crossStorageOffDiagScale="0.911"`：当前 FIM 与解析压力曲线拟合最好的保留输入。
-- `0.911` 不应写成“无修正物理输入”；其当前定位以 `DPDP_Mandel_findings_current_status.md` 为准。
+- `crossStorageOffDiagScale="0.911"`：经验拟合保留输入。
+- `0.911` 不应写成“无修正物理输入”；其当前定位和解析基准不一致问题以
+  `DPDP_Mandel_findings_current_status.md` 为准。
 
 ### 3.2 渗透率与体积分数
 
@@ -191,7 +192,7 @@ alpha_m * p_eq = abar_m * p_m + abar_f * p_f
 
 | 输入文件 | 模式 | 用途 |
 |---|---|---|
-| `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml` | FIM effective input, `crossStorageOffDiagScale=0.911` | 当前最佳拟合 FIM 输入 |
+| `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml` | FIM effective input, `crossStorageOffDiagScale=0.911` | 经验拟合 FIM 输入 |
 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml` | FIM effective input, `crossStorageOffDiagScale=1.0` | 无经验 offdiag 缩放对照 |
 | `DPDP_N2_dispdriven_seq_eff.xml` | Sequential effective input, `crossStorageOffDiagScale=1.0` | 当前主 Seq 输入 |
 

@@ -5,7 +5,7 @@
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory
   Displacement BC from analytical N=2 solution (displacement_N2.csv)
   Matrix: GOM Shale matrix (K_m=1.1e9, k_m=4.93e-21)
-  Fracture: GOM Shale macro-fracture (K_f=2.25e7, k_f=4.93e-18)
+  Fracture: GOM Shale macro-fracture (K_f=2.25e7, k_f=4.93e-15)
   Initial conditions at t=0+:
     p_m = 0.455 Pc = 4.55e5 Pa,  p_f = 0.488 Pc = 4.88e5 Pa
     sigma_eff_xx = -4.67e5 Pa (tension), sigma_eff_zz = -5.33e5 Pa (compression)
@@ -237,7 +237,7 @@
       fieldName="pressure" scale="0.0" setNames="{ xpos }"/>
   </FieldSpecifications>
 
-  <!-- τ=3 → t=308412s, log-spaced phases for plotting -->
+  <!-- t=308412s corresponds to tau=t/t0≈2.93e4 with script/dpdp_mandel_analytical.py t0≈10.5157s. -->
 <!--  <Events maxTime="308412.0"> -->
 <!-- run 300s to test if the solver can handle the load in fracture -->
     <Events maxTime="308412.0">

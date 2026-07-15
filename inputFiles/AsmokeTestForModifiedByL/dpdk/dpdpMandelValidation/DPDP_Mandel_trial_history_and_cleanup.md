@@ -4,7 +4,7 @@
 
 | 案例 | 输入文件 | 用途 |
 |---|---|---|
-| FIM 0.911 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml` | 全隐式耦合，10x10，direct 求解器，有效介质力学参数，`crossStorageOffDiagScale="0.911"`。这是当前与解析压力曲线拟合最好的 FIM 输入。 |
+| FIM 0.911 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml` | 全隐式耦合，10x10，direct 求解器，有效介质力学参数，`crossStorageOffDiagScale="0.911"`。这是经验拟合 FIM 输入。 |
 | FIM 无修正 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml` | 与 FIM 0.911 输入相同，只把 `crossStorageOffDiagScale` 改为 `1.0`。这是不使用经验 cross-storage offdiag 缩放的 FIM 对照。 |
 | 当前 Seq | `DPDP_N2_dispdriven_seq_eff.xml` | Sequential 耦合，10x10，有效介质力学参数，`crossStorageOffDiagScale="1.0"`，压力外迭代变化容差 `100 Pa`。这是当前修复后的 Seq 验证输入。 |
 
@@ -16,8 +16,8 @@
 
 最新对比图：
 
-- `/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/final_pressure_compare.png`
-- `analitical_result/GEOS_pressure_compare_FIM0911_FIM1000_Seq_analytical_20260715_0928.png`
+- `/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/geos_vs_fig5c_pressure.png`
+- `analitical_result/GEOS_pressure_compare_FIM0911_FIM1000_Seq_fig5cCSV_20260715_2141.png`
 
 ## 关键结果
 
@@ -32,9 +32,35 @@
 | FIM 无修正 | 1.0500023 | 1.0396572 |
 | 当前 Seq | 1.0444486 | 1.0273431 |
 
-结论：当前 Seq 已恢复 Mandel-Cryer 过冲，并且不需要 pressure relaxation 即可跑完整程。但 Seq
-相对解析解仍偏慢，主要体现在 fracture 排水和 matrix 晚期衰减。FIM 0.911 仍是保留的 FIM
-输入中与解析压力曲线拟合最好的一个。
+此前 `final_pressure_compare.png` 和 `GEOS_pressure_compare_FIM0911_FIM1000_Seq_analytical_20260715_0928.png`
+使用的是 `script/dpdp_mandel_analytical.py` 曲线。2026-07-15 后续检查发现，该脚本曲线与手动
+Fig. 5c CSV 不一致，因此下面改用 workflow 指定的手动 CSV 作为压力主基准。
+
+按手动 Fig. 5c CSV 统计的误差：
+
+| 案例 | Matrix 平均/最大误差 | Fracture 平均/最大误差 |
+|---|---:|---:|
+| FIM 0.911 | 0.0542 / 0.3426 | 0.0171 / 0.0818 |
+| FIM 无修正 | 0.0900 / 0.3056 | 0.0152 / 0.0728 |
+| 当前 Seq | 0.0566 / 0.4484 | 0.0683 / 0.3401 |
+
+采样点证据：
+
+| `tau` | 手动 matrix | FIM 0.911 | FIM 1.0 | Seq | 手动 fracture | FIM 0.911 | FIM 1.0 | Seq |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0.1 | 1.0397 | 1.0267 | 1.0150 | 1.0441 | 0.8218 | 0.8464 | 0.8408 | 0.9841 |
+| 0.3 | 0.9583 | 0.9494 | 0.9080 | 1.0003 | 0.3169 | 0.3957 | 0.3867 | 0.6565 |
+| 1.0 | 0.9094 | 0.8864 | 0.8238 | 0.8995 | 0.0155 | 0.0228 | 0.0215 | 0.1199 |
+| 1000 | 0.7611 | 0.8763 | 0.8148 | 0.8707 | -0.0022 | 0.0000 | 0.0000 | 0.0000 |
+| 3000 | 0.3262 | 0.6525 | 0.6078 | 0.7363 | -0.0027 | 0.0000 | 0.0000 | 0.0000 |
+
+结论：当前三个 deck 都能完整跑通，但 FIM 和 Seq 都还没有严格对齐解析解。Seq fracture
+排水偏慢仍然明确；matrix 晚期偏差目前受手动 CSV 与解析脚本不一致影响很大，需要先确认
+最终压力基准，再继续判断 FIM/Seq 的物理误差来源。
+
+PDF 直接核查：用 PyMuPDF 渲染论文第 12 页后，Fig. 5c primary 曲线确实在横轴约
+`10^3-10^4` 进入快速下降，手动 CSV 的晚期下降趋势与论文图一致。当前解析脚本和 GEOS
+曲线更晚下降，因此下一步应优先修正解析脚本/位移加载来源，或改用独立应力加载验证。
 
 ## Seq 求解策略对照
 
@@ -62,7 +88,7 @@
 中旧阶段 PNG，包括旧 FIM/Seq 单案例图、digitized 对比图、BROKEN/历史 kappa 试验图和旧 Fig5c
 诊断图。当前保留图片为：
 
-- `analitical_result/GEOS_pressure_compare_FIM0911_FIM1000_Seq_analytical_20260715_0928.png`
+- `analitical_result/GEOS_pressure_compare_FIM0911_FIM1000_Seq_fig5cCSV_20260715_2141.png`
 
 ## 已清理的历史输入表
 
@@ -127,4 +153,5 @@
    改物理系数。只要外迭代收敛，固定点在压力外迭代容差内不变。
 3. 当前保留 Seq 输入不需要 pressure relaxation。
 4. 无修正 FIM 保留 `crossStorageOffDiagScale="1.0"`，用于检查不使用经验缩放时的结果。
-5. FIM 0.911 作为最佳拟合输入保留，用于和无修正 FIM、当前 Seq、解析解放在同一张图里比较。
+5. FIM 0.911 作为经验拟合输入保留，用于和无修正 FIM、当前 Seq、解析解放在同一张图里比较。
+6. 2026-07-15 发现手动 Fig. 5c CSV 与解析脚本曲线不一致；继续调求解器前应先确认最终基准。

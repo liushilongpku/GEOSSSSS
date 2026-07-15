@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Plot arbitrary GEOS DPDP Mandel pressure histories against the analytical
-solution.
+Plot arbitrary GEOS DPDP Mandel pressure histories against the retained
+Fig. 5c analytical pressure points.
 
 Examples:
   python plot_GEOS_vs_analytical.py \
     --case "FIM 0.911=/path/to/fim_0911" \
     --case "FIM 1.0=/path/to/fim_1000" \
     --case "Seq=/path/to/seq_full" \
-    --out /path/to/pressure_comparison.png
+    --out /path/to/pressure_comparison.png \
+    --show-script-analytical
 
   python plot_GEOS_vs_analytical.py \
     --search-root inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs \
@@ -43,6 +44,9 @@ from matplotlib.lines import Line2D
 SCRIPT_DIR = Path(__file__).resolve().parent
 VALIDATION_DIR = SCRIPT_DIR.parent
 DEFAULT_RUNS_DIR = VALIDATION_DIR / "runs"
+DEFAULT_ANALYTICAL_DIR = VALIDATION_DIR / "analitical_result"
+DEFAULT_MATRIX_REFERENCE = DEFAULT_ANALYTICAL_DIR / "fig5c_primary_analitical.csv"
+DEFAULT_FRACTURE_REFERENCE = DEFAULT_ANALYTICAL_DIR / "fig5c_secondary_analitical.csv"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 import dpdp_mandel_analytical as an
@@ -50,6 +54,7 @@ import dpdp_mandel_analytical as an
 PM0 = 4.55e5
 PF0 = 4.88e5
 REQUIRED_HISTORY_FILES = ("pressure_matrix_history.hdf5", "pressure_fracture_history.hdf5")
+DEFAULT_SAMPLE_TAU = np.asarray([1e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1, 3, 10, 30, 100, 300, 1000, 3000])
 
 
 @dataclass(frozen=True)
@@ -85,6 +90,22 @@ def load_pressure(output_dir: Path, filename: str) -> tuple[np.ndarray, np.ndarr
   index = center_index(element_centers)
   mask = time > 0.0
   return time[mask] / an.t0, pressure[mask, index]
+
+
+def load_reference_csv(path: Path) -> tuple[np.ndarray, np.ndarray]:
+  tau: list[float] = []
+  value: list[float] = []
+  with path.open(newline="") as stream:
+    reader = csv.DictReader(stream)
+    if not reader.fieldnames or "x" not in reader.fieldnames or "y" not in reader.fieldnames:
+      raise ValueError(f"reference CSV must contain x,y columns: {path}")
+    for row in reader:
+      tau.append(float(row["x"]))
+      value.append(float(row["y"]))
+  if len(tau) < 2:
+    raise ValueError(f"reference CSV must contain at least two rows: {path}")
+  order = np.argsort(np.asarray(tau))
+  return np.asarray(tau)[order], np.asarray(value)[order]
 
 
 def read_xml_text(output_dir: Path) -> str:
@@ -156,7 +177,7 @@ def discover_cases(search_roots: list[Path]) -> list[Case]:
 
 def parse_args() -> argparse.Namespace:
   parser = argparse.ArgumentParser(
-      description="Plot any number of DPDP Mandel GEOS pressure histories against the analytical solution."
+      description="Plot any number of DPDP Mandel GEOS pressure histories against the Fig. 5c CSV reference."
   )
   parser.add_argument(
       "--case",
@@ -178,14 +199,31 @@ def parse_args() -> argparse.Namespace:
       action="store_true",
       help="Also search ../runs relative to this script, when it exists.",
   )
-  parser.add_argument("--out", type=Path, help="Output PNG path. A PDF and summary CSV are written beside it.")
+  parser.add_argument("--out", type=Path, help="Output PNG path. A PDF, summary CSV, and samples CSV are written beside it.")
   parser.add_argument("--tau-min", type=float, default=1e-4, help="Minimum dimensionless time shown on the plot.")
   parser.add_argument("--tau-max", type=float, default=3e4, help="Maximum dimensionless time shown on the plot.")
+  parser.add_argument(
+      "--matrix-reference",
+      type=existing_path,
+      default=DEFAULT_MATRIX_REFERENCE,
+      help="Manual matrix/primary reference CSV with x,y columns.",
+  )
+  parser.add_argument(
+      "--fracture-reference",
+      type=existing_path,
+      default=DEFAULT_FRACTURE_REFERENCE,
+      help="Manual fracture/secondary reference CSV with x,y columns.",
+  )
+  parser.add_argument(
+      "--show-script-analytical",
+      action="store_true",
+      help="Overlay the local analytical-script curve for diagnosis. Errors are still computed against the CSV reference.",
+  )
   parser.add_argument(
       "--analytical-points",
       type=int,
       default=150,
-      help="Number of analytical inversion points. Larger values are smoother but slower.",
+      help="Number of analytical-script inversion points used only with --show-script-analytical.",
   )
   return parser.parse_args()
 
@@ -205,6 +243,14 @@ def log_interp(x: np.ndarray, xp: np.ndarray, fp: np.ndarray) -> np.ndarray:
   return out
 
 
+def finite_error_metrics(value: np.ndarray, reference: np.ndarray) -> tuple[float, float, int]:
+  valid = np.isfinite(value) & np.isfinite(reference)
+  if not np.any(valid):
+    return float("nan"), float("nan"), 0
+  error = np.abs(value[valid] - reference[valid])
+  return float(np.mean(error)), float(np.max(error)), int(np.count_nonzero(valid))
+
+
 def choose_output_path(args: argparse.Namespace, cases: list[Case]) -> Path:
   if args.out:
     return args.out.expanduser().resolve()
@@ -213,9 +259,9 @@ def choose_output_path(args: argparse.Namespace, cases: list[Case]) -> Path:
     common = Path(os.path.commonpath([str(case.output_dir) for case in cases]))
     if common.is_file():
       common = common.parent
-    return common / "geos_vs_analytical_pressure.png"
+    return common / "geos_vs_fig5c_pressure.png"
 
-  return Path.cwd() / "geos_vs_analytical_pressure.png"
+  return Path.cwd() / "geos_vs_fig5c_pressure.png"
 
 
 def style_for(index: int) -> tuple[object, str, str]:
@@ -226,24 +272,41 @@ def style_for(index: int) -> tuple[object, str, str]:
   return color, linestyles[index % len(linestyles)], markers[index % len(markers)]
 
 
-def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Path, Path, Path]:
-  sol = an.solve(tau_min=min(1e-5, args.tau_min), tau_max=args.tau_max, n=args.analytical_points)
-  analytical = {
-      "matrix": (sol["tau"], sol["pm"]),
-      "fracture": (sol["tau"], sol["pf"]),
+def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Path, Path, Path, Path]:
+  reference = {
+      "matrix": load_reference_csv(args.matrix_reference),
+      "fracture": load_reference_csv(args.fracture_reference),
   }
+  script_solution = None
+  if args.show_script_analytical:
+    script_solution = an.solve(tau_min=min(1e-5, args.tau_min), tau_max=args.tau_max, n=args.analytical_points)
 
   output_path = choose_output_path(args, cases)
   output_path.parent.mkdir(parents=True, exist_ok=True)
   pdf_path = output_path.with_suffix(".pdf")
   csv_path = output_path.with_name(output_path.stem + "_summary.csv")
+  samples_path = output_path.with_name(output_path.stem + "_samples.csv")
 
   fig, axes = plt.subplots(1, 2, figsize=(12.8, 4.8), sharex=True)
-  axes[0].semilogx(sol["tau"], sol["pm"], color="black", lw=2.0, label="Analytical")
-  axes[1].semilogx(sol["tau"], sol["pf"], color="black", lw=2.0, label="Analytical")
+  axes[0].semilogx(reference["matrix"][0], reference["matrix"][1], color="black", lw=2.0, label="Fig. 5c CSV")
+  axes[1].semilogx(reference["fracture"][0], reference["fracture"][1], color="black", lw=2.0, label="Fig. 5c CSV")
+  if script_solution is not None:
+    axes[0].semilogx(script_solution["tau"], script_solution["pm"], color="0.45", lw=1.4, ls=":",
+                     label="Analytical script")
+    axes[1].semilogx(script_solution["tau"], script_solution["pf"], color="0.45", lw=1.4, ls=":",
+                     label="Analytical script")
 
   summary_rows: list[dict[str, object]] = []
-  legend_handles = [Line2D([0], [0], color="black", lw=2.0, label="Analytical")]
+  legend_handles = [Line2D([0], [0], color="black", lw=2.0, label="Fig. 5c CSV")]
+  if script_solution is not None:
+    legend_handles.append(Line2D([0], [0], color="0.45", lw=1.4, ls=":", label="Analytical script"))
+
+  sample_rows: list[dict[str, object]] = []
+  for tau in DEFAULT_SAMPLE_TAU:
+    row: dict[str, object] = {"tau": tau}
+    for medium in ("matrix", "fracture"):
+      row[f"manual_{medium}"] = log_interp(np.asarray([tau]), reference[medium][0], reference[medium][1])[0]
+    sample_rows.append(row)
 
   for index, case in enumerate(cases):
     color, linestyle, marker = style_for(index)
@@ -270,22 +333,34 @@ def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Pa
           markevery=marker_every,
       )
 
-      analytical_tau, analytical_y = analytical[medium]
-      analytical_at_geos = log_interp(tau, analytical_tau, analytical_y)
-      valid = ~np.isnan(analytical_at_geos)
+      reference_tau, reference_y = reference[medium]
+      reference_at_geos = log_interp(tau, reference_tau, reference_y)
+      mean_error, max_error, n_error_samples = finite_error_metrics(normalized, reference_at_geos)
       peak_index = int(np.argmax(normalized))
       summary_rows.append({
           "case": case.label,
           "medium": medium,
           "output_dir": str(case.output_dir),
           "n_samples": len(normalized),
+          "n_error_samples": n_error_samples,
+          "reference": "manual_fig5c_csv",
           "peak_tau": tau[peak_index],
           "peak_p_over_p0": normalized[peak_index],
           "final_tau": tau[-1],
           "final_p_over_p0": normalized[-1],
-          "mean_abs_error_vs_analytical": float(np.mean(np.abs(normalized[valid] - analytical_at_geos[valid]))),
-          "max_abs_error_vs_analytical": float(np.max(np.abs(normalized[valid] - analytical_at_geos[valid]))),
+          "mean_abs_error_vs_manual_csv": mean_error,
+          "max_abs_error_vs_manual_csv": max_error,
       })
+
+      sample_at_geos = log_interp(DEFAULT_SAMPLE_TAU, tau, normalized)
+      sample_reference = log_interp(DEFAULT_SAMPLE_TAU, reference_tau, reference_y)
+      safe_label = re.sub(r"[^0-9A-Za-z]+", "_", case.label).strip("_").lower() or f"case_{index}"
+      for row_index, row in enumerate(sample_rows):
+        row[f"{safe_label}_{medium}"] = sample_at_geos[row_index]
+        if np.isfinite(sample_at_geos[row_index]) and np.isfinite(sample_reference[row_index]):
+          row[f"{safe_label}_{medium}_abs_error"] = abs(sample_at_geos[row_index] - sample_reference[row_index])
+        else:
+          row[f"{safe_label}_{medium}_abs_error"] = float("nan")
 
   for ax, title in zip(
       axes,
@@ -301,7 +376,7 @@ def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Pa
   legend_columns = 1 if len(legend_handles) <= 5 else 2
   axes[1].legend(handles=legend_handles, frameon=False, fontsize=8, loc="best", ncol=legend_columns)
 
-  fig.suptitle("DPDP Mandel-Cryer pressure validation: GEOS cases vs analytical", fontsize=12)
+  fig.suptitle("DPDP Mandel-Cryer pressure validation: GEOS cases vs Fig. 5c CSV", fontsize=12)
   fig.tight_layout(rect=(0, 0, 1, 0.94))
   fig.savefig(output_path, dpi=180)
   fig.savefig(pdf_path)
@@ -312,7 +387,12 @@ def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Pa
     writer.writeheader()
     writer.writerows(summary_rows)
 
-  return output_path, pdf_path, csv_path
+  with samples_path.open("w", newline="") as stream:
+    writer = csv.DictWriter(stream, fieldnames=list(sample_rows[0].keys()))
+    writer.writeheader()
+    writer.writerows(sample_rows)
+
+  return output_path, pdf_path, csv_path, samples_path
 
 
 def main() -> int:
@@ -337,10 +417,13 @@ def main() -> int:
   for case in cases:
     print(f"{case.label}: {case.output_dir}")
 
-  output_path, pdf_path, csv_path = plot_pressure_cases(cases, args)
+  print(f"matrix reference = {args.matrix_reference}")
+  print(f"fracture reference = {args.fracture_reference}")
+  output_path, pdf_path, csv_path, samples_path = plot_pressure_cases(cases, args)
   print(f"saved {output_path}")
   print(f"saved {pdf_path}")
   print(f"saved {csv_path}")
+  print(f"saved {samples_path}")
   return 0
 
 
