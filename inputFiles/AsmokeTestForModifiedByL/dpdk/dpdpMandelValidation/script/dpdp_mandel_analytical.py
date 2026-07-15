@@ -10,6 +10,8 @@ Sum_j S*_jj = 1, which makes eps_zz spatially uniform (eq. 37); the stress BC
 Outputs p_m, p_f, sigma_zz at the center and u_z at the top, normalized for
 comparison to digitized Fig 5c (pressure) and Fig 5d (stress).
 """
+from pathlib import Path
+
 import numpy as np
 import mpmath as mp
 
@@ -105,8 +107,8 @@ def invert(comp, tarr_phys):
         out[i]=float(mp.invertlaplace(fn, t/t0, method='dehoog', dps=30))
     return out
 
-# directory holding the digitized paper curves
-AN_DIR="/home/lsl/codes/GEOSSSSS/inputFiles/AsmokeTestForModifiedByL/dpdk/dpdkHMDualPoromechanicsSolver/analitical_result"
+# Directory holding the digitized paper curves for this validation case.
+AN_DIR = str(Path(__file__).resolve().parent.parent / "analitical_result")
 
 def solve(tau_min=1e-5, tau_max=1e6, n=70):
     """Evaluate the analytical solution over a dimensionless-time sweep.

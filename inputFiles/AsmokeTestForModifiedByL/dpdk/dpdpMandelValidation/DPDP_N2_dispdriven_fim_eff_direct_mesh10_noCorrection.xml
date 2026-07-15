@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<!-- 用途：位移驱动、全隐式单体耦合(FIM)、内禀材料；FIM 收敛性测试。 -->
+<!-- 用途：FIM 有效介质 + direct，10x10，无 cross-storage offdiag 经验修正；crossStorageOffDiagScale=1.0，用作 0.911 FIM 的对照。 -->
 <!--
   DPDP Mandel N=2 — Dual-Porosity Dual-Permeability Verification
   Based on: Mehrabian & Abousleiman (2014) generalized Biot theory
@@ -20,10 +20,10 @@
   <Mesh>
     <InternalMesh name="mesh1" elementTypes="{ C3D8 }"
       xCoords="{ 0.0, 0.03 }" yCoords="{ 0.0, 0.03 }" zCoords="{ 0.0, 0.03 }"
-      nx="{ 20 }" ny="{ 1 }" nz="{ 20 }" cellBlockNames="{ matrixBlock }"/>
+      nx="{ 10 }" ny="{ 1 }" nz="{ 10 }" cellBlockNames="{ matrixBlock }"/>
     <InternalMesh name="mesh2" elementTypes="{ C3D8 }"
       xCoords="{ 0.0, 0.03 }" yCoords="{ 0.0, 0.03 }" zCoords="{ 0.0, 0.03 }"
-      nx="{ 20 }" ny="{ 1 }" nz="{ 20 }" cellBlockNames="{ fractureBlock }"/>
+      nx="{ 10 }" ny="{ 1 }" nz="{ 10 }" cellBlockNames="{ fractureBlock }"/>
   </Mesh>
 
   <Geometry>
@@ -34,6 +34,7 @@
     <Box name="zneg" xMin="{ -1e-3, -1e-3, -1e-3 }" xMax="{ 30.1e-3, 30.1e-3, 1e-3 }"/>
     <Box name="zpos" xMin="{ -1e-3, -1e-3, 29e-3 }" xMax="{ 30.1e-3, 30.1e-3, 31e-3 }"/>
   </Geometry>
+
 
   <ElementRegions>
     <CellElementRegion name="matrixRegion" meshBody="mesh1"
@@ -50,14 +51,18 @@
     <!-- Matrix: GOM Shale primary porosity (Table 1, intrinsic values)
          K₁ = 1.1 GPa, ν₁ = 0.22, V₁ = 97%, Φ₁ = 14%, k₁ = 5 nd
          α₁ = 1 - K₁/K_s = 1 - 1.1/27 = 0.9593
-         G₁ = 3K₁(1-2ν)/(2(1+ν)) = 0.7574 GPa -->
+         G₁ = 3K₁(1-2ν)/(2(1+ν)) = 0.7574 GPa 
+         4.935e-21 -->
+    <!-- EFFECTIVE-MEDIUM coefficients (Mehrabian): drained skeleton Kbar/Gbar + effective Biot
+         abar_m = Kbar*v_m*alpha_m/K_m. The monolithic FIM mechanics then uses the composite
+         skeleton stiffness and the effective matrix Biot coupling. -->
     <ElasticIsotropic name="matrixSolid"
-      defaultDensity="0" defaultBulkModulus="1.1e9" defaultShearModulus="7.574e8"/>
+      defaultDensity="0" defaultBulkModulus="4.514e8" defaultShearModulus="3.108e8"/>
     <BiotPorosity name="matrixPorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.14"
-      defaultBiotCoefficient="0.9593"/>
+      defaultBiotCoefficient="0.382"/>
     <ConstantPermeability name="matrixPerm"
-      permeabilityComponents="{ 4.935e-21, 4.935e-21, 4.935e-21 }"/>
+      permeabilityComponents="{ 4.78e-21, 4.78e-21, 4.78e-21 }"/>
     <PorousElasticIsotropic name="matrixRock"
       solidModelName="matrixSolid" porosityModelName="matrixPorosity"
       permeabilityModelName="matrixPerm"/>
@@ -70,54 +75,61 @@
       defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.549e7"/>
     <BiotPorosity name="fracturePorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.95"
-      defaultBiotCoefficient="0.9992"/>
+      defaultBiotCoefficient="0.601"/>
+    <!-- Dual-continuum flux weighting: the fracture occupies only v_f=3% of the bulk, so its
+         contribution to bulk Darcy flux is kappa_f = v_f*k_f (not the full intrinsic k_f).
+         k_f_intrinsic = 4.935e-15 -> kappa_f = 0.03*4.935e-15 = 1.4805e-16. -->
     <ConstantPermeability name="fracturePerm"
-      permeabilityComponents="{ 4.935e-15, 4.935e-15, 4.935e-15 }"/>
+      permeabilityComponents="{ 1.4805e-16, 1.4805e-16, 1.4805e-16 }"/>
     <PorousElasticIsotropic name="fractureRock"
       solidModelName="fractureSolid" porosityModelName="fracturePorosity"
       permeabilityModelName="fracturePerm"/>
   </Constitutive>
 
   <Solvers gravityVector="{ 0.0, 0.0, 0.0 }">
-    <SinglePhaseFVM name="matrixFlow" logLevel="1"
+    <SinglePhaseFVM name="matrixFlow" logLevel="0"
       discretization="singlePhaseTPFA" targetRegions="{ mesh1/matrixRegion }">
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </SinglePhaseFVM>
-    <SinglePhaseFVM name="fractureFlow" logLevel="1"
+    <SinglePhaseFVM name="fractureFlow" logLevel="0"
       discretization="singlePhaseTPFA" targetRegions="{ mesh2/fractureRegion }">
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </SinglePhaseFVM>
-    <SolidMechanicsLagrangianFEM name="solidMech" logLevel="1"
+    <SolidMechanicsLagrangianFEM name="solidMech" logLevel="0"
       discretization="FE1" targetRegions="{ mesh1/matrixRegion }"
       timeIntegrationOption="QuasiStatic" contactRelationName="tractionlessContact"/>
 
-    <DualContinuumFVM name="dualFlow" logLevel="1"
+    <DualContinuumFVM name="dualFlow" logLevel="0"
       flowSolverName="matrixFlow" flowSolverName1="fractureFlow"
       matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       transferCoefficient="0.0">
       <DualContinuumCrossFlow
-        interporosityExchangeCoefficient="1.67e-22" fractureVolumeFraction="0.03"
+        interporosityExchangeCoefficient="0.0" fractureVolumeFraction="0.03"
+        intrinsicMatrixBiot="0.9593" intrinsicMatrixBulkModulus="1.1e9"
+        intrinsicFractureBiot="0.9992" intrinsicFractureBulkModulus="2.25e7"
+        crossStorageOffDiagScale="1.0"
         fractureSpacingLx="1.0" fractureSpacingLy="1.0" fractureSpacingLz="1.0"
         gravityDrainageFlag="0"
         matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
       <NonlinearSolverParameters newtonMaxIter="40" newtonTol="1.0e-4"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </DualContinuumFVM>
 
     <SinglePhaseDualContinuumPoromechanics name="poroSolver"
-      logLevel="1" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
+      logLevel="0" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       fractureVolumeFraction="0.03"
       fimNewtonRelaxation="0.7"
+      enableFimCrossStorage="1"
       stabilizationType="None" isThermal="0">
       <NonlinearSolverParameters
         couplingType="FullyImplicit" newtonMaxIter="80" newtonTol="1.0e-6"
         lineSearchAction="None"
         maxTimeStepCuts="4" timeStepCutFactor="0.5"/>
-      <LinearSolverParameters krylovTol="1.0e-12" solverType="gmres"/>
+      <LinearSolverParameters solverType="direct" directParallel="1"/>
     </SinglePhaseDualContinuumPoromechanics>
   </Solvers>
 
@@ -240,15 +252,15 @@
     <!-- Mandel-Cryer overshoot peaks near tau~0.05 (t~0.5s).  The single-pass
          fixed-stress split under-resolves this transient, so the overshoot is
          only captured with fine dt through the window 0.01 s < t < 2 s. -->
-    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" forceDt="0.0005" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase1" beginTime="0.01" endTime="0.1" forceDt="0.002" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase2" beginTime="0.1" endTime="2.0" forceDt="0.01" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase3" beginTime="2.0" endTime="10.0" forceDt="0.1" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase4" beginTime="10.0" endTime="100.0" forceDt="10" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase5" beginTime="100.0" endTime="1000.0" forceDt="100" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase6" beginTime="1000.0" endTime="10000.0" forceDt="300" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase7" beginTime="10000.0" endTime="100000.0" forceDt="3000" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase8" beginTime="100000.0" endTime="308412.0" forceDt="10000" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase0" beginTime="0.0" endTime="0.01" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase1" beginTime="0.01" endTime="0.1" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase2" beginTime="0.1" endTime="2.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase3" beginTime="2.0" endTime="10.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase4" beginTime="10.0" endTime="100.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase5" beginTime="100.0" endTime="1000.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase6" beginTime="1000.0" endTime="10000.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase7" beginTime="10000.0" endTime="100000.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase8" beginTime="100000.0" endTime="308412.0" target="/Solvers/poroSolver"/>
 
     <PeriodicEvent name="pressureMatrixEvent" target="/Tasks/pressureMatrixCollection"/>
     <PeriodicEvent name="pressureMatrixOutputEvent" targetExactTimestep="0" target="/Outputs/pressureMatrixHistory"/>
