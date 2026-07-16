@@ -272,6 +272,30 @@ def style_for(index: int) -> tuple[object, str, str]:
   return color, linestyles[index % len(linestyles)], markers[index % len(markers)]
 
 
+def log_spaced_marker_indices(tau: np.ndarray, target_count: int = 45) -> list[int]:
+  """Pick marker locations with roughly uniform spacing on the log-time axis."""
+  valid = np.flatnonzero(np.isfinite(tau) & (tau > 0.0))
+  if len(valid) <= target_count:
+    return valid.tolist()
+
+  log_tau = np.log10(tau[valid])
+  targets = np.linspace(log_tau[0], log_tau[-1], target_count)
+  picked: list[int] = []
+  for target in targets:
+    right = int(np.searchsorted(log_tau, target, side="left"))
+    if right <= 0:
+      chosen = 0
+    elif right >= len(log_tau):
+      chosen = len(log_tau) - 1
+    else:
+      left = right - 1
+      chosen = left if abs(log_tau[left] - target) <= abs(log_tau[right] - target) else right
+    index = int(valid[chosen])
+    if not picked or picked[-1] != index:
+      picked.append(index)
+  return picked
+
+
 def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Path, Path, Path, Path]:
   reference = {
       "matrix": load_reference_csv(args.matrix_reference),
@@ -321,7 +345,6 @@ def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Pa
         (axes[1], "fracture", tau_f, pf, PF0),
     ):
       normalized = pressure / p0
-      marker_every = max(1, len(tau) // 45)
       ax.semilogx(
           tau,
           normalized,
@@ -330,7 +353,7 @@ def plot_pressure_cases(cases: list[Case], args: argparse.Namespace) -> tuple[Pa
           lw=1.55,
           marker=marker,
           ms=2.2,
-          markevery=marker_every,
+          markevery=log_spaced_marker_indices(tau),
       )
 
       reference_tau, reference_y = reference[medium]
