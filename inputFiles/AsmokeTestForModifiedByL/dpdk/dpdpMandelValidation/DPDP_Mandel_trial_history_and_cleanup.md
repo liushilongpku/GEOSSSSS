@@ -19,10 +19,10 @@
 
 - FIM 同源输入：`DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml`
 - Seq 同源输入：`DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
-- FIM 输出：`/tmp/dpdp_same_source_unscaled_final_after_rebuild_20260716_111346/fim`
-- Seq 输出：`/tmp/dpdp_same_source_unscaled_final_after_rebuild_20260716_111346/seq`
-- 英文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_EN.png`
-- 中文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_CN.png`
+- FIM 输出：`/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/fim`
+- Seq 输出：`/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/seq`
+- 英文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_EN.png`
+- 中文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_CN.png`
 - 新旧位移荷载对比：`analitical_result/load_curve_old_vs_sameSourcePressure_20260716_0313.png`
 
 本轮只比较当前解析脚本、FIM 同源、Seq 同源，不再把 0.911 拟合输入放入主图。图例中不强调
@@ -36,8 +36,9 @@
 
 ## 关键结果
 
-同源 FIM 完成完整验证，为 297 个时间步、0 次切步。同源 Seq 完成完整验证，为 422 个时间步、
-0 次切步。
+同源 FIM 完成完整验证，为 1247 个时间步、0 次切步。同源 Seq 完成完整验证，为 1373 个时间步、
+0 次切步。本轮将 `10000 s` 之后的 FIM/Seq 求解步长统一为 `300 s`，用于消除基质压力在
+`tau≈10^3` 和 `tau≈10^4` 附近由 late-time 时间步分段造成的折线。
 
 最新对比中的归一化压力峰值：
 
@@ -69,7 +70,7 @@ Fig. 5c CSV 不一致，因此下面改用 workflow 指定的手动 CSV 作为�
 | 1000 | 0.7611 | 0.8763 | 0.8148 | 0.8707 | -0.0022 | 0.0000 | 0.0000 | 0.0000 |
 | 3000 | 0.3262 | 0.6525 | 0.6078 | 0.7363 | -0.0027 | 0.0000 | 0.0000 | 0.0000 |
 
-结论：历史三个 deck 都能完整跑通，但 FIM 和 Seq 都还没有严格对齐解析解。Seq fracture
+当时结论：历史三个 deck 都能完整跑通，但 FIM 和 Seq 都还没有严格对齐解析解。Seq fracture
 排水偏慢仍然明确；matrix 晚期偏差目前受手动 CSV 与解析脚本不一致影响很大，需要先确认
 最终压力基准，再继续判断 FIM/Seq 的物理误差来源。
 
@@ -90,9 +91,15 @@ Fig. 5c CSV 不一致，因此下面改用 workflow 指定的手动 CSV 作为�
 | 10.0 | 0.8840 | 0.8833 | 0.8908 | 0.0001 | 0.0000 | 0.0000 |
 | 100.0 | 0.8905 | 0.8898 | 0.8977 | 0.0000 | 0.0000 | 0.0000 |
 
-结论：FIM 同源平台期已与当前解析脚本一致；Seq 同源稳定跑通且平台期明显改善，
-但 matrix 平台期相对 FIM/解析略高，晚期排水仍有差异。后续 Seq 问题应在同源荷载基准下继续查，
+结论：FIM 同源平台期已与当前解析脚本一致；Seq 同源稳定跑通且平台期明显改善。
+当前 FIM/Seq 的初值、过冲、平台段和排水主趋势已经大致对上，剩余 matrix 平台略高、局部排水时间
+偏差等问题归类为精度不足。后续问题应在同源荷载和明确解析基准下继续查离散/分裂误差，
 不应再用 `crossStorageOffDiagScale=0.911` 或其他非物理缩放补偿。
+
+2026-07-16 进一步检查发现，基质无量纲压力在 `tau≈10^3` 和 `tau≈10^4` 附近的不平滑来自
+`t=10000 s`、`t=100000 s` 的 late-time 求解步长分段。将 `10000 s` 之后的 FIM/Seq
+`forceDt` 统一为 `300 s` 后，两个窗口内压力保持单调，局部折线消失；这只是时间离散精度调整，
+不改变物理参数和 coupling 公式。
 
 PDF 直接核查：用 PyMuPDF 渲染论文第 12 页后，Fig. 5c primary 曲线确实在横轴约
 `10^3-10^4` 进入快速下降，手动 CSV 的晚期下降趋势与论文图一致。当前解析脚本和 GEOS
@@ -126,8 +133,8 @@ kappa 试验图和旧 Fig5c 诊断图。2026-07-16 继续删除旧 total-stress/
 图、旧 sameSourcePressure 临时对比图，以及 `script/` 目录下早期 `GEOS_vs_analytical*.png` 截图。
 当前保留图片为：
 
-- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_CN.png`
-- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_EN.png`
+- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_CN.png`
+- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_EN.png`
 - `analitical_result/load_curve_old_vs_sameSourcePressure_20260716_0313.png`
 
 ## 已清理的历史输入表
@@ -198,3 +205,6 @@ kappa 试验图和旧 Fig5c 诊断图。2026-07-16 继续删除旧 total-stress/
 3. 当前保留 Seq 输入不需要 pressure relaxation。
 4. 当前保留的同源 FIM/Seq 都使用 `crossStorageOffDiagScale="1.0"`；历史 0.911 拟合输入已删除。
 5. 2026-07-15 发现手动 Fig. 5c CSV 与解析脚本曲线不一致；继续调求解器前应先确认最终基准。
+6. 2026-07-16 同源 pressure 标定后，当前结论改为：验证大致内容已对上，剩余为局部精度不足。
+7. 2026-07-16 将 `10000 s` 之后 late-time 求解步长统一为 `300 s`，解决 `tau≈10^3-10^4`
+   基质压力图形折线；最终图更新为 `20260716_1245` 版本。

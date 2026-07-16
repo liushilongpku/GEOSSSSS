@@ -175,8 +175,8 @@ N=2 形式：
 力学侧和当前有效介质输入。
 
 `crossStorageOffDiagScale="1.0"` 是无经验 offdiag 缩放对照。`crossStorageOffDiagScale="0.911"`
-是经验拟合输入，不应误写成无修正物理输入。关于 0.911 和当前解析基准不一致问题的定位，以
-`DPDP_Mandel_findings_current_status.md` 为准。
+是历史经验拟合输入，已删除，不再作为当前验证输入；它不应误写成无修正物理输入。
+关于 0.911 和当前解析基准不一致问题的定位，以 `DPDP_Mandel_findings_current_status.md` 为准。
 
 FIM Newton 步长由 `fimNewtonRelaxation` 控制。代码默认值是 `0.5`；当前保留的两个 FIM XML 显式设置为
 `0.7`。

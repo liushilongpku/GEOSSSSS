@@ -70,6 +70,8 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 - `defaultReferencePorosity` 输入 intrinsic 孔隙度；程序只将 `v_i` 乘入 storage/reference porosity。
   `permeabilityComponents` 不会再由 dual-continuum 初始化乘 `v_i`，因此本验证中必须直接输入 `kappa_i`
 - 该 deck 使用同源 pressure 标定的初始压力和位移荷载，是当前主 FIM 验证输入
+- `10000 s` 之后保持 `forceDt="300"`。`tau≈10^3-10^4` 的基质压力晚期快速下降段对时间步较敏感；
+  粗步长会在对比图中形成非物理折线
 
 ### 2.2 Sequential 同源 pressure 标定算例
 
@@ -97,6 +99,8 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
   时间步外耦合只迭代一次、下一步再补偿，在 `tau≈0.8-1` 附近形成压力锯齿
 - 不要恢复旧的 `10 Pa` 外迭代容差和全程细时间步。该保守设置主要是旧 storage / cross-storage
   split 问题下的兜底；当前储量与 split 修正后，`100 Pa` 已能无切步跑完整程
+- `10000 s` 之后保持 `forceDt="300"`。该设置用于消除 `tau≈10^3` 和 `tau≈10^4` 附近由 late-time
+  时间步分段造成的基质压力折线；它不是 pressure relaxation，也不改变物理参数
 - 该 deck 使用同源 pressure 标定的初始压力和位移荷载，是当前主 Seq 验证输入
 - 孔隙度输入为 intrinsic 孔隙度，裂缝总体孔隙贡献按
   `fractureVolumeFraction * fracturePorosity` 理解和检查
@@ -306,20 +310,20 @@ GEOS_pressure_sameSource_FIM_Seq_analytical_YYYYMMDD_HHMM.png
 
 ### 4.6 当前 Seq 时间尺度检查记录
 
-最近一次已完成的 Seq 时间尺度检查：
+最近一次已完成的 Seq 时间尺度和平滑性检查：
 
 - XML: `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
 - 输出目录:
-  `/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/seq`
+  `/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/seq`
 - log:
-  `/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/seq.log`
+  `/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/seq.log`
 - 图:
-  `/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/final_pressure_compare.png`
+  `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_CN.png`
 - 设置:
   `useIntrinsicInput=0`、fracture effective `K/G=4.514e8/3.108e8`、
-  `maxSequentialPressureChange=100 Pa`
+  `maxSequentialPressureChange=100 Pa`、`10000 s` 之后 `forceDt=300 s`
 - 运行结果:
-  `422` 个时间步，`0` 次 time step cut，总时间约 `15.5 s`
+  `1373` 个时间步，`0` 次 time step cut，总时间约 `29.8 s`
 
 排水时间尺度：
 
@@ -334,14 +338,17 @@ p_f/p0 = 0.1: manual 0.551803, Seq 1.080100
 actual 0.1s-10s: matrix pressure 一阶差分无符号反转
 actual 8s-30s:   matrix pressure 一阶差分无符号反转
 tau 0.1-10:      matrix pressure 一阶差分无符号反转
+tau 800-1200:    matrix pressure 一阶差分无符号反转，最大斜率跳变约 0.0136
+tau 9000-10500:  matrix pressure 一阶差分无符号反转，最大斜率跳变约 0.0100
 ```
 
-Seq 求解策略对照：
+Seq 求解策略历史对照：
 
 ```text
 旧保守策略基线: 约 776 步，4974 次 nonlinear iteration，0 次切步，约 35.5 s
-当前默认策略:   422 步，2006 次 nonlinear iteration，0 次切步，约 15.5 s
+旧当前默认策略: 422 步，2006 次 nonlinear iteration，0 次切步，约 15.5 s
 早期细时间步对照: 734 步，2996 次 nonlinear iteration，0 次切步，约 31.0 s
+当前 late-time 平滑策略: 1373 步，3145 次 nonlinear iteration，0 次切步，约 29.8 s
 ```
 
 早期细时间步对照保留 `maxSequentialPressureChange=100 Pa`，只把 `0.1-30 s` 的时间步恢复到旧细分段。
@@ -352,7 +359,8 @@ p_f/p0 = 0.5: current 0.421253, fine-early-dt 0.421902
 p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
 ```
 
-因此当前 Seq 不应再使用旧保守时间步作为默认验证策略；剩余的排水偏慢问题应作为模型/分裂精度问题跟踪。
+因此当前 Seq 不应再使用旧保守时间步作为默认验证策略；但为了图形平滑和晚期快速下降段精度，
+`10000 s` 之后保留 `forceDt=300 s`。剩余的排水偏差应作为模型/分裂精度问题跟踪。
 
 未解决问题的当前状态见 `DPDP_Mandel_findings_current_status.md`。
 

@@ -85,7 +85,7 @@ Mehrabian-Abousleiman 恒应变 storage 写成：
 当前约定：
 
 - `crossStorageOffDiagScale="1.0"`：无经验 offdiag 缩放，对照输入。
-- `crossStorageOffDiagScale="0.911"`：经验拟合保留输入。
+- `crossStorageOffDiagScale="0.911"`：历史经验拟合输入，已删除，不再作为当前验证输入。
 - `0.911` 不应写成“无修正物理输入”；其当前定位和解析基准不一致问题以
   `DPDP_Mandel_findings_current_status.md` 为准。
 

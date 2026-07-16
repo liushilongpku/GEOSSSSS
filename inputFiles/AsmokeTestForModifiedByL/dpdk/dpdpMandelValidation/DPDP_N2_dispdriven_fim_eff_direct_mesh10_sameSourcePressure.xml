@@ -260,8 +260,8 @@
     <PeriodicEvent name="solverPhase4" beginTime="10.0" endTime="100.0" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase5" beginTime="100.0" endTime="1000.0" target="/Solvers/poroSolver"/>
     <PeriodicEvent name="solverPhase6" beginTime="1000.0" endTime="10000.0" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase7" beginTime="10000.0" endTime="100000.0" target="/Solvers/poroSolver"/>
-    <PeriodicEvent name="solverPhase8" beginTime="100000.0" endTime="308412.0" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase7" beginTime="10000.0" endTime="100000.0" forceDt="300" target="/Solvers/poroSolver"/>
+    <PeriodicEvent name="solverPhase8" beginTime="100000.0" endTime="308412.0" forceDt="300" target="/Solvers/poroSolver"/>
 
     <PeriodicEvent name="pressureMatrixEvent" target="/Tasks/pressureMatrixCollection"/>
     <PeriodicEvent name="pressureMatrixOutputEvent" targetExactTimestep="0" target="/Outputs/pressureMatrixHistory"/>
