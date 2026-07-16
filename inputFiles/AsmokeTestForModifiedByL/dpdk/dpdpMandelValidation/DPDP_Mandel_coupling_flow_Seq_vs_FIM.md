@@ -81,7 +81,7 @@ Mechanics -> Flow 映射
 
 ### 1.2 effective-input 与 intrinsic-input 的区别
 
-当前主 Seq 输入文件 `DPDP_N2_dispdriven_seq_eff.xml` 使用：
+当前主 Seq 输入文件 `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` 使用：
 
 ```xml
 useIntrinsicInput="0"
@@ -185,16 +185,15 @@ FIM Newton 步长由 `fimNewtonRelaxation` 控制。代码默认值是 `0.5`；�
 
 ## 3. 当前保留输入文件
 
-截至 2026-07-15，本目录用于主验证的 XML 为：
+截至 2026-07-16，本目录用于主验证的 XML 为：
 
 | 输入文件 | 用途 |
 |---|---|
-| `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml` | FIM 0.911，经验拟合输入 |
-| `DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml` | FIM 1.0，无经验 offdiag 缩放对照 |
-| `DPDP_N2_dispdriven_seq_eff.xml` | 当前 effective-input Sequential 输入 |
+| `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` | 同源 pressure 标定 FIM 输入 |
+| `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | 同源 pressure 标定 Sequential 输入 |
 
-旧的 `correctLF`、stress-load、intrinsic/effective 试验 deck 不再作为当前主验证输入。历史试错文件的
-清理记录见 `DPDP_Mandel_trial_history_and_cleanup.md`。
+旧的 `correctLF`、stress-load、intrinsic/effective、0.911 拟合和非同源试验 deck 不再作为当前主验证输入。
+历史试错文件的清理记录见 `DPDP_Mandel_trial_history_and_cleanup.md`。
 
 ---
 
@@ -209,7 +208,7 @@ FIM Newton 步长由 `fimNewtonRelaxation` 控制。代码默认值是 `0.5`；�
 | 复合压力 | 仅 intrinsic-input Sequential 使用 | 不使用 |
 | cross-storage offdiag | Sequential split 下对外迭代滞后，保证固定点迭代收缩 | 直接进入单体 residual/Jacobian |
 | relaxation | 当前验证不需要 pressure relaxation | XML 可显式设置 `fimNewtonRelaxation`；代码默认 0.5 |
-| 当前代表 deck | `DPDP_N2_dispdriven_seq_eff.xml` | `DPDP_N2_dispdriven_fim_eff_direct_mesh10*.xml` |
+| 当前代表 deck | `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` |
 
 ---
 

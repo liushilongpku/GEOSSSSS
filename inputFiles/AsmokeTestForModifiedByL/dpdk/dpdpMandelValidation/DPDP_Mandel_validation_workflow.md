@@ -4,11 +4,10 @@
 Mandel 算例。目标是让后续更新验证算例时有固定流程，避免混用历史试验文件、覆盖旧结果，
 或把阶段性调通结果误认为最终物理验证通过。
 
-2026-07-15 清理后，目录中只保留三个可运行 XML 输入：
+2026-07-16 清理后，目录中只保留两个当前主验证 XML 输入：
 
-1. `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml`：FIM 0.911，经验拟合对照。
-2. `DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml`：FIM 1.0，无 cross-storage offdiag 经验修正。
-3. `DPDP_N2_dispdriven_seq_eff.xml`：当前 Seq。
+1. `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml`：同源 pressure 标定的全耦合法输入。
+2. `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`：同源 pressure 标定的迭代耦合法输入。
 
 历史试错 deck 已删除，差异和删除原因记录在
 `DPDP_Mandel_trial_history_and_cleanup.md`。技术结论和问题状态记录在
@@ -54,44 +53,29 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 
 ## 2. 推荐算例
 
-### 2.1 FIM 0.911 经验拟合算例
+### 2.1 FIM 同源 pressure 标定算例
 
 基准文件：
 
-`DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml`
-
-验证前必须确认：
-
-- `couplingType="FullyImplicit"`
-- `enableFimCrossStorage="1"`
-- `crossStorageOffDiagScale="0.911"`
-- mesh 为 `nx="{ 10 }"`、`nz="{ 10 }"`
-- 裂缝体积分数 `fractureVolumeFraction="0.03"`
-- 裂缝渗透率采用体积加权后的 bulk flux contribution，即 `kappa_f = v_f * k_f`
-- `defaultReferencePorosity` 输入 intrinsic 孔隙度；程序只将 `v_i` 乘入 storage/reference porosity。
-  `permeabilityComponents` 不会再由 dual-continuum 初始化乘 `v_i`，因此本验证中必须直接输入 `kappa_i`
-- 该 deck 作为经验拟合 FIM 对照保留；0.911 的技术定位以
-  `DPDP_Mandel_findings_current_status.md` 为准
-
-### 2.2 FIM 无修正对照算例
-
-基准文件：
-
-`DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml`
+`DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml`
 
 验证前必须确认：
 
 - `couplingType="FullyImplicit"`
 - `enableFimCrossStorage="1"`
 - `crossStorageOffDiagScale="1.0"`
-- 除文件头注释和 `crossStorageOffDiagScale` 外，应与 FIM 0.911 主拟合算例一致
-- 该 deck 用于检查不使用经验 cross-storage offdiag 缩放时与解析解和 Seq 的偏差
+- mesh 为 `nx="{ 10 }"`、`nz="{ 10 }"`
+- 裂缝体积分数 `fractureVolumeFraction="0.03"`
+- 裂缝渗透率采用体积加权后的 bulk flux contribution，即 `kappa_f = v_f * k_f`
+- `defaultReferencePorosity` 输入 intrinsic 孔隙度；程序只将 `v_i` 乘入 storage/reference porosity。
+  `permeabilityComponents` 不会再由 dual-continuum 初始化乘 `v_i`，因此本验证中必须直接输入 `kappa_i`
+- 该 deck 使用同源 pressure 标定的初始压力和位移荷载，是当前主 FIM 验证输入
 
-### 2.3 Sequential 对照算例
+### 2.2 Sequential 同源 pressure 标定算例
 
 当前优先使用：
 
-`DPDP_N2_dispdriven_seq_eff.xml`
+`DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
 
 验证前必须确认：
 
@@ -113,6 +97,7 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
   时间步外耦合只迭代一次、下一步再补偿，在 `tau≈0.8-1` 附近形成压力锯齿
 - 不要恢复旧的 `10 Pa` 外迭代容差和全程细时间步。该保守设置主要是旧 storage / cross-storage
   split 问题下的兜底；当前储量与 split 修正后，`100 Pa` 已能无切步跑完整程
+- 该 deck 使用同源 pressure 标定的初始压力和位移荷载，是当前主 Seq 验证输入
 - 孔隙度输入为 intrinsic 孔隙度，裂缝总体孔隙贡献按
   `fractureVolumeFraction * fracturePorosity` 理解和检查
 
@@ -129,9 +114,8 @@ inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/<case>_<date>
 每个保留算例单独建子目录，例如：
 
 ```bash
-inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/fim_0911_mesh10_YYYYMMDD_01/
-inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/fim_noCorrection_mesh10_YYYYMMDD_01/
-inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/seq_current_mesh10_YYYYMMDD_01/
+inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/fim_sameSourcePressure_mesh10_YYYYMMDD_01/
+inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/seq_sameSourcePressure_mesh10_YYYYMMDD_01/
 ```
 
 每个子目录至少保留：
@@ -152,7 +136,7 @@ Seq 单核命令模板：
 
 ```bash
 build-ubuntu-lsl-release/bin/geosx -x 1 -y 1 -z 1 \
-  -i inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/DPDP_N2_dispdriven_seq_eff.xml \
+  -i inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml \
   -o inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/<seq_output_dir> \
   > inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/<seq_output_dir>.log 2>&1
 ```
@@ -181,7 +165,7 @@ mpirun -np 4 build-ubuntu-lsl-release/bin/geosx -x 4 \
 - direct solver 是否正常完成
 - 是否触发孔隙度、体积分数、Biot 系数或 intrinsic/effective 输入检查
 
-### 4.2 FIM 0.911 vs FIM 无修正
+### 4.2 FIM vs Sequential 同源对比
 
 比较：
 
@@ -191,9 +175,9 @@ mpirun -np 4 build-ubuntu-lsl-release/bin/geosx -x 4 \
 
 目标：
 
-- 两个输入除文件头注释和 `crossStorageOffDiagScale` 外应保持一致
-- FIM 0.911 用作经验拟合对照；FIM 无修正用于检查不使用经验缩放时的偏差
-- 若两者差异异常，应先检查运行使用的 XML 副本是否确实只改变了 `crossStorageOffDiagScale`
+- 两个输入使用同一套同源 pressure 标定的初始压力和位移荷载
+- 两个输入都使用 `crossStorageOffDiagScale="1.0"`
+- 若两者差异异常，应先检查运行使用的 XML 副本、输出目录和绘图取样位置是否一致
 
 ### 4.3 任意 GEOS 案例 vs 解析解
 
@@ -284,9 +268,8 @@ inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_v
 
 ```bash
 python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_vs_analytical.py \
-  --case "FIM 0.911=<fim_0911_output_dir>" \
-  --case "FIM 1.0=<fim_noCorrection_output_dir>" \
-  --case "Seq=<seq_output_dir>" \
+  --case "FIM=<fim_sameSourcePressure_output_dir>" \
+  --case "Seq=<seq_sameSourcePressure_output_dir>" \
   --show-script-analytical \
   --out <plot_output_dir>/geos_vs_fig5c_pressure.png
 ```
@@ -316,7 +299,7 @@ python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plo
 若把最终主对比图归档到 `analitical_result/`，文件名必须包含日期时间戳，例如：
 
 ```text
-GEOS_pressure_compare_FIM0911_FIM1000_Seq_fig5cCSV_YYYYMMDD_HHMM.png
+GEOS_pressure_sameSource_FIM_Seq_analytical_YYYYMMDD_HHMM.png
 ```
 
 解析解脚本路径已经改为相对当前验证目录，不再依赖机器上的绝对路径。
@@ -325,7 +308,7 @@ GEOS_pressure_compare_FIM0911_FIM1000_Seq_fig5cCSV_YYYYMMDD_HHMM.png
 
 最近一次已完成的 Seq 时间尺度检查：
 
-- XML: `DPDP_N2_dispdriven_seq_eff.xml`
+- XML: `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
 - 输出目录:
   `/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/seq`
 - log:
@@ -379,24 +362,23 @@ p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
 
 当前阶段只要求：
 
-- FIM 0.911、FIM 无修正、Sequential 三个保留算例完整跑完，time step cut 为 0 或有明确说明
-- 通用绘图脚本能把三个保留算例与解析解放在同一张图中，并输出误差汇总 CSV
+- 同源 FIM、同源 Sequential 两个保留算例完整跑完，time step cut 为 0 或有明确说明
+- 通用绘图脚本能把两个保留算例与解析解放在同一张图中，并输出误差汇总 CSV
 - 曲线没有由外耦合提前停止导致的锯齿
-- FIM 0.911 明确标记为经验拟合输入，FIM 无修正明确标记为 `crossStorageOffDiagScale="1.0"` 对照
+- 两个保留输入均明确使用 `crossStorageOffDiagScale="1.0"`
 - 不通过混用 intrinsic/effective K、Biot、孔隙度来“调曲线”
 
 ### 5.2 完整通过：FIM/Seq 物理验证
 
 完整一轮验证通过需要同时满足：
 
-- FIM 0.911、FIM 无修正、Sequential 三个保留算例均完整跑完
-- FIM 无修正使用 `crossStorageOffDiagScale="1.0"`，作为无经验缩放对照
-- FIM 0.911 只作为经验拟合对照，不应误写成无修正物理输入
+- 同源 FIM、同源 Sequential 两个保留算例均完整跑完
+- 两个保留输入均使用 `crossStorageOffDiagScale="1.0"`
 - FIM 与手动解析 pressure 点在峰值、平台、排水时间尺度和晚期衰减趋势上合理一致
 - Sequential 与手动解析 pressure 点趋势一致，若与 FIM 有差异，需要给出可解释原因
 - 未出现孔隙度、体积分数、Biot 系数、裂缝参考孔隙度相对体积等输入概念混用
 
-截至 2026-07-15，当前验证只达到 5.1 的可运行与可对比阶段；5.2 的解析一致性仍未完成。
+截至 2026-07-16，当前同源验证已达到 5.1 的可运行与可对比阶段；5.2 的解析一致性仍需继续跟踪。
 当前 FIM 和 Seq 与解析解的偏差见 `DPDP_Mandel_findings_current_status.md`。
 
 ## 6. 更新算例时的检查清单
@@ -410,11 +392,11 @@ p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
 - 是否没有把运行结果或试错结论写入 `problem_description/`
 - `mandel_input_tables/` 是否只保留当前 XML 实际引用的表；历史加载/诊断表若删除，是否记录到
   `DPDP_Mandel_trial_history_and_cleanup.md`
-- `DPDP_N2_dispdriven_seq_eff.xml` 是否保持为当前主 Seq 时间尺度验证 deck
+- `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` 是否保持为当前主 Seq 时间尺度验证 deck
 - Seq effective 输入模式中 matrix/fracture K/G 和 Biot 是否均为 effective 参数，没有再混入
   fracture intrinsic 小刚度
 - Seq 的 `maxSequentialPressureChange` 是否保持在 `1.0e2 Pa` 量级，避免外耦合单步提前停止
-- FIM 0.911 与 FIM 无修正是否只在 `crossStorageOffDiagScale` 上有实质差异
+- FIM/Seq 同源输入是否使用同一套 pressure 标定表和位移荷载，且均为 `crossStorageOffDiagScale="1.0"`
 - 绘图脚本是否用 `--case` 明确标注了每条曲线对应的输出目录
 - Seq/FIM 耦合路径、输入模式或 cross-storage 处理若发生变化，是否同步更新
   `DPDP_Mandel_coupling_flow_Seq_vs_FIM.md`

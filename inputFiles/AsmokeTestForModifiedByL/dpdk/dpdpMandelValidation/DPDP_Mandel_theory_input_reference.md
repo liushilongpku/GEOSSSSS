@@ -132,14 +132,14 @@ fracture pore contribution = v_f * phi_f
 
 ### 4.1 `useIntrinsicInput="0"`：effective input
 
-这是默认模式，也是当前保留三个主验证 XML 的模式。
+这是默认模式，也是当前保留两个主验证 XML 的模式。
 
 在该模式下：
 
 - matrix/fracture 本构中的 `K/G/Biot` 已经是 effective 值；
 - `DualContinuumCrossFlow` 中仍需提供 intrinsic matrix/fracture 参数，用于 storage 公式；
 - 求解器不会再次均匀化本构参数；
-- 当前主 Seq `DPDP_N2_dispdriven_seq_eff.xml` 不使用复合压力路径。
+- 当前主 Seq `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` 不使用复合压力路径。
 
 当前 effective input 的关键值：
 
@@ -188,13 +188,12 @@ alpha_m * p_eq = abar_m * p_m + abar_f * p_f
 
 ## 5. 当前保留输入文件
 
-截至 2026-07-15，当前主验证只保留三个 XML：
+截至 2026-07-16，当前主验证只保留两个 XML：
 
 | 输入文件 | 模式 | 用途 |
 |---|---|---|
-| `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml` | FIM effective input, `crossStorageOffDiagScale=0.911` | 经验拟合 FIM 输入 |
-| `DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml` | FIM effective input, `crossStorageOffDiagScale=1.0` | 无经验 offdiag 缩放对照 |
-| `DPDP_N2_dispdriven_seq_eff.xml` | Sequential effective input, `crossStorageOffDiagScale=1.0` | 当前主 Seq 输入 |
+| `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` | FIM effective input, `crossStorageOffDiagScale=1.0` | 当前同源全耦合法输入 |
+| `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | Sequential effective input, `crossStorageOffDiagScale=1.0` | 当前同源迭代耦合法输入 |
 
 历史 intrinsic、stress-load、correctLF、kappa 扫描等 deck 的保留/删除原因见
 `DPDP_Mandel_trial_history_and_cleanup.md`。

@@ -1,28 +1,43 @@
 # DPDP Mandel 试错历史与文件清理记录
 
-本目录清理后，只保留能复现当前 Mandel-Cryer 压力对比的三个输入文件：
+本目录清理后，只保留两份同源验证输入：
 
 | 案例 | 输入文件 | 用途 |
 |---|---|---|
-| FIM 0.911 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10.xml` | 全隐式耦合，10x10，direct 求解器，有效介质力学参数，`crossStorageOffDiagScale="0.911"`。这是经验拟合 FIM 输入。 |
-| FIM 无修正 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_noCorrection.xml` | 与 FIM 0.911 输入相同，只把 `crossStorageOffDiagScale` 改为 `1.0`。这是不使用经验 cross-storage offdiag 缩放的 FIM 对照。 |
-| 当前 Seq | `DPDP_N2_dispdriven_seq_eff.xml` | Sequential 耦合，10x10，有效介质力学参数，`crossStorageOffDiagScale="1.0"`，压力外迭代变化容差 `100 Pa`。这是当前修复后的 Seq 验证输入。 |
+| FIM 同源 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` | 全耦合法，同源 pressure 标定初始压力和位移荷载，`crossStorageOffDiagScale="1.0"`。这是当前主对比中的 FIM 输入。 |
+| Seq 同源 | `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | 迭代耦合法，同源 pressure 标定初始压力和位移荷载，`crossStorageOffDiagScale="1.0"`。这是当前主对比中的 Seq 输入。 |
 
-最新对比使用的输出目录：
+已删除的历史三案例曾使用的输出目录：
 
 - FIM 0.911：`/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/fim0911`
 - FIM 无修正：`/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/fim1000`
 - 当前 Seq：`/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/seq`
 
-最新对比图：
+历史三案例 XML 和对比图已不再长期保留；当前主图见下面同源 pressure 标定验证。
 
-- `/tmp/dpdp_mandel_final_check_after_seq_strategy_20260715/geos_vs_fig5c_pressure.png`
-- `analitical_result/GEOS_pressure_compare_FIM0911_FIM1000_Seq_fig5cCSV_20260715_2141.png`
+2026-07-16 新增同源 pressure 标定验证：
+
+- FIM 同源输入：`DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml`
+- Seq 同源输入：`DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
+- FIM 输出：`/tmp/dpdp_same_source_unscaled_final_after_rebuild_20260716_111346/fim`
+- Seq 输出：`/tmp/dpdp_same_source_unscaled_final_after_rebuild_20260716_111346/seq`
+- 英文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_EN.png`
+- 中文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_CN.png`
+- 新旧位移荷载对比：`analitical_result/load_curve_old_vs_sameSourcePressure_20260716_0313.png`
+
+本轮只比较当前解析脚本、FIM 同源、Seq 同源，不再把 0.911 拟合输入放入主图。图例中不强调
+`crossStorageOffDiagScale`，中文图将 FIM/Seq 分别标为“全耦合法”和“迭代耦合法”；输入文件仍是
+`crossStorageOffDiagScale="1.0"` 的同源对照。
+
+2026-07-16 最终重跑时曾出现 Seq 首步不收敛。核查发现失败使用的是 2026-07-13 的旧
+`build/bin/geosx`，而 Seq 修复提交在其后；重新编译后，同一输入可完整跑通。此次还修正了
+同源 XML 生成物的格式问题：生成注释必须放在 XML declaration 之后，`loadFunction0000000`
+片段改为 `.txt`，避免被全仓库 XML validation 当作完整 XML 校验。
 
 ## 关键结果
 
-两个 FIM 输入都完成了完整验证，均为 297 个时间步、0 次切步。当前 Seq 输入完成完整验证，
-为 422 个时间步、0 次切步。
+同源 FIM 完成完整验证，为 297 个时间步、0 次切步。同源 Seq 完成完整验证，为 422 个时间步、
+0 次切步。
 
 最新对比中的归一化压力峰值：
 
@@ -54,9 +69,30 @@ Fig. 5c CSV 不一致，因此下面改用 workflow 指定的手动 CSV 作为�
 | 1000 | 0.7611 | 0.8763 | 0.8148 | 0.8707 | -0.0022 | 0.0000 | 0.0000 | 0.0000 |
 | 3000 | 0.3262 | 0.6525 | 0.6078 | 0.7363 | -0.0027 | 0.0000 | 0.0000 | 0.0000 |
 
-结论：当前三个 deck 都能完整跑通，但 FIM 和 Seq 都还没有严格对齐解析解。Seq fracture
+结论：历史三个 deck 都能完整跑通，但 FIM 和 Seq 都还没有严格对齐解析解。Seq fracture
 排水偏慢仍然明确；matrix 晚期偏差目前受手动 CSV 与解析脚本不一致影响很大，需要先确认
 最终压力基准，再继续判断 FIM/Seq 的物理误差来源。
+
+2026-07-16 追查发现，历史 deck 的平台期偏低不是 FIM/Seq 程序必须使用 `0.911` 的证据，
+而是初始压力和位移荷载混源造成的。历史 XML 使用 `p_m0/p_f0=0.455/0.488 Pc`，但旧位移
+荷载初值 `|u_z0|=1.796142e-05 m` 对应 `2G|u_z0|/(P_c b)≈0.372`；按当前同源解析脚本与该
+压力基准闭合，应为 `|u_z0|≈2.50037e-05 m`、`2G|u_z0|/(P_c b)≈0.518`。新旧荷载表时间点相同，
+新表基本等于旧表整体乘以约 `1.392`，归一化形状差异约 `1e-4`。
+
+同源 pressure 标定后的代表采样点：
+
+| `tau` | 解析 matrix | FIM 同源 | Seq 同源 | 解析 fracture | FIM 同源 | Seq 同源 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.1 | 1.0597 | 1.0535 | 1.0549 | 0.9053 | 0.8766 | 0.8905 |
+| 0.3 | 0.9668 | 0.9654 | 0.9667 | 0.4297 | 0.4225 | 0.4223 |
+| 1.0 | 0.8882 | 0.8867 | 0.8942 | 0.0313 | 0.0265 | 0.0296 |
+| 3.0 | 0.8827 | 0.8820 | 0.8896 | 0.0001 | 0.0002 | 0.0001 |
+| 10.0 | 0.8840 | 0.8833 | 0.8908 | 0.0001 | 0.0000 | 0.0000 |
+| 100.0 | 0.8905 | 0.8898 | 0.8977 | 0.0000 | 0.0000 | 0.0000 |
+
+结论：FIM 同源平台期已与当前解析脚本一致；Seq 同源稳定跑通且平台期明显改善，
+但 matrix 平台期相对 FIM/解析略高，晚期排水仍有差异。后续 Seq 问题应在同源荷载基准下继续查，
+不应再用 `crossStorageOffDiagScale=0.911` 或其他非物理缩放补偿。
 
 PDF 直接核查：用 PyMuPDF 渲染论文第 12 页后，Fig. 5c primary 曲线确实在横轴约
 `10^3-10^4` 进入快速下降，手动 CSV 的晚期下降趋势与论文图一致。当前解析脚本和 GEOS
@@ -84,20 +120,28 @@ PDF 直接核查：用 PyMuPDF 渲染论文第 12 页后，Fig. 5c primary 曲�
 
 ## 已清理的历史图片
 
-`analitical_result/` 只长期保留手动解析 CSV 和带时间戳的当前主对比图。2026-07-15 清理掉该目录
-中旧阶段 PNG，包括旧 FIM/Seq 单案例图、digitized 对比图、BROKEN/历史 kappa 试验图和旧 Fig5c
-诊断图。当前保留图片为：
+`analitical_result/` 只长期保留手动解析 CSV、当前主对比图和用于说明历史混源错误的 load 曲线。
+2026-07-15 清理掉该目录中旧阶段 PNG，包括旧 FIM/Seq 单案例图、digitized 对比图、BROKEN/历史
+kappa 试验图和旧 Fig5c 诊断图。2026-07-16 继续删除旧 total-stress/scale 对比图、旧三案例 Fig5c
+图、旧 sameSourcePressure 临时对比图，以及 `script/` 目录下早期 `GEOS_vs_analytical*.png` 截图。
+当前保留图片为：
 
-- `analitical_result/GEOS_pressure_compare_FIM0911_FIM1000_Seq_fig5cCSV_20260715_2141.png`
+- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_CN.png`
+- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1114_EN.png`
+- `analitical_result/load_curve_old_vs_sameSourcePressure_20260716_0313.png`
 
 ## 已清理的历史输入表
 
-`mandel_input_tables/` 只保留当前三个 XML 实际引用的初始位移表：
+`mandel_input_tables/` 保留基础初始位移表，以及同源 pressure 验证 XML 引用的
+`same_source_pressure_calibrated/` 表：
 
 - `xlin.geos`, `ylin.geos`, `zlin.geos`, `ux.geos`
 - `xlin2.geos`, `ylin2.geos`, `zlin2.geos`, `uz.geos`
 
 2026-07-15 删除未被当前保留 XML 或脚本引用的旧加载/诊断表：
+
+2026-07-16 删除 `same_source_displacement_calibrated/`，该目录只是检查旧位移标定来源的中间生成物；
+历史错误已记录在本文和 findings 中，最终同源 XML 只引用 `same_source_pressure_calibrated/`。
 
 - `u_z_0.5.geos`
 - `u_z_analitical.csv`
@@ -152,6 +196,5 @@ PDF 直接核查：用 PyMuPDF 渲染论文第 12 页后，Fig. 5c primary 曲�
 2. 当前 Seq 在 fixed-stress Sequential 模式下滞后 cross-storage offdiag 项；这是分裂稳定化，不是
    改物理系数。只要外迭代收敛，固定点在压力外迭代容差内不变。
 3. 当前保留 Seq 输入不需要 pressure relaxation。
-4. 无修正 FIM 保留 `crossStorageOffDiagScale="1.0"`，用于检查不使用经验缩放时的结果。
-5. FIM 0.911 作为经验拟合输入保留，用于和无修正 FIM、当前 Seq、解析解放在同一张图里比较。
-6. 2026-07-15 发现手动 Fig. 5c CSV 与解析脚本曲线不一致；继续调求解器前应先确认最终基准。
+4. 当前保留的同源 FIM/Seq 都使用 `crossStorageOffDiagScale="1.0"`；历史 0.911 拟合输入已删除。
+5. 2026-07-15 发现手动 Fig. 5c CSV 与解析脚本曲线不一致；继续调求解器前应先确认最终基准。
