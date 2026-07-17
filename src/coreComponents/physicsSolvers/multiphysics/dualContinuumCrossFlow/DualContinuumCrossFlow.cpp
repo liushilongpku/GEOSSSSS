@@ -71,28 +71,31 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
                     "multi-porosity effective storage matrix. <0 disables the "
                     "cross-storage correction (legacy per-continuum storage)." );
 
-  registerWrapper( viewKeyStruct::intrinsicMatrixBiotString(), &m_intrinsicMatrixBiot ).
-    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
-    setDescription( "Intrinsic matrix Biot coefficient for the FIM M_bar storage; <0 = use material." );
-  registerWrapper( viewKeyStruct::intrinsicMatrixBulkModulusString(), &m_intrinsicMatrixBulkModulus ).
-    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
-    setDescription( "Intrinsic matrix drained bulk modulus for the FIM M_bar storage; <0 = use material." );
-  registerWrapper( viewKeyStruct::intrinsicFractureBiotString(), &m_intrinsicFractureBiot ).
-    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
-    setDescription( "Intrinsic fracture Biot coefficient for the FIM M_bar storage; <0 = use material." );
-  registerWrapper( viewKeyStruct::intrinsicFractureBulkModulusString(), &m_intrinsicFractureBulkModulus ).
-    setApplyDefaultValue( -1.0 ).setInputFlag( InputFlags::OPTIONAL ).
-    setDescription( "Intrinsic fracture drained bulk modulus for the FIM M_bar storage; <0 = use material." );
+  registerWrapper( viewKeyStruct::effectiveMatrixStorageString(), &m_effectiveMatrixStorage ).
+    setApplyDefaultValue( 0.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Direct effective matrix storage coefficient Sbar_mm [1/Pa] for the multi-porosity "
+                    "storage matrix. When positive, bypasses the intrinsic-property reconstruction of "
+                    "Sbar_mm. Single-phase inputs include the fluid compressibility contribution; "
+                    "compositional inputs should provide the skeleton part used by the compositional "
+                    "cross-storage correction." );
+  registerWrapper( viewKeyStruct::effectiveFractureStorageString(), &m_effectiveFractureStorage ).
+    setApplyDefaultValue( 0.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Direct effective fracture storage coefficient Sbar_ff [1/Pa] for the multi-porosity "
+                    "storage matrix. When positive, bypasses the intrinsic-property reconstruction of "
+                    "Sbar_ff. Single-phase inputs include the fluid compressibility contribution; "
+                    "compositional inputs should provide the skeleton part used by the compositional "
+                    "cross-storage correction." );
+  registerWrapper( viewKeyStruct::effectiveCrossStorageString(), &m_effectiveCrossStorage ).
+    setApplyDefaultValue( 0.0 ).setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Direct effective off-diagonal storage coefficient Sbar_mf=Sbar_fm [1/Pa] for the "
+                    "multi-porosity storage matrix. This value is usually negative. It is still multiplied "
+                    "by crossStorageOffDiagScale, matching the intrinsic reconstruction path." );
 
   registerWrapper( viewKeyStruct::crossStorageOffDiagScaleString(), &m_crossStorageOffDiagScale ).
     setApplyDefaultValue( 1.0 ).setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). "
-                    "Compensates for the incomplete monolithic-Schur cancellation under laterally "
-                    "confined (Mandel) geometry, where the discrete Q1 mechanical volumetric response "
-                    "is stiffer than the continuum oedometric modulus. MEASURED value 0.911 for the "
-                    "GOM-shale N=2 Mandel case (nu=0.22): the discrete modulus is ~1.21x oedometric, "
-                    "mesh-independent (10x10==20x20); see SinglePhaseDualContinuum.cpp for the full "
-                    "derivation and why it cannot be computed from Kbar/Gbar/nu in closed form." );
+                    "Values other than 1 are retained for compatibility with historical diagnostic "
+                    "scans and should not be used as a physical correction without separate evidence." );
 }
 
 localIndex DualContinuumCrossFlow::findRegionIndexInList( string const & regionName )

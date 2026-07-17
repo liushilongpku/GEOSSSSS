@@ -140,16 +140,17 @@ public:
 
     this->registerWrapper( viewKeyStruct::useIntrinsicInputString(), &m_useIntrinsicInput ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
-      setApplyDefaultValue( 0 ).
-      setDescription( "Material input mode for the dual-continuum effective medium. "
-                      "0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the "
-                      "matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. "
-                      "The solver does not homogenize these values again. "
-                      "1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive "
+      setApplyDefaultValue( 1 ).
+      setDescription( "Mechanics/storage input mode for the dual-continuum effective medium. "
+                      "1 (default): the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive "
                       "models; the solver uses its default homogenization algorithm "
-                      "(Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit homogenizes once "
-                      "at initialization; Sequential uses the runtime composite-pressure mapping. "
-                      "Default is fully backward-compatible for effective-input decks." );
+                      "(Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit and Sequential "
+                      "both homogenize once at initialization. "
+                      "Storage is reconstructed from intrinsic parameters. "
+                      "0: the deck sets all homogenized EFFECTIVE moduli/Biot and the direct effective "
+                      "storage coefficients on DualContinuumCrossFlow; the solver does not homogenize "
+                      "these values again. Porosity and permeability are always intrinsic inputs and "
+                      "are volume-fraction scaled by the dual-continuum flow solver in both modes." );
 
     this->registerWrapper( viewKeyStruct::autoInitializeStressString(), &m_autoInitializeStress ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
@@ -607,9 +608,9 @@ public:
             arrayView1d< real64 const > const p_f_n = fracSubReg.template getField< fields::flow::pressure_n >();
 
             // Fracture receives the SAME shared volumetric strain increment dEps_v as
-            // the matrix. Intrinsic-input Sequential uses avgStress_f=v_f*K_eff*dEps_v.
-            // Effective-input Sequential uses the fracture constitutive Biot as abar_f,
-            // so avgStress_f=K_f*dEps_v gives abar_f*dEps_v. In both cases subtract
+            // the matrix. Both effective-input and intrinsic-input Sequential use the
+            // homogenized fracture constitutive Biot as abar_f, so avgStress_f=K_f*dEps_v
+            // gives abar_f*dEps_v. In both cases subtract
             // alpha_f*dp_f because BiotPorosity expects a mean total stress increment.
             if( matSubReg.hasWrapper( viewKeyStruct::effectiveBulkModulusString() ) )
             {
@@ -733,9 +734,10 @@ private:
 
   bool useCompositePressureForSequential() const
   {
-    return m_useIntrinsicInput != 0 &&
-           this->getNonlinearSolverParameters().couplingType() ==
-           NonlinearSolverParameters::CouplingType::Sequential;
+    // Intrinsic Sequential now uses the same initialization-time homogenized mechanics state as
+    // FullyImplicit. The old runtime composite-pressure path is kept in the source for reference
+    // but is disabled because it is not equivalent to the effective-input validation deck.
+    return false;
   }
 
   void relaxSequentialFlowPressure( DomainPartition & domain ) const
@@ -1032,7 +1034,33 @@ private:
     real64 const intrAm = dualFlow.getIntrinsicMatrixBiot();
     real64 const intrKf = dualFlow.getIntrinsicFractureBulkModulus();
     real64 const intrAf = dualFlow.getIntrinsicFractureBiot();
+    bool const hasAnyIntrinsicStorageInput = dualFlow.hasExplicitIntrinsicStorageInput();
+    bool const hasEffectiveStorageInput = dualFlow.hasEffectiveStorageInput();
     bool const hasExplicitIntrinsics = intrKm > 0.0 && intrAm >= 0.0 && intrKf > 0.0 && intrAf >= 0.0;
+
+    GEOS_THROW_IF( m_useIntrinsicInput == 0 && hasAnyIntrinsicStorageInput,
+                   GEOS_FMT( "{}: useIntrinsicInput=0 is the effective mechanics/storage mode. Do not provide "
+                             "internal intrinsic storage reconstruction state in this mode; provide "
+                             "effectiveMatrixStorage/effectiveFractureStorage/effectiveCrossStorage instead.",
+                             this->getName() ),
+                   InputError );
+    GEOS_THROW_IF( m_useIntrinsicInput == 0 && !hasEffectiveStorageInput,
+                   GEOS_FMT( "{}: useIntrinsicInput=0 is the effective mechanics/storage mode and requires "
+                             "direct effective storage inputs on DualContinuumCrossFlow: "
+                             "effectiveMatrixStorage, effectiveFractureStorage, and effectiveCrossStorage.",
+                             this->getName() ),
+                   InputError );
+    GEOS_THROW_IF( m_useIntrinsicInput != 0 && hasEffectiveStorageInput,
+                   GEOS_FMT( "{}: useIntrinsicInput=1 is the intrinsic mechanics/storage mode. Do not provide "
+                             "direct effective storage inputs in this mode; storage is reconstructed "
+                             "from the intrinsic constitutive parameters.",
+                             this->getName() ),
+                   InputError );
+    GEOS_THROW_IF( m_useIntrinsicInput != 0 && hasAnyIntrinsicStorageInput && !hasExplicitIntrinsics,
+                   GEOS_FMT( "{}: useIntrinsicInput=1 reconstructs storage from intrinsic material models. "
+                             "Partial internal intrinsic storage state is not supported.",
+                             this->getName() ),
+                   InputError );
     if( !hasExplicitIntrinsics )
     {
       return;
@@ -1164,10 +1192,9 @@ private:
 
   }
 
-  // useIntrinsicInput=1 FullyImplicit path: homogenize the INTRINSIC matrix/fracture
-  // constitutive parameters into the effective medium ONCE at initialization. Sequential uses
-  // the runtime composite-pressure algorithm instead. This writes the effective values
-  // permanently so the monolithic FIM kernel (Step 1) and K_upf (Step 2) use the homogenized
+  // useIntrinsicInput=1 path: homogenize the INTRINSIC matrix/fracture constitutive parameters
+  // into the effective medium ONCE at initialization for both FullyImplicit and Sequential.
+  // This writes the effective values permanently so the mechanics kernel and K_upf use the homogenized
   // response, while the intrinsics are pushed to DualContinuumCrossFlow so the multi-porosity
   // storage (Step 4b) keeps using the intrinsic 1/M_bar. No-op when the flag is off.
   //   Kbar = (v_m/K_m + v_f/K_f)^-1 ,  Gbar = (v_m/G_m + v_f/G_f)^-1   (Reuss)
@@ -1305,6 +1332,13 @@ private:
     if( !( v_f > 0.0 ) ) return;   // single-porosity limit / unset => no cross-storage
     real64 const v_m = 1.0 - v_f;
     real64 const offScale = dualFlow.getCrossStorageOffDiagScale();
+    bool const useEffectiveStorageInput = dualFlow.hasEffectiveStorageInput();
+    real64 const effectiveStorageM = dualFlow.getEffectiveMatrixStorage();
+    real64 const effectiveStorageF = dualFlow.getEffectiveFractureStorage();
+    real64 const effectiveStorageMF = dualFlow.getEffectiveCrossStorage();
+    GEOS_ERROR_IF( useEffectiveStorageInput && !( effectiveStorageM > 0.0 && effectiveStorageF > 0.0 ),
+                   "DualContinuumCrossFlow effective storage input requires positive "
+                   "effectiveMatrixStorage and effectiveFractureStorage." );
 
     // Intrinsic (true physical) Biot + drained bulk modulus for the M_bar storage; fall back to the
     // material value when unset (<0).
@@ -1397,25 +1431,32 @@ private:
           real64 const KmI = ( intrMatK  > 0.0 ) ? intrMatK  : Km[k];
           real64 const KfI = ( intrFracK > 0.0 ) ? intrFracK : Kf[kf];
 
-          real64 const Kbar = 1.0 / ( v_m/KmI + v_f/KfI );
-          real64 const abm  = Kbar*v_m*aMI/KmI;
-          real64 const abf  = Kbar*v_f*aFI/KfI;
-          // phiM/phiF have already been scaled by dual-continuum netToGross, so they are REV pore
-          // fractions (v_i * phi_i). The intrinsic skeleton storage needs the continuum-local
-          // porosity phi_i; recover it here before applying Mehrabian's M_bar formula.
-          real64 const phiMI = phiM[k] / v_m;
-          real64 const phiFI = phiF[kf] / v_f;
-          // skeleton-only intrinsic storage (no fluid compressibility; multiphase flash carries it)
-          real64 const invMmI = (aMI-phiMI)/KsM[k];
-          real64 const invMfI = (aFI-phiFI)/KsF[kf];
-          real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
-          real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
+          real64 SbarMM = effectiveStorageM;
+          real64 SbarFF = effectiveStorageF;
+          real64 corrOff = effectiveStorageMF;
+          if( !useEffectiveStorageInput )
+          {
+            real64 const Kbar = 1.0 / ( v_m/KmI + v_f/KfI );
+            real64 const abm  = Kbar*v_m*aMI/KmI;
+            real64 const abf  = Kbar*v_f*aFI/KfI;
+            // phiM/phiF have already been scaled by dual-continuum netToGross, so they are REV pore
+            // fractions (v_i * phi_i). The intrinsic skeleton storage needs the continuum-local
+            // porosity phi_i; recover it here before applying Mehrabian's M_bar formula.
+            real64 const phiMI = phiM[k] / v_m;
+            real64 const phiFI = phiF[kf] / v_f;
+            // skeleton-only intrinsic storage (no fluid compressibility; multiphase flash carries it)
+            real64 const invMmI = (aMI-phiMI)/KsM[k];
+            real64 const invMfI = (aFI-phiFI)/KsF[kf];
+            SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
+            SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
+            corrOff = -abm*abf/Kbar;
+          }
           // what the compositional accumulation already put on the diagonal: skeleton (alpha-phi)/Ks
           real64 const invMmMat = (aM[k]-phiM[k])/KsM[k];
           real64 const invMfMat = (aF[kf]-phiF[kf])/KsF[kf];
           real64 const corrDiagM = SbarMM - invMmMat;
           real64 const corrDiagF = SbarFF - invMfMat;
-          real64 const corrOff   = -abm*abf/Kbar * offScale;  // symmetric off-diagonal
+          corrOff *= offScale;  // symmetric off-diagonal
 
           real64 const dpM = pM[k]-pMn[k];
           real64 const dpF = pF[kf]-pFn[kf];
@@ -1742,13 +1783,6 @@ private:
   void computeEffectiveFromIntrinsic( DomainPartition & domain )
   {
     if( m_useIntrinsicInput == 0 ) return;
-    if( this->getNonlinearSolverParameters().couplingType() != NonlinearSolverParameters::CouplingType::FullyImplicit )
-    {
-      GEOS_LOG_RANK_0( this->getName()
-                       << ": useIntrinsicInput=1 in Sequential mode uses the runtime composite-pressure "
-                       << "homogenization; initialization-time homogenization is FullyImplicit only." );
-      return;
-    }
 
     MeshBody & mesh1 = domain.getMeshBody( "mesh1" );
     MeshBody & mesh2 = domain.getMeshBody( "mesh2" );
@@ -1803,6 +1837,7 @@ private:
         constitutive::BiotPorosity & fracPor =
           dynamic_cast< constitutive::BiotPorosity & >( fracSolid.getBasePorosityModel() );
         arrayView1d< real64 > const alpha_f = fracPor.getBiotCoefficientWritable();
+        typename constitutive::BiotPorosity::KernelWrapper fracPorUpdates = fracPor.createKernelUpdates();
         arrayView1d< real64 > const effectiveFractureBiot =
           matSubReg.getReference< array1d< real64 > >( viewKeyStruct::fractureBiotCoefficientString() );
 
@@ -1821,23 +1856,31 @@ private:
                          << ": mapped fracture element " << kf
                          << " is outside fracture subregion " << fracSubReg.getName()
                          << " size " << fracSubReg.size() );
+          real64 const KmI = K_m[k];
+          real64 const GmI = G_m[k];
+          real64 const aMI = alpha_m[k];
+          real64 const KfI = K_f[kf];
+          real64 const GfI = G_f[kf];
+          real64 const aFI = alpha_f[kf];
+
           // capture a representative intrinsic set (homogeneous material) for the storage params
-          if( intrKm < 0.0 ) { intrKm = K_m[k]; intrAm = alpha_m[k]; intrKf = K_f[kf]; intrAf = alpha_f[kf]; }
+          if( intrKm < 0.0 ) { intrKm = KmI; intrAm = aMI; intrKf = KfI; intrAf = aFI; }
 
           real64 const v_f = useMeshVolumes ? V_f[kf] / ( V_m[k] + V_f[kf] ) : m_fractureVolumeFraction;
           real64 const v_m = 1.0 - v_f;
 
-          real64 const Kbar = 1.0 / ( v_m / K_m[k] + v_f / K_f[kf] );
-          real64 const Gbar = 1.0 / ( v_m / G_m[k] + v_f / G_f[kf] );
-          real64 const abar_m = Kbar * v_m * alpha_m[k] / K_m[k];
-          real64 const abar_f = Kbar * v_f * alpha_f[kf] / K_f[kf];
+          real64 const Kbar = 1.0 / ( v_m / KmI + v_f / KfI );
+          real64 const Gbar = 1.0 / ( v_m / GmI + v_f / GfI );
+          real64 const abar_m = Kbar * v_m * aMI / KmI;
+          real64 const abar_f = Kbar * v_f * aFI / KfI;
 
           K_m[k] = Kbar;  G_m[k] = Gbar;   // matrix mechanics → effective drained moduli
           matPorUpdates.updateBiotCoefficientAndAssignModuli( k, Kbar, Gbar );
           alpha_m[k] = abar_m;             // matrix Biot → effective (kernel K_upm)
+          K_f[kf] = Kbar;  G_f[kf] = Gbar;  // fracture flow/porosity base state → effective
+          fracPorUpdates.updateBiotCoefficientAndAssignModuli( kf, Kbar, Gbar );
+          alpha_f[kf] = abar_f;
           effectiveFractureBiot[k] = abar_f; // fracture mechanics Biot → effective (K_upf / K_pfu)
-                                             // Keep fracture constitutive alpha intrinsic so its
-                                             // porosity/storage derivative is not polluted by abar_f.
         }
       } );
     }
@@ -3212,17 +3255,17 @@ public:
 
   integer m_logFimCouplingDiagnostics = 0;
 
-  // Input mode for dual-continuum effective-medium parameters (default 0 = effective input):
-  //   0 (effective): the deck sets the HOMOGENIZED effective moduli/Biot directly on the matrix
-  //                  constitutive models (Kbar, Gbar, abar) and the intrinsic* values on
-  //                  DualContinuumCrossFlow for the storage matrix. Nothing is auto-computed and
-  //                  Sequential uses the physical matrix/fracture pressures directly.
+  // Input mode for dual-continuum mechanics/storage parameters (default 1 = intrinsic input).
+  // Porosity and permeability are always intrinsic input and are scaled by the continuum volume
+  // fractions in the dual-continuum flow solver.
   //   1 (intrinsic): the deck sets the INTRINSIC matrix/fracture moduli/Biot (K_m,G_m,alpha_m /
   //                  K_f,G_f,alpha_f) on the constitutive models. At initialization the solver
-  //                  homogenizes them for FullyImplicit; Sequential uses the existing runtime
-  //                  composite-pressure homogenization. Removes the need to pre-compute effective
-  //                  parameters by hand.
-  integer m_useIntrinsicInput = 0;
+  //                  homogenizes them for FullyImplicit and Sequential. Removes the need to
+  //                  pre-compute effective parameters by hand.
+  //   0 (effective): the deck sets the HOMOGENIZED effective moduli/Biot and direct effective
+  //                  storage coefficients. Nothing is auto-computed and Sequential uses the
+  //                  physical matrix/fracture pressures directly.
+  integer m_useIntrinsicInput = 1;
 
   // Auto-initialize matrix effective stress to the dual-continuum total Biot stress so the initial
   // total stress is in equilibrium (Rsolid~0 at t=0), mirroring single-porosity poromechanics.

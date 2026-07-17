@@ -258,6 +258,13 @@ public:
   PorosityBase & getBasePorosityModel()
   { return this->getParent().template getGroup< PorosityBase >( m_porosityModelName ); }
 
+  /**
+   * @brief scale the reference permeability field.
+   * @param scalingFactors the per-element scaling factors
+   */
+  void scaleReferencePermeability( arrayView1d< real64 const > scalingFactors ) const
+  { getBasePermModel().scalePermeability( scalingFactors ); }
+
 protected:
 
   /// the name of the solid model

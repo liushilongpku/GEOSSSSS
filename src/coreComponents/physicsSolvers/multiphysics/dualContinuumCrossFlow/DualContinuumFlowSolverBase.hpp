@@ -128,12 +128,9 @@ public:
     this->registerMeshConnectivity( domain );
     m_crossFlow.setupCrossFlow( domain, primaryMesh, secondaryMesh );//TODO@LSL 这块需要对多region进行支持，可能会报错
 
-    // Apply the dual-continuum volume fractions directly to reference porosity.
-    // Flow accumulation kernels use V_elem * porosity. In double-continuum decks mesh1 and mesh2
-    // often cover the same REV volume, so the pore volume must be V_REV * v_i * phi_i.
-    // Do not route this through netToGross: FlowSolverBase folds netToGross into both porosity
-    // and horizontal permeability, while dual-continuum decks provide permeability as the intended
-    // continuum Darcy contribution. Only storage should be volume-fraction scaled here.
+    // Porosity and permeability are always continuum-local intrinsic inputs in dual-continuum
+    // decks. Flow accumulation and flux kernels operate on REV volumes, so both fields are scaled
+    // by the corresponding continuum volume fraction here.
     real64 const fv = m_crossFlow.getFractureVolumeFraction();
     if( fv > 0.0 && !m_fractureRegionList.empty() && !m_volumeFractionsAppliedToReferencePorosity )
     {
@@ -145,77 +142,84 @@ public:
 
       secondaryMesh.getElemManager().forElementSubRegions( m_fractureRegionList,
         [&]( localIndex const, ElementSubRegionBase & subRegion )
+      {
+        string const & solidName = subRegion.template getReference< string >(
+          FlowSolverBase::viewKeyStruct::solidNamesString() );
+        constitutive::CoupledSolidBase & solid =
+          subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
+        constitutive::PorosityBase & poro = solid.getBasePorosityModel();
+        if( poro.getDefaultReferencePorosity() < 0.0 )
         {
-          string const & solidName = subRegion.template getReference< string >(
-            FlowSolverBase::viewKeyStruct::solidNamesString() );
-          constitutive::CoupledSolidBase & solid =
-            subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
-          constitutive::PorosityBase & poro = solid.getBasePorosityModel();
-          if( poro.getDefaultReferencePorosity() < 0.0 )
+          GEOS_THROW( GEOS_FMT( "{}: fracture subregion '{}' has fractureVolumeFraction={} but no "
+                                "defaultReferencePorosity. These are different quantities: "
+                                "fractureVolumeFraction is the REV volume fraction v_f, while "
+                                "defaultReferencePorosity must be the intrinsic fracture-continuum "
+                                "porosity phi_f (for example, v_f=0.1 and phi_f=0.9 gives an REV "
+                                "pore fraction of 0.09). Please set defaultReferencePorosity explicitly.",
+                                this->getName(), subRegion.getName(), fv ),
+                      std::runtime_error );
+        }
+
+        real64 const phi = poro.getDefaultReferencePorosity();
+        GEOS_THROW_IF( phi <= 0.0 || phi >= 1.0,
+                       GEOS_FMT( "{}: fracture subregion '{}' has invalid intrinsic "
+                                 "defaultReferencePorosity={}. Expected a porosity in (0,1).",
+                                 this->getName(), subRegion.getName(), phi ),
+                       std::runtime_error );
+        if( phi <= fv )
+        {
+          if( fv <= 0.25 )
           {
-            GEOS_THROW( GEOS_FMT( "{}: fracture subregion '{}' has fractureVolumeFraction={} but no "
-                                  "defaultReferencePorosity. These are different quantities: "
-                                  "fractureVolumeFraction is the REV volume fraction v_f, while "
-                                  "defaultReferencePorosity must be the intrinsic fracture-continuum "
-                                  "porosity phi_f (for example, v_f=0.1 and phi_f=0.9 gives an REV "
-                                  "pore fraction of 0.09). Please set defaultReferencePorosity explicitly.",
-                                  this->getName(), subRegion.getName(), fv ),
+            GEOS_THROW( GEOS_FMT( "{}: fracture subregion '{}' has defaultReferencePorosity={} "
+                                  "not larger than fractureVolumeFraction={}. In dual-continuum "
+                                  "input, defaultReferencePorosity must be the intrinsic fracture "
+                                  "porosity phi_f, not the REV pore fraction v_f*phi_f. For example, "
+                                  "v_f=0.1 and intrinsic phi_f=0.9 should be entered as "
+                                  "defaultReferencePorosity=\"0.9\"; the code will form the REV "
+                                  "pore fraction 0.09 internally.",
+                                  this->getName(), subRegion.getName(), phi, fv ),
                         std::runtime_error );
           }
-
-          real64 const phi = poro.getDefaultReferencePorosity();
-          GEOS_THROW_IF( phi <= 0.0 || phi >= 1.0,
-                         GEOS_FMT( "{}: fracture subregion '{}' has invalid intrinsic "
-                                   "defaultReferencePorosity={}. Expected a porosity in (0,1).",
-                                   this->getName(), subRegion.getName(), phi ),
-                         std::runtime_error );
-          if( phi <= fv )
-          {
-            if( fv <= 0.25 )
-            {
-              GEOS_THROW( GEOS_FMT( "{}: fracture subregion '{}' has defaultReferencePorosity={} "
-                                    "not larger than fractureVolumeFraction={}. In dual-continuum "
-                                    "input, defaultReferencePorosity must be the intrinsic fracture "
-                                    "porosity phi_f, not the REV pore fraction v_f*phi_f. For example, "
-                                    "v_f=0.1 and intrinsic phi_f=0.9 should be entered as "
-                                    "defaultReferencePorosity=\"0.9\"; the code will form the REV "
-                                    "pore fraction 0.09 internally.",
-                                    this->getName(), subRegion.getName(), phi, fv ),
-                          std::runtime_error );
-            }
-            GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: fracture subregion '" << subRegion.getName()
-                             << "': defaultReferencePorosity (" << phi
-                             << ") is not larger than fractureVolumeFraction (" << fv
-                             << "). This is unusual for a fracture continuum. It is interpreted "
-                             << "as intrinsic fracture porosity and flow accumulation will use v_f*phi_f = "
-                             << fv * phi << "." );
-          }
-        } );
+          GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: fracture subregion '" << subRegion.getName()
+                           << "': defaultReferencePorosity (" << phi
+                           << ") is not larger than fractureVolumeFraction (" << fv
+                           << "). This is unusual for a fracture continuum. It is interpreted "
+                           << "as intrinsic fracture porosity and flow accumulation will use v_f*phi_f = "
+                           << fv * phi << "." );
+        }
+      } );
 
       primaryMesh.getElemManager().forElementSubRegions( m_matrixRegionList,
         [&]( localIndex const, ElementSubRegionBase & subRegion )
-        {
-          string const & solidName = subRegion.template getReference< string >(
-            FlowSolverBase::viewKeyStruct::solidNamesString() );
-          constitutive::CoupledSolidBase & solid =
-            subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
-          solid.getBasePorosityModel().scaleReferencePorosity( mv );
-        } );
+      {
+        string const & solidName = subRegion.template getReference< string >(
+          FlowSolverBase::viewKeyStruct::solidNamesString() );
+        constitutive::CoupledSolidBase & solid =
+          subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
+        solid.getBasePorosityModel().scaleReferencePorosity( mv );
+        arrayView1d< real64 const > volumes = subRegion.getElementVolume();
+        array1d< real64 > scalingFactors( volumes.size() );
+        for( localIndex k = 0; k < volumes.size(); ++k ) { scalingFactors[k] = mv; }
+        solid.scaleReferencePermeability( scalingFactors.toViewConst() );
+      } );
 
       secondaryMesh.getElemManager().forElementSubRegions( m_fractureRegionList,
         [&]( localIndex const, ElementSubRegionBase & subRegion )
-        {
-          string const & solidName = subRegion.template getReference< string >(
-            FlowSolverBase::viewKeyStruct::solidNamesString() );
-          constitutive::CoupledSolidBase & solid =
-            subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
-          solid.getBasePorosityModel().scaleReferencePorosity( fv );
-        } );
+      {
+        string const & solidName = subRegion.template getReference< string >(
+          FlowSolverBase::viewKeyStruct::solidNamesString() );
+        constitutive::CoupledSolidBase & solid =
+          subRegion.template getConstitutiveModel< constitutive::CoupledSolidBase >( solidName );
+        solid.getBasePorosityModel().scaleReferencePorosity( fv );
+        arrayView1d< real64 const > volumes = subRegion.getElementVolume();
+        array1d< real64 > scalingFactors( volumes.size() );
+        for( localIndex k = 0; k < volumes.size(); ++k ) { scalingFactors[k] = fv; }
+        solid.scaleReferencePermeability( scalingFactors.toViewConst() );
+      } );
 
-      GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: applying dual-continuum storage volume fractions "
-                       "to reference porosity: matrix v_m=" << mv << ", fracture v_f=" << fv
-                       << ". Permeability is not scaled here; deck permeability is interpreted as "
-                       << "the continuum Darcy contribution." );
+      GEOS_LOG_RANK_0( "DualContinuumFlowSolverBase: applying dual-continuum volume fractions to "
+                       "intrinsic porosity and permeability: matrix v_m=" << mv
+                       << ", fracture v_f=" << fv << "." );
       m_volumeFractionsAppliedToReferencePorosity = true;
     }
 
@@ -371,9 +375,14 @@ public:
   real64 getIntrinsicMatrixBulkModulus() const { return m_crossFlow.getIntrinsicMatrixBulkModulus(); }
   real64 getIntrinsicFractureBiot() const { return m_crossFlow.getIntrinsicFractureBiot(); }
   real64 getIntrinsicFractureBulkModulus() const { return m_crossFlow.getIntrinsicFractureBulkModulus(); }
+  bool hasExplicitIntrinsicStorageInput() const { return m_crossFlow.hasExplicitIntrinsicStorageInput(); }
+  bool hasEffectiveStorageInput() const { return m_crossFlow.hasEffectiveStorageInput(); }
+  real64 getEffectiveMatrixStorage() const { return m_crossFlow.getEffectiveMatrixStorage(); }
+  real64 getEffectiveFractureStorage() const { return m_crossFlow.getEffectiveFractureStorage(); }
+  real64 getEffectiveCrossStorage() const { return m_crossFlow.getEffectiveCrossStorage(); }
   real64 getCrossStorageOffDiagScale() const { return m_crossFlow.getCrossStorageOffDiagScale(); }
 
-  /// Setters used by the useIntrinsicInput path (auto-derived intrinsics for FIM storage)
+  /// Setters used by the useIntrinsicInput path (auto-derived intrinsics for storage reconstruction)
   void setIntrinsicMatrixBiot( real64 const v ) { m_crossFlow.setIntrinsicMatrixBiot( v ); }
   void setIntrinsicMatrixBulkModulus( real64 const v ) { m_crossFlow.setIntrinsicMatrixBulkModulus( v ); }
   void setIntrinsicFractureBiot( real64 const v ) { m_crossFlow.setIntrinsicFractureBiot( v ); }

@@ -27,6 +27,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 VALIDATION_DIR = SCRIPT_DIR.parent
 DEFAULT_TEMPLATE = VALIDATION_DIR / "DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml"
 DEFAULT_OUT_DIR = VALIDATION_DIR / "mandel_input_tables" / "same_source_pressure_calibrated"
+DEFAULT_UX_OVER_UZ = 4.0e-6 / 1.796142e-5
+COORDINATE_TABLES = {
+    "xlin.geos": np.asarray([0.0, 0.03]),
+    "ylin.geos": np.asarray([0.0]),
+    "zlin.geos": np.asarray([0.0]),
+    "xlin2.geos": np.asarray([0.0]),
+    "ylin2.geos": np.asarray([0.0]),
+    "zlin2.geos": np.asarray([0.0, 0.03]),
+}
 
 
 def parse_load_times(template: Path) -> np.ndarray:
@@ -158,6 +167,12 @@ def parse_args() -> argparse.Namespace:
   parser.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE)
   parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
   parser.add_argument("--xml-out", type=Path, help="Optional generated GEOS XML path.")
+  parser.add_argument(
+      "--ux-over-uz",
+      type=float,
+      default=DEFAULT_UX_OVER_UZ,
+      help="Initial lateral displacement ratio ux0/uz0 used for initialUxFunc.",
+  )
   return parser.parse_args()
 
 
@@ -188,13 +203,11 @@ def main() -> int:
   times = parse_load_times(args.template)
   uz_values = uz0 * analytical_uz_shape(times)
 
-  # Preserve the existing lateral/top initial displacement ratio while removing the mixed absolute scale.
-  old_uz = float(np.loadtxt(VALIDATION_DIR / "mandel_input_tables" / "uz.geos", ndmin=1)[-1])
-  old_ux = float(np.loadtxt(VALIDATION_DIR / "mandel_input_tables" / "ux.geos", ndmin=1)[-1])
-  ux0 = old_ux * uz0 / old_uz
+  # Preserve the historical lateral/top initial displacement ratio while removing the mixed absolute scale.
+  ux0 = args.ux_over_uz * uz0
 
-  for name in ("xlin.geos", "ylin.geos", "zlin.geos", "xlin2.geos", "ylin2.geos", "zlin2.geos"):
-    (out_dir / name).write_text((VALIDATION_DIR / "mandel_input_tables" / name).read_text())
+  for name, values in COORDINATE_TABLES.items():
+    write_vector(out_dir / name, values)
   write_vector(out_dir / "ux.geos", np.asarray([0.0, ux0]))
   write_vector(out_dir / "uz.geos", np.asarray([0.0, uz0]))
   write_vector(out_dir / "load_time.geos", times)

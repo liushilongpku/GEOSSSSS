@@ -154,6 +154,13 @@ namespace geos
         real64 const intrMatK = this->getIntrinsicMatrixBulkModulus();
         real64 const intrFracA = this->getIntrinsicFractureBiot();
         real64 const intrFracK = this->getIntrinsicFractureBulkModulus();
+        bool const useEffectiveStorageInput = this->hasEffectiveStorageInput();
+        real64 const effectiveStorageM = this->getEffectiveMatrixStorage();
+        real64 const effectiveStorageF = this->getEffectiveFractureStorage();
+        real64 const effectiveStorageMF = this->getEffectiveCrossStorage();
+        GEOS_ERROR_IF( useEffectiveStorageInput && !( effectiveStorageM > 0.0 && effectiveStorageF > 0.0 ),
+                       "DualContinuumCrossFlow effective storage input requires positive "
+                       "effectiveMatrixStorage and effectiveFractureStorage." );
         string_array const & matRegions  = this->template getReference< string_array >( "matrixRegionList" );
         string_array const & fracRegions = this->template getReference< string_array >( "fractureRegionList" );
         ElementRegionManager const & matEM  = matrixMeshPtr->getElemManager();
@@ -220,9 +227,6 @@ namespace geos
               real64 const KmI = ( intrMatK  > 0.0 ) ? intrMatK  : Km[k];
               real64 const KfI = ( intrFracK > 0.0 ) ? intrFracK : Kf[k];
 
-              real64 const Kbar = 1.0/( v_m/KmI + v_f/KfI );
-              real64 const abm  = Kbar*v_m*aMI/KmI;
-              real64 const abf  = Kbar*v_f*aFI/KfI;
               real64 const cfM  = dDensM[k][0][0]/densM[k][0];
               real64 const cfF  = dDensF[k][0][0]/densF[k][0];
               // phiM/phiF have already been scaled by dual-continuum netToGross, so they are REV pore
@@ -230,14 +234,27 @@ namespace geos
               real64 const phiMI = phiM[k] / v_m;
               real64 const phiFI = phiF[k] / v_f;
 
-              // Analytical constant-strain storage built from INTRINSIC params:
-              //   1/Mbar_ii = v_i(1/M_i^intr + alpha_i^2/K_i) - abar_i^2/Kbar,  abar_i = Kbar v_i alpha_i/K_i.
-              real64 const invMmI = (aMI-phiMI)/KsM[k] + phiMI*cfM;
-              real64 const invMfI = (aFI-phiFI)/KsF[k] + phiFI*cfF;
-              // Paper-exact constant-strain diagonal storage 1/Mbar_ii = a_ii - abar_i^2/Kbar,
-              // a_ii = v_i(1/M_i + alpha_i^2/K_i) (Mehrabian 2014 eq A24/A25).
-              real64 const SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
-              real64 const SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
+              real64 SbarMM = effectiveStorageM;
+              real64 SbarFF = effectiveStorageF;
+              real64 corrOffMF = effectiveStorageMF;  // matrix row, vs p_f
+              real64 corrOffFM = effectiveStorageMF;  // fracture row, vs p_m
+              if( !useEffectiveStorageInput )
+              {
+                real64 const Kbar = 1.0/( v_m/KmI + v_f/KfI );
+                real64 const abm  = Kbar*v_m*aMI/KmI;
+                real64 const abf  = Kbar*v_f*aFI/KfI;
+                // Analytical constant-strain storage built from INTRINSIC params:
+                //   1/Mbar_ii = v_i(1/M_i^intr + alpha_i^2/K_i) - abar_i^2/Kbar,
+                //   abar_i = Kbar v_i alpha_i/K_i.
+                real64 const invMmI = (aMI-phiMI)/KsM[k] + phiMI*cfM;
+                real64 const invMfI = (aFI-phiFI)/KsF[k] + phiFI*cfF;
+                // Paper-exact constant-strain diagonal storage 1/Mbar_ii = a_ii - abar_i^2/Kbar,
+                // a_ii = v_i(1/M_i + alpha_i^2/K_i) (Mehrabian 2014 eq A24/A25).
+                SbarMM = v_m*(invMmI + aMI*aMI/KmI) - abm*abm/Kbar;
+                SbarFF = v_f*(invMfI + aFI*aFI/KfI) - abf*abf/Kbar;
+                corrOffMF = -abm*abf/Kbar;  // matrix row, vs p_f
+                corrOffFM = -abm*abf/Kbar;  // fracture row, vs p_m
+              }
               // Subtract what the monolithic kernel / secondary solver already put on the physical
               // storage diagonal. Do not remove the fixed-stress term here: in a converged
               // Sequential fixed-stress iteration it vanishes because p -> p_k, while during the
@@ -255,25 +272,12 @@ namespace geos
               // ~5e-10 terms (analytical net Sbar_mf = -2.44e-10 for the GOM-shale N=2 case), so any
               // error in the mechanics half is hugely amplified in the matrix-pressure plateau.
               //
-              // MEASURED (2026-06, crossStorageOffDiagScale XML scan, direct solver, IDENTICAL on
-              // 10x10 and 20x20 -> mesh-INDEPENDENT): the discrete Q1 mechanics produces an effective
-              // modulus ~1.05e9 = 1.21x the continuum oedometric Kbar+4Gbar/3 = 8.66e8, i.e. it
-              // UNDER-cancels by ~17%. At scale=1.0 the residual off-diagonal is too negative and the
-              // matrix is over-drawn-down (plateau 0.82 vs analytical 0.885; overshoot/drainage also
-              // low). The plateau is linear in scale (slope ~-0.71) and matches the analytical 0.885 at
-              //   crossStorageOffDiagScale = 0.911   (verified plateau 0.8852, tau>=1 within +-0.25%).
-              // This 0.911 is NOT a fudge or a mesh-dependent knob: it is a measured, mesh-independent
-              // DISCRETIZATION CONSTANT compensating the Q1 under-cancellation. It is set in the
-              // fim_eff* decks. NOTE it was calibrated at nu=0.22 / this Mandel BC set; a different
-              // Poisson ratio or geometry would need a re-scan. A fully nu/geometry-adaptive value
-              // cannot be computed from Kbar/Gbar/nu in closed form (a single Q1 element under uniform
-              // strain reproduces the continuum modulus exactly -> the 21% excess comes from the
-              // plateau's SPATIAL structure, not a local modulus), so a "true auto" would require a
-              // one-time matrix self-calibration: solve K_uu*x = K_up_f for one interior element and
-              // back out the actual mechanics cross-term. See memory dpdp-fim-crossstorage-offdiag.
+              // crossStorageOffDiagScale is retained only as a compatibility/diagnostic multiplier.
+              // Current Mandel validation inputs keep it at 1.0; historical values such as 0.911 were
+              // empirical scans and must not be treated as physical storage parameters.
               real64 const offScale = this->getCrossStorageOffDiagScale();
-              real64 const corrOffMF = -abm*abf/Kbar * offScale;  // matrix row, vs p_f
-              real64 const corrOffFM = -abm*abf/Kbar * offScale;  // fracture row, vs p_m
+              corrOffMF *= offScale;
+              corrOffFM *= offScale;
               real64 const dpM = pM[k]-pMn[k];
               real64 const dpF = pF[k]-pFn[k];
               real64 const dpMOffdiag = pMk[k]-pMn[k];

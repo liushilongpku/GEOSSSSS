@@ -70,14 +70,11 @@ public:
     /// Needed for the multi-porosity effective storage matrix M_bar.
     static constexpr char const * fractureVolumeFractionString()
     { return "fractureVolumeFraction"; }
-    /// Intrinsic (true physical) matrix/fracture Biot coefficient and drained bulk modulus.
-    /// When > 0 these are used to compute the multi-porosity storage M_bar in the FIM path,
-    /// independently of the (possibly effective-medium) constitutive material values that the
-    /// monolithic mechanics kernel consumes. <0 means "use the material value".
-    static constexpr char const * intrinsicMatrixBiotString() { return "intrinsicMatrixBiot"; }
-    static constexpr char const * intrinsicMatrixBulkModulusString() { return "intrinsicMatrixBulkModulus"; }
-    static constexpr char const * intrinsicFractureBiotString() { return "intrinsicFractureBiot"; }
-    static constexpr char const * intrinsicFractureBulkModulusString() { return "intrinsicFractureBulkModulus"; }
+    /// Direct effective multi-porosity storage matrix coefficients Sbar_ij [1/Pa].
+    /// When provided, these bypass the intrinsic-property reconstruction of Sbar.
+    static constexpr char const * effectiveMatrixStorageString() { return "effectiveMatrixStorage"; }
+    static constexpr char const * effectiveFractureStorageString() { return "effectiveFractureStorage"; }
+    static constexpr char const * effectiveCrossStorageString() { return "effectiveCrossStorage"; }
     /// Scale on the multi-porosity off-diagonal storage (1=paper bulk-Kbar value). Accounts for the
     /// incomplete monolithic-Schur cancellation under laterally confined (Mandel) geometry.
     static constexpr char const * crossStorageOffDiagScaleString() { return "crossStorageOffDiagScale"; }
@@ -94,11 +91,25 @@ public:
   real64 getFractureVolumeFraction() const
   { return m_fractureVolumeFraction; }
 
-  /// Intrinsic-parameter accessors for the FIM multi-porosity storage (<0 = use material value)
+  /// Intrinsic-parameter accessors for the multi-porosity storage reconstruction.
+  /// These values are internal solver state, populated from the constitutive material models.
   real64 getIntrinsicMatrixBiot() const { return m_intrinsicMatrixBiot; }
   real64 getIntrinsicMatrixBulkModulus() const { return m_intrinsicMatrixBulkModulus; }
   real64 getIntrinsicFractureBiot() const { return m_intrinsicFractureBiot; }
   real64 getIntrinsicFractureBulkModulus() const { return m_intrinsicFractureBulkModulus; }
+  bool hasExplicitIntrinsicStorageInput() const
+  {
+    return m_intrinsicMatrixBulkModulus > 0.0 || m_intrinsicMatrixBiot >= 0.0 ||
+           m_intrinsicFractureBulkModulus > 0.0 || m_intrinsicFractureBiot >= 0.0;
+  }
+  bool hasEffectiveStorageInput() const
+  {
+    return m_effectiveMatrixStorage > 0.0 || m_effectiveFractureStorage > 0.0 ||
+           m_effectiveCrossStorage > 0.0 || m_effectiveCrossStorage < 0.0;
+  }
+  real64 getEffectiveMatrixStorage() const { return m_effectiveMatrixStorage; }
+  real64 getEffectiveFractureStorage() const { return m_effectiveFractureStorage; }
+  real64 getEffectiveCrossStorage() const { return m_effectiveCrossStorage; }
   real64 getCrossStorageOffDiagScale() const { return m_crossStorageOffDiagScale; }
 
   /// Setters used by the useIntrinsicInput path: the dual-poromechanics solver reads the
@@ -124,12 +135,19 @@ private:
   /// Fracture volume fraction v_f (-1 = unset -> cross-storage disabled)
   real64 m_fractureVolumeFraction = -1.0;
 
-  /// Intrinsic matrix/fracture Biot + drained bulk modulus for the FIM M_bar storage
-  /// (-1 = unset -> use the constitutive material value)
+  /// Intrinsic matrix/fracture Biot + drained bulk modulus for the M_bar storage.
+  /// These are not XML inputs; the poromechanics solver copies them from the material models
+  /// before homogenizing the mechanics state in useIntrinsicInput mode.
   real64 m_intrinsicMatrixBiot = -1.0;
   real64 m_intrinsicMatrixBulkModulus = -1.0;
   real64 m_intrinsicFractureBiot = -1.0;
   real64 m_intrinsicFractureBulkModulus = -1.0;
+
+  /// Direct effective storage matrix coefficients Sbar_ii/Sbar_ij [1/Pa].
+  /// Zero/unset keeps the intrinsic reconstruction path.
+  real64 m_effectiveMatrixStorage = 0.0;
+  real64 m_effectiveFractureStorage = 0.0;
+  real64 m_effectiveCrossStorage = 0.0;
 
   /// Off-diagonal multi-porosity storage scale (1 = paper bulk-Kbar value)
   real64 m_crossStorageOffDiagScale = 1.0;

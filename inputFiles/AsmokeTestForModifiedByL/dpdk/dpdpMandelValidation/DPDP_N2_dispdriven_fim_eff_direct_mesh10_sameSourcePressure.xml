@@ -56,14 +56,15 @@
          4.935e-21 -->
     <!-- EFFECTIVE-MEDIUM coefficients (Mehrabian): drained skeleton Kbar/Gbar + effective Biot
          abar_m = Kbar*v_m*alpha_m/K_m. The monolithic FIM mechanics then uses the composite
-         skeleton stiffness and the effective matrix Biot coupling. -->
+         skeleton stiffness and the effective matrix Biot coupling. Porosity/permeability remain
+         intrinsic input and are volume-fraction scaled by DualContinuumFlowSolverBase. -->
     <ElasticIsotropic name="matrixSolid"
       defaultDensity="0" defaultBulkModulus="4.514e8" defaultShearModulus="3.108e8"/>
     <BiotPorosity name="matrixPorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.14"
       defaultBiotCoefficient="0.382"/>
     <ConstantPermeability name="matrixPerm"
-      permeabilityComponents="{ 4.78e-21, 4.78e-21, 4.78e-21 }"/>
+      permeabilityComponents="{ 4.935e-21, 4.935e-21, 4.935e-21 }"/>
     <PorousElasticIsotropic name="matrixRock"
       solidModelName="matrixSolid" porosityModelName="matrixPorosity"
       permeabilityModelName="matrixPerm"/>
@@ -71,17 +72,15 @@
     <!-- Fracture: GOM Shale macro-fracture (Table 1, intrinsic values)
          K₃ = 22.5 MPa, ν₃ = 0.22, V₃ = 3%, Φ₃ = 95%, k₃ = 5 md
          α₃ = 1 - K₃/K_s = 1 - 0.0225/27 = 0.9992
-         G₃ = 3K₃(1-2ν)/(2(1+ν)) = 15.49 MPa -->
+         G₃ = 3K₃(1-2ν)/(2(1+ν)) = 15.49 MPa
+         K/G/Biot below are effective-medium values; porosity/permeability remain intrinsic. -->
     <ElasticIsotropic name="fractureSolid"
-      defaultDensity="0" defaultBulkModulus="2.25e7" defaultShearModulus="1.549e7"/>
+      defaultDensity="0" defaultBulkModulus="4.514e8" defaultShearModulus="3.108e8"/>
     <BiotPorosity name="fracturePorosity"
       defaultGrainBulkModulus="2.7e10" defaultReferencePorosity="0.95"
       defaultBiotCoefficient="0.601"/>
-    <!-- Dual-continuum flux weighting: the fracture occupies only v_f=3% of the bulk, so its
-         contribution to bulk Darcy flux is kappa_f = v_f*k_f (not the full intrinsic k_f).
-         k_f_intrinsic = 4.935e-15 -> kappa_f = 0.03*4.935e-15 = 1.4805e-16. -->
     <ConstantPermeability name="fracturePerm"
-      permeabilityComponents="{ 1.4805e-16, 1.4805e-16, 1.4805e-16 }"/>
+      permeabilityComponents="{ 4.935e-15, 4.935e-15, 4.935e-15 }"/>
     <PorousElasticIsotropic name="fractureRock"
       solidModelName="fractureSolid" porosityModelName="fracturePorosity"
       permeabilityModelName="fracturePerm"/>
@@ -109,8 +108,9 @@
       transferCoefficient="0.0">
       <DualContinuumCrossFlow
         interporosityExchangeCoefficient="0.0" fractureVolumeFraction="0.03"
-        intrinsicMatrixBiot="0.9593" intrinsicMatrixBulkModulus="1.1e9"
-        intrinsicFractureBiot="0.9992" intrinsicFractureBulkModulus="2.25e7"
+        effectiveMatrixStorage="5.95755344271165954e-10"
+        effectiveFractureStorage="5.46327412521659742e-10"
+        effectiveCrossStorage="-5.08769676169630689e-10"
         crossStorageOffDiagScale="1.0"
         fractureSpacingLx="1.0" fractureSpacingLy="1.0" fractureSpacingLz="1.0"
         gravityDrainageFlag="0"
@@ -123,6 +123,7 @@
       logLevel="0" dualcontinuumSolverName="dualFlow" solidSolverName="solidMech"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
       fractureVolumeFraction="0.03"
+      useIntrinsicInput="0"
       fimNewtonRelaxation="0.7"
       enableFimCrossStorage="1"
       stabilizationType="None" isThermal="0">

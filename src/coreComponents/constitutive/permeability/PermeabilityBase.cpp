@@ -50,6 +50,22 @@ void PermeabilityBase::scaleHorizontalPermeability( arrayView1d< real64 const > 
   }
 }
 
+void PermeabilityBase::scalePermeability( arrayView1d< real64 const > scalingFactors ) const
+{
+  localIndex const numElems = m_permeability.size( 0 );
+  integer const numQuad = 1; // NOTE: enforcing 1 quadrature point
+  for( localIndex ei = 0; ei < numElems; ++ei )
+  {
+    for( integer q = 0; q < numQuad; ++q )
+    {
+      for( integer dim = 0; dim < 3; ++dim )
+      {
+        m_permeability[ei][q][dim] *= scalingFactors[ei];
+      }
+    }
+  }
+}
+
 void PermeabilityBase::allocateConstitutiveData( Group & parent,
                                                  localIndex const numPts )
 {

@@ -9,7 +9,9 @@
 截至 2026-07-16，当前只保留同源 pressure 标定验证输入：
 
 - `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml`
+- `DPDP_N2_dispdriven_fim_intrinsic_sameSourcePressure.xml`
 - `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
+- `DPDP_N2_dispdriven_seq_intrinsic_sameSourcePressure.xml`
 
 最新完整对比显示：
 
@@ -40,14 +42,16 @@
 |---|---|---|---|
 | 早期 Sequential 外迭代没有真正检查压力变化 | 已解决 | 历史日志中外迭代显示 `Max pressure change ... 0.000 Pa`，导致一步 staggered 就被接受 | 修正外迭代状态保存路径，使 Sequential 可以基于 flow pressure increment 做收敛判断 |
 | `RigidBoundary` 早期投影式刚性压板导致收敛失败 | 已解决，但不再作为当前主验证路径 | 历史 stress-load deck 中 solid residual 平台化，投影会把 Newton iterate 推离平衡 | 将刚性约束改为系统内约束/惩罚形式；当前主验证采用位移驱动 deck，避免把压板边界问题混入 DPDP 验证 |
-| 解析解实现和时间尺度曾经不一致 | 部分解决 | 历史脚本出现错误的 `t0` 和 storage 符号处理；早期注释也曾把 `tau` 与实际时间对应错 | 当前 `script/dpdp_mandel_analytical.py` 使用 Mehrabian-Abousleiman N=2 解析解，`t0≈10.5157 s`；但该脚本曲线仍与手动 Fig. 5c CSV 不一致，压力主误差暂按手动 CSV 统计 |
-| 旧 displacement/load-function deck 与当前验证目标混杂 | 已解决 | 历史中存在 stress-load、correctLF、intrinsic/effective、kappa 补偿等多个 deck，容易混用 | 当前只保留两份同源验证输入；历史 deck 的用途和删除原因记录在清理总结中 |
+| 解析解实现和时间尺度曾经不一致 | 部分解决 | 历史脚本出现错误的 `t0` 和 storage 符号处理；早期注释也曾把 `tau` 与实际时间对应错 | 当前程序一致性主图使用 `script/dpdp_mandel_analytical.py`，`t0≈10.5157 s`；该脚本曲线仍与手动 Fig. 5c CSV 不一致，手动 CSV 只作为论文图取点诊断 |
+| 旧 displacement/load-function deck 与当前验证目标混杂 | 已解决 | 历史中存在 stress-load、correctLF、kappa 补偿等多个 deck，容易混用 | 当前只保留四份同源验证输入：FIM/Seq 各一份 effective 和 intrinsic；历史 deck 的用途和删除原因记录在清理总结中 |
 | FIM 早期发散/不收敛 | 已解决 | 历史 FIM 在首个加载步或后续 Newton 迭代中出现发散/振荡 | 修正 FIM 相关组装、自由度映射和求解路径后，当前两个 FIM deck 均能完整跑完，0 次切步 |
 | 双孔隙 storage matrix 处理缺失/不一致 | 已解决到当前验证可用状态 | 历史 GEOS matrix pressure 长期过高，不能复现解析解中的 matrix 平台和过冲 | 引入 dual-continuum cross-storage 处理；当前同源 FIM/Seq 均使用 `crossStorageOffDiagScale=1.0` |
+| effective-input deck 中 storage 参数名混乱 | 已解决 | `useIntrinsicInput=0` 时力学/Biot 使用 effective 参数，但 `DualContinuumCrossFlow` 仍需要 `intrinsic*` 参数反算 storage，容易误把 effective K/Biot 写入旧 intrinsic 字段；受控测试显示这样会严重破坏 storage | 只保留两种受控 mechanics/storage 模式：`useIntrinsicInput=1` 本征参数并重构 storage，`useIntrinsicInput=0` 等效参数并强制 direct effective storage；porosity/permeability 始终为本征输入；当前主 XML 不再使用旧 `intrinsic*` storage 字段 |
+| Seq intrinsic 与 effective 输入不一致 | 已解决 | 2026-07-17 四案例对比显示，旧 Sequential intrinsic runtime composite-pressure 路径会造成排水时间和过冲偏离；只均匀化 matrix 而保留 fracture 本构本征值也不等价 | 禁用 runtime composite-pressure 路径；`useIntrinsicInput=1` 时 FIM/Seq 都在初始化时把 matrix/fracture mechanics/Biot 均匀化为 effective，同时缓存本征参数重构 storage |
 | Seq full run 卡住/发散 | 已解决 | 受控扫描显示，当 Sequential split 中 cross-storage offdiag 项隐式进入 flow solve 时，外迭代会发散或极慢 | 当前 Seq 在 fixed-stress Sequential 模式下滞后 cross-storage offdiag 项；这是分裂稳定化，不是物理系数缩放 |
 | Seq Mandel-Cryer 过冲缺失 | 已解决 | 历史 Seq 曲线曾缺少 matrix/fracture 早期压力过冲 | 修正 Seq 中孔隙度更新后的 fluid mass 同步、应变/压力映射以及 cross-storage split 后，过冲恢复 |
 | Seq 求解策略过于保守 | 已解决 | 旧基线约 776 步、4974 次 nonlinear iteration、约 35.5 s；旧默认策略为 422 步、2006 次 nonlinear iteration、约 15.5 s；当前 late-time 平滑策略为 1373 步、3145 次 nonlinear iteration、约 29.8 s；恢复早期细时间步到 734 步也未改善 fracture 排水 crossing | 保留 `maxSequentialPressureChange=100 Pa` 与当前时间步分段；不恢复旧 `10 Pa` 容差和全程细时间步；`10000 s` 之后 `forceDt=300 s` 用于 late-time 图形平滑和时间离散精度 |
-| 压力基准不一致 | 未解决 | 手动 CSV 与解析脚本在 `tau=0.1` fracture 约为 `0.8218` vs `0.9059`，在 `tau=1000-3000` matrix 晚期衰减也明显不同 | 绘图脚本默认改为手动 Fig. 5c CSV，并可用 `--show-script-analytical` 叠加脚本曲线；继续改求解器前应先确认最终基准 |
+| 压力基准不一致 | 未解决 | 手动 CSV 与解析脚本在 `tau=0.1` fracture 约为 `0.8218` vs `0.9059`，在 `tau=1000-3000` matrix 晚期衰减也明显不同 | 绘图脚本默认使用解析解脚本；需要论文图取点诊断时显式加 `--reference-source manual`，不得混用两类基准 |
 | 历史位移荷载与初始压力混源 | 已定位，已生成同源对照 | 旧 XML 使用 `p_m0/p_f0=0.455/0.488 Pc`，但 `loadFunction0000000` 初值 `1.796142e-05 m` 对应的初始压力约 `0.3265/0.3506 Pc`；旧荷载整体比同源 pressure 标定荷载小约 `1/1.392` | 新增 `generate_same_source_p0_uz.py`，生成同源 `p0/uz/loadFunction`；新增同源 FIM/Seq 无缩放输入并完成验证 |
 | 位移驱动加载函数依赖可疑解析脚本 | 部分解决 | 已确认历史 deck 的压力和位移荷载混源；同源 pressure 标定后 FIM 平台期与当前解析脚本一致。但当前解析脚本与论文手动 Fig. 5c CSV 的晚期差异仍未解决 | 短期使用同源 pressure 标定 deck 做程序一致性验证；论文级验证仍需修正/确认解析脚本绝对标定和 Fig. 5c 基准 |
 | FIM 与解析解仍有局部精度差异 | 精度待改进 | 同源 pressure 标定后，FIM 的初值、过冲、平台期和主趋势已与当前解析脚本大致一致；剩余偏差主要体现在局部排水和晚期段 | 保留为后续离散精度/解析基准核查问题；不得恢复 `crossStorageOffDiagScale=0.911` 做经验补偿 |
@@ -59,11 +63,13 @@
 2. 当前 Seq 使用的 offdiag 滞后是分裂稳定化；外迭代收敛后，固定点在压力外迭代容差内保持一致。
 3. 当前验证不需要 pressure relaxation。
 4. 历史 FIM 0.911 是经验拟合输入，已删除；当前保留输入均使用 `crossStorageOffDiagScale=1.0`。
-5. 历史平台期偏低的直接原因是初始压力与位移荷载混源；`crossStorageOffDiagScale=0.911`
+5. 当前同源验证保留 effective 和 intrinsic 两套输入；两者应给出同一物理结果。porosity/permeability
+   仍为本征输入；不要混用两类 mechanics/storage 参数。
+6. 历史平台期偏低的直接原因是初始压力与位移荷载混源；`crossStorageOffDiagScale=0.911`
    只是补偿该混源错误的经验拟合。
-6. 当前同源 FIM/Seq 验证的总体内容已经对上，剩余问题归类为局部精度不足。
-7. late-time 基质压力折线是时间离散分辨率问题，已通过 `10000 s` 之后统一 `forceDt=300 s` 解决；
+7. 当前同源 FIM/Seq effective/intrinsic 四案例验证的总体内容已经对上，剩余问题归类为局部精度不足。
+8. late-time 基质压力折线是时间离散分辨率问题，已通过 `10000 s` 之后统一 `forceDt=300 s` 解决；
    这不是 relaxation 或物理参数缩放。
-8. 后续如果继续提高精度，应优先在明确基准下检查离散误差、时间步/外迭代误差和 Sequential split
+9. 后续如果继续提高精度，应优先在明确基准下检查离散误差、时间步/外迭代误差和 Sequential split
    误差，而不是调整无物理意义的缩放参数。
-9. 后续如果新增案例，应先用通用绘图脚本与明确基准对比，再把新结论更新到本文，而不是写入 workflow。
+10. 后续如果新增案例，应先用通用绘图脚本与明确基准对比，再把新结论更新到本文，而不是写入 workflow。

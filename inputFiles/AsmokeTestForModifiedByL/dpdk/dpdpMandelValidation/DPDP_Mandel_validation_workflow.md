@@ -4,10 +4,14 @@
 Mandel 算例。目标是让后续更新验证算例时有固定流程，避免混用历史试验文件、覆盖旧结果，
 或把阶段性调通结果误认为最终物理验证通过。
 
-2026-07-16 清理后，目录中只保留两个当前主验证 XML 输入：
+2026-07-17 更新后，目录中保留四个当前验证 XML 输入：
 
 1. `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml`：同源 pressure 标定的全耦合法输入。
 2. `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`：同源 pressure 标定的迭代耦合法输入。
+3. `DPDP_N2_dispdriven_fim_intrinsic_sameSourcePressure.xml`：全耦合法，本征 mechanics/storage 输入。
+4. `DPDP_N2_dispdriven_seq_intrinsic_sameSourcePressure.xml`：迭代耦合法，本征 mechanics/storage 输入。
+
+effective 与 intrinsic 两组 deck 应给出同一组物理结果；差异用于检查输入模式和程序一致性。
 
 历史试错 deck 已删除，差异和删除原因记录在
 `DPDP_Mandel_trial_history_and_cleanup.md`。技术结论和问题状态记录在
@@ -29,16 +33,18 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 
 ### 1.2 解析解基准
 
+`script/dpdp_mandel_analytical.py` 是当前同源程序一致性验证的压力解析解基准。当前 FIM/Seq 的
+初始压力、位移荷载和归一化时间 `t0` 均应与该脚本同源。
+
 `analitical_result/fig5c_primary_analitical.csv` 是手动取得的 Fig. 5c primary/matrix
-压力解析解点。
+压力点。
 
 `analitical_result/fig5c_secondary_analitical.csv` 是手动取得的 Fig. 5c secondary/fracture
 压力解析解点。
 
-这两个 CSV 是本验证流程的压力主基准，不应当被脚本重新生成或覆盖。脚本解析解
-`script/dpdp_mandel_analytical.py` 可作为辅助检查，但最终误差表应以这两个手动 CSV 为准。
-当前 findings 记录了手动 Fig. 5c CSV 与解析脚本曲线不一致的问题；在该问题解决前，不能把
-解析脚本生成的位移加载函数视为独立物理基准。
+这两个 CSV 是论文图取点诊断基准，不应当被脚本重新生成或覆盖。当前 findings 记录了手动 Fig. 5c
+CSV 与解析脚本曲线不一致的问题；因此程序一致性验证和论文图取点诊断必须明确区分，不要混在同一张
+主对比图中。
 
 `analitical_result/fig5d_analitical.csv` 可作为应力辅助诊断。当前位移驱动算例中，应力需要由
 有效应力和 Biot 压力项重构，不作为主要通过/失败判据。
@@ -66,9 +72,9 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 - `crossStorageOffDiagScale="1.0"`
 - mesh 为 `nx="{ 10 }"`、`nz="{ 10 }"`
 - 裂缝体积分数 `fractureVolumeFraction="0.03"`
-- 裂缝渗透率采用体积加权后的 bulk flux contribution，即 `kappa_f = v_f * k_f`
-- `defaultReferencePorosity` 输入 intrinsic 孔隙度；程序只将 `v_i` 乘入 storage/reference porosity。
-  `permeabilityComponents` 不会再由 dual-continuum 初始化乘 `v_i`，因此本验证中必须直接输入 `kappa_i`
+- `useIntrinsicInput="0"`，表示 mechanics/Biot/storage 使用等效输入；porosity/permeability 仍为
+  本征输入，并由代码乘 `v_i`
+- `defaultReferencePorosity` 和 `permeabilityComponents` 均采用本征值
 - 该 deck 使用同源 pressure 标定的初始压力和位移荷载，是当前主 FIM 验证输入
 - `10000 s` 之后保持 `forceDt="300"`。`tau≈10^3-10^4` 的基质压力晚期快速下降段对时间步较敏感；
   粗步长会在对比图中形成非物理折线
@@ -82,7 +88,8 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 验证前必须确认：
 
 - `couplingType="Sequential"`
-- `useIntrinsicInput="0"`
+- `useIntrinsicInput="0"`，表示 mechanics/Biot/storage 使用等效输入；代码默认是
+  `useIntrinsicInput="1"` 本征 mechanics/storage 输入，因此当前主 XML 必须显式写出该值
 - mesh 为 `nx="{ 10 }"`、`nz="{ 10 }"`
 - `crossStorageOffDiagScale="1.0"`
 - `subcycling="1"`
@@ -91,9 +98,14 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
   `K=4.514e8`、`G=3.108e8`
 - matrix 与 fracture 的 `BiotPorosity` Biot 系数均为 effective 输入值，当前为
   `alpha_m=0.382`、`alpha_f=0.601`
-- `DualContinuumCrossFlow` 中的 `intrinsicMatrixBiot`、`intrinsicMatrixBulkModulus`、
-  `intrinsicFractureBiot`、`intrinsicFractureBulkModulus` 保留 intrinsic 物理参数，
-  用于等效/储量公式检查，不应误改成 effective 参数
+- matrix 与 fracture 的 `defaultReferencePorosity` 均为本征输入值，当前为 `0.14` 和 `0.95`
+- matrix 与 fracture 的 `permeabilityComponents` 均为本征输入值，当前为 `4.935e-21` 和
+  `4.935e-15`；代码初始化时乘 `v_m/v_f` 得到 REV flux contribution
+- `DualContinuumCrossFlow` 中使用 direct effective storage：
+  `effectiveMatrixStorage`、`effectiveFractureStorage`、`effectiveCrossStorage`
+- effective mechanics/storage 模式中不允许再出现旧 `intrinsic*` storage 参数；intrinsic
+  mechanics/storage 模式中不允许提供 direct effective storage。若改 storage 输入方式，需同步更新
+  `DPDP_Mandel_theory_input_reference.md` 和 `DPDP_Mandel_findings_current_status.md`
 - `maxSequentialPressureChange="1.0e2"`。受控测试显示，修正 cross-storage offdiag split 后，
   `100 Pa` 外迭代容差可完整跑通且曲线指标基本不变；不要恢复到 `1.0e3`，该设置会导致部分
   时间步外耦合只迭代一次、下一步再补偿，在 `tau≈0.8-1` 附近形成压力锯齿
@@ -102,8 +114,8 @@ Mandel 算例。目标是让后续更新验证算例时有固定流程，避免�
 - `10000 s` 之后保持 `forceDt="300"`。该设置用于消除 `tau≈10^3` 和 `tau≈10^4` 附近由 late-time
   时间步分段造成的基质压力折线；它不是 pressure relaxation，也不改变物理参数
 - 该 deck 使用同源 pressure 标定的初始压力和位移荷载，是当前主 Seq 验证输入
-- 孔隙度输入为 intrinsic 孔隙度，裂缝总体孔隙贡献按
-  `fractureVolumeFraction * fracturePorosity` 理解和检查
+- 孔隙度和渗透率输入始终为 intrinsic，裂缝总体贡献按
+  `fractureVolumeFraction * fracturePorosity/permeability` 理解和检查
 
 ## 3. 运行规范
 
@@ -118,8 +130,10 @@ inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/<case>_<date>
 每个保留算例单独建子目录，例如：
 
 ```bash
-inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/fim_sameSourcePressure_mesh10_YYYYMMDD_01/
-inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/seq_sameSourcePressure_mesh10_YYYYMMDD_01/
+inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/fim_eff_sameSourcePressure_mesh10_YYYYMMDD_01/
+inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/fim_intrinsic_sameSourcePressure_mesh10_YYYYMMDD_01/
+inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/seq_eff_sameSourcePressure_mesh10_YYYYMMDD_01/
+inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/seq_intrinsic_sameSourcePressure_mesh10_YYYYMMDD_01/
 ```
 
 每个子目录至少保留：
@@ -200,19 +214,17 @@ mpirun -np 4 build-ubuntu-lsl-release/bin/geosx -x 4 \
 
 当前阶段对 Sequential 的最低要求是：
 
-- 量化记录裂缝排水时间尺度与手动 Fig. 5c 点的偏差
+- 量化记录裂缝排水时间尺度与解析解脚本的偏差；若使用手动 Fig. 5c 点，需明确标注为论文图取点诊断
 - `0.1s-10s`、`8s-30s`、以及 `tau=0.1-10` 范围内，中心点 matrix pressure 不应出现
   由外耦合提前停止造成的锯齿
 - time step cut 为 0 或有明确原因
 - 若 pressure 曲线与解析解不一致，不在本阶段强行调参补偿；该问题归入
   `DPDP_Mandel_findings_current_status.md` 的 FIM/Seq 精度问题
 
-### 4.4 GEOS vs 手动解析点
+### 4.4 GEOS vs 解析解脚本
 
-压力主判据使用手动解析 CSV：
-
-- matrix: `analitical_result/fig5c_primary_analitical.csv`
-- fracture: `analitical_result/fig5c_secondary_analitical.csv`
+当前程序一致性主判据使用 `script/dpdp_mandel_analytical.py` 输出的解析解曲线。手动 Fig. 5c CSV
+只用于检查解析脚本与论文图之间的差异，不作为当前 FIM/Seq 主图默认基准。
 
 GEOS 压力归一化：
 
@@ -234,20 +246,21 @@ GEOS 压力归一化：
 
 ```text
 tau,
-manual_matrix,
+reference,
+reference_matrix,
 fim_matrix,
 seq_matrix,
 fim_matrix_rel_error,
 seq_matrix_rel_error,
-manual_fracture,
+reference_fracture,
 fim_fracture,
 seq_fracture,
 fim_fracture_rel_error,
 seq_fracture_rel_error
 ```
 
-对 GEOS history 和手动解析点均采用插值到上述 `tau` 点的方式进行比较。若手动解析 CSV 在某些
-`tau` 点外推风险较大，应在表中标注并避免把该点作为严格判据。
+误差表中的 reference 列必须写明 `analytical_script` 或 `manual_fig5c_csv`。对 GEOS history 和解析
+基准均采用插值到上述 `tau` 点的方式进行比较。若使用手动解析 CSV，需在图名或说明中显式标注。
 
 ### 4.5 绘图脚本流程
 
@@ -257,13 +270,9 @@ seq_fracture_rel_error
 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_vs_analytical.py
 ```
 
-脚本不固定案例数量。默认压力基准为手动 Fig. 5c CSV：
-
-- matrix: `analitical_result/fig5c_primary_analitical.csv`
-- fracture: `analitical_result/fig5c_secondary_analitical.csv`
-
-解析脚本曲线只作为可选诊断叠加，需要时加 `--show-script-analytical`。每个案例用
-`--case "标签=输出目录"` 传入，输出目录必须包含：
+脚本不固定案例数量。默认压力基准为解析解脚本；可用 `--reference-source script` 显式指定。若需要
+与手动 Fig. 5c CSV 做论文图取点诊断，使用 `--reference-source manual`；此时可再加
+`--show-script-analytical` 叠加脚本解。每个案例用 `--case "标签=输出目录"` 传入，输出目录必须包含：
 
 - `pressure_matrix_history.hdf5`
 - `pressure_fracture_history.hdf5`
@@ -272,10 +281,12 @@ inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_v
 
 ```bash
 python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_vs_analytical.py \
-  --case "FIM=<fim_sameSourcePressure_output_dir>" \
-  --case "Seq=<seq_sameSourcePressure_output_dir>" \
-  --show-script-analytical \
-  --out <plot_output_dir>/geos_vs_fig5c_pressure.png
+  --reference-source script \
+  --case "FIM effective=<fim_eff_output_dir>" \
+  --case "FIM intrinsic=<fim_intrinsic_output_dir>" \
+  --case "Seq effective=<seq_eff_output_dir>" \
+  --case "Seq intrinsic=<seq_intrinsic_output_dir>" \
+  --out <plot_output_dir>/geos_vs_script_analytical_pressure.png
 ```
 
 以后增加或减少案例时，只需增删 `--case` 参数。例如只比较两个 FIM，传两个 `--case`；
@@ -285,8 +296,9 @@ python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plo
 
 ```bash
 python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plot_GEOS_vs_analytical.py \
+  --reference-source script \
   --search-root inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs \
-  --out inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/geos_vs_fig5c_pressure.png
+  --out inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/runs/geos_vs_script_analytical_pressure.png
 ```
 
 自动搜索时，脚本会把所有包含 matrix/fracture pressure history 的目录都作为案例。标签优先从
@@ -297,13 +309,13 @@ python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dpdpMandelValidation/script/plo
 
 - PNG 图：`--out` 指定的文件
 - 同名 PDF
-- `<stem>_summary.csv`，包含每个案例的峰值、终值、以及相对手动 Fig. 5c CSV 的平均/最大绝对误差
-- `<stem>_samples.csv`，包含固定 `tau` 采样点上的手动 CSV、每个 GEOS 案例和绝对误差
+- `<stem>_summary.csv`，包含每个案例的峰值、终值、reference 类型、以及相对所选基准的平均/最大绝对误差
+- `<stem>_samples.csv`，包含固定 `tau` 采样点上的所选基准、每个 GEOS 案例和绝对误差
 
 若把最终主对比图归档到 `analitical_result/`，文件名必须包含日期时间戳，例如：
 
 ```text
-GEOS_pressure_sameSource_FIM_Seq_analytical_YYYYMMDD_HHMM.png
+GEOS_pressure_FIM_Seq_scriptAnalytical_YYYYMMDD_HHMM.png
 ```
 
 解析解脚本路径已经改为相对当前验证目录，不再依赖机器上的绝对路径。
@@ -314,16 +326,16 @@ GEOS_pressure_sameSource_FIM_Seq_analytical_YYYYMMDD_HHMM.png
 
 - XML: `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
 - 输出目录:
-  `/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/seq`
+  `/tmp/dpdp_four_input_modes_20260717_162548/seq_eff`
 - log:
-  `/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/seq.log`
+  `/tmp/dpdp_four_input_modes_20260717_162548/seq_eff.log`
 - 图:
-  `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_CN.png`
+  `analitical_result/GEOS_pressure_FIM_Seq_scriptAnalytical_20260717_1705.png`
 - 设置:
   `useIntrinsicInput=0`、fracture effective `K/G=4.514e8/3.108e8`、
   `maxSequentialPressureChange=100 Pa`、`10000 s` 之后 `forceDt=300 s`
 - 运行结果:
-  `1373` 个时间步，`0` 次 time step cut，总时间约 `29.8 s`
+  `1373` 个时间步，`0` 次 time step cut，总时间约 `30.9 s`
 
 排水时间尺度：
 
@@ -400,9 +412,12 @@ p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
 - 是否没有把运行结果或试错结论写入 `problem_description/`
 - `mandel_input_tables/` 是否只保留当前 XML 实际引用的表；历史加载/诊断表若删除，是否记录到
   `DPDP_Mandel_trial_history_and_cleanup.md`
-- `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` 是否保持为当前主 Seq 时间尺度验证 deck
-- Seq effective 输入模式中 matrix/fracture K/G 和 Biot 是否均为 effective 参数，没有再混入
+- 四个保留 XML 是否都能通过 schema 验证并完整跑完
+- effective 输入模式中 matrix/fracture K/G 和 Biot 是否均为 effective 参数，没有再混入
   fracture intrinsic 小刚度
+- intrinsic 输入模式中 matrix/fracture K/G 和 Biot 是否均为本征材料参数，且没有 direct effective storage
+- 若 `useIntrinsicInput=0`，`DualContinuumCrossFlow` 是否使用 direct effective storage 输入且没有
+  旧 `intrinsic*` storage reconstruction 参数；若 `useIntrinsicInput=1`，是否没有 direct effective storage 输入
 - Seq 的 `maxSequentialPressureChange` 是否保持在 `1.0e2 Pa` 量级，避免外耦合单步提前停止
 - FIM/Seq 同源输入是否使用同一套 pressure 标定表和位移荷载，且均为 `crossStorageOffDiagScale="1.0"`
 - 绘图脚本是否用 `--case` 明确标注了每条曲线对应的输出目录
@@ -410,9 +425,7 @@ p_f/p0 = 0.1: current 1.080309, fine-early-dt 1.109396
   `DPDP_Mandel_coupling_flow_Seq_vs_FIM.md`
 - 物性、均匀化公式、storage 定义、孔隙度/渗透率体积分数约定或 XML 参数含义若发生变化，
   是否同步更新 `DPDP_Mandel_theory_input_reference.md`
-- fracture porosity 是否表示裂缝介质自身孔隙度，而不是总体孔隙度
-- 总体裂缝孔隙贡献是否通过 `fractureVolumeFraction * fracturePorosity` 理解和检查
-- 裂缝渗透率是否按当前模型要求使用 bulk flux contribution
+- porosity/permeability 是否始终为本征值；代码在 `useIntrinsicInput=0/1` 两种模式下都会乘体积分数
 - 新 log、误差表、图像是否保存在新的验证输出目录
 
 ## 7. 文档更新要求

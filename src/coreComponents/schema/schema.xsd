@@ -3206,8 +3206,14 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
 	<xsd:complexType name="DualContinuumCrossFlowType">
-		<!--crossStorageOffDiagScale => Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). Compensates for the incomplete monolithic-Schur cancellation under laterally confined (Mandel) geometry, where the discrete Q1 mechanical volumetric response is stiffer than the continuum oedometric modulus. MEASURED value 0.911 for the GOM-shale N=2 Mandel case (nu=0.22): the discrete modulus is ~1.21x oedometric, mesh-independent (10x10==20x20); see SinglePhaseDualContinuum.cpp for the full derivation and why it cannot be computed from Kbar/Gbar/nu in closed form.-->
+		<!--crossStorageOffDiagScale => Scale on the multi-porosity off-diagonal storage (1 = paper bulk-Kbar value). Values other than 1 are retained for compatibility with historical diagnostic scans and should not be used as a physical correction without separate evidence.-->
 		<xsd:attribute name="crossStorageOffDiagScale" type="real64" default="1" />
+		<!--effectiveCrossStorage => Direct effective off-diagonal storage coefficient Sbar_mf=Sbar_fm [1/Pa] for the multi-porosity storage matrix. This value is usually negative. It is still multiplied by crossStorageOffDiagScale, matching the intrinsic reconstruction path.-->
+		<xsd:attribute name="effectiveCrossStorage" type="real64" default="0" />
+		<!--effectiveFractureStorage => Direct effective fracture storage coefficient Sbar_ff [1/Pa] for the multi-porosity storage matrix. When positive, bypasses the intrinsic-property reconstruction of Sbar_ff. Single-phase inputs include the fluid compressibility contribution; compositional inputs should provide the skeleton part used by the compositional cross-storage correction.-->
+		<xsd:attribute name="effectiveFractureStorage" type="real64" default="0" />
+		<!--effectiveMatrixStorage => Direct effective matrix storage coefficient Sbar_mm [1/Pa] for the multi-porosity storage matrix. When positive, bypasses the intrinsic-property reconstruction of Sbar_mm. Single-phase inputs include the fluid compressibility contribution; compositional inputs should provide the skeleton part used by the compositional cross-storage correction.-->
+		<xsd:attribute name="effectiveMatrixStorage" type="real64" default="0" />
 		<!--fractureRegionList => List of fracture regions-->
 		<xsd:attribute name="fractureRegionList" type="string_array" use="required" />
 		<!--fractureSpacingLx => Fracture spacing in X direction-->
@@ -3222,14 +3228,6 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="gravityDrainageFlag" type="integer" default="0" />
 		<!--interporosityExchangeCoefficient => Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}]. When > 0, bypasses the Kazemi shape-factor formula and uses transmissibility = Gamma * mu * V_element.-->
 		<xsd:attribute name="interporosityExchangeCoefficient" type="real64" default="0" />
-		<!--intrinsicFractureBiot => Intrinsic fracture Biot coefficient for the FIM M_bar storage; <0 = use material.-->
-		<xsd:attribute name="intrinsicFractureBiot" type="real64" default="-1" />
-		<!--intrinsicFractureBulkModulus => Intrinsic fracture drained bulk modulus for the FIM M_bar storage; <0 = use material.-->
-		<xsd:attribute name="intrinsicFractureBulkModulus" type="real64" default="-1" />
-		<!--intrinsicMatrixBiot => Intrinsic matrix Biot coefficient for the FIM M_bar storage; <0 = use material.-->
-		<xsd:attribute name="intrinsicMatrixBiot" type="real64" default="-1" />
-		<!--intrinsicMatrixBulkModulus => Intrinsic matrix drained bulk modulus for the FIM M_bar storage; <0 = use material.-->
-		<xsd:attribute name="intrinsicMatrixBulkModulus" type="real64" default="-1" />
 		<!--matrixRegionList => List of matrix regions-->
 		<xsd:attribute name="matrixRegionList" type="string_array" use="required" />
 	</xsd:complexType>
@@ -3387,8 +3385,8 @@ Local- Add jump stabilization on interior of macro elements-->
 		<xsd:attribute name="stabilizationType" type="geos_stabilization_StabilizationType" default="None" />
 		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
 		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
-		<!--useIntrinsicInput => Material input mode for the dual-continuum effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. The solver does not homogenize these values again. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver uses its default homogenization algorithm (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit homogenizes once at initialization; Sequential uses the runtime composite-pressure mapping. Default is fully backward-compatible for effective-input decks.-->
-		<xsd:attribute name="useIntrinsicInput" type="integer" default="0" />
+		<!--useIntrinsicInput => Mechanics/storage input mode for the dual-continuum effective medium. 1 (default): the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver uses its default homogenization algorithm (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit and Sequential both homogenize once at initialization. Storage is reconstructed from intrinsic parameters. 0: the deck sets all homogenized EFFECTIVE moduli/Biot and the direct effective storage coefficients on DualContinuumCrossFlow; the solver does not homogenize these values again. Porosity and permeability are always intrinsic inputs and are volume-fraction scaled by the dual-continuum flow solver in both modes.-->
+		<xsd:attribute name="useIntrinsicInput" type="integer" default="1" />
 		<!--usePhysicsScaling => Enable physics-based scaling of the linear system. Default: true.-->
 		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
 		<!--writeLinearSystem => Write matrix, rhs, solution to screen ( = 1) or file ( = 2).-->
@@ -5152,8 +5150,8 @@ Local- Add jump stabilization on interior of macro elements-->
 		<xsd:attribute name="stabilizationType" type="geos_stabilization_StabilizationType" default="None" />
 		<!--targetRegions => Allowable regions that the solver may be applied to. Note that this does not indicate that the solver will be applied to these regions, only that allocation will occur such that the solver may be applied to these regions. The decision about what regions this solver will beapplied to rests in the EventManager.-->
 		<xsd:attribute name="targetRegions" type="groupNameRef_array" use="required" />
-		<!--useIntrinsicInput => Material input mode for the dual-continuum effective medium. 0 (default): the deck sets the homogenized EFFECTIVE moduli/Biot on the matrix constitutive models and the intrinsic* values on DualContinuumCrossFlow. The solver does not homogenize these values again. 1: the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver uses its default homogenization algorithm (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit homogenizes once at initialization; Sequential uses the runtime composite-pressure mapping. Default is fully backward-compatible for effective-input decks.-->
-		<xsd:attribute name="useIntrinsicInput" type="integer" default="0" />
+		<!--useIntrinsicInput => Mechanics/storage input mode for the dual-continuum effective medium. 1 (default): the deck sets the INTRINSIC matrix/fracture moduli/Biot on the constitutive models; the solver uses its default homogenization algorithm (Reuss Kbar/Gbar, abar_i=Kbar*v_i*alpha_i/K_i). FullyImplicit and Sequential both homogenize once at initialization. Storage is reconstructed from intrinsic parameters. 0: the deck sets all homogenized EFFECTIVE moduli/Biot and the direct effective storage coefficients on DualContinuumCrossFlow; the solver does not homogenize these values again. Porosity and permeability are always intrinsic inputs and are volume-fraction scaled by the dual-continuum flow solver in both modes.-->
+		<xsd:attribute name="useIntrinsicInput" type="integer" default="1" />
 		<!--usePhysicsScaling => Enable physics-based scaling of the linear system. Default: true.-->
 		<xsd:attribute name="usePhysicsScaling" type="integer" default="1" />
 		<!--writeLinearSystem => Write matrix, rhs, solution to screen ( = 1) or file ( = 2).-->

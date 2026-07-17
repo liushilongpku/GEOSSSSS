@@ -1,11 +1,13 @@
 # DPDP Mandel 试错历史与文件清理记录
 
-本目录清理后，只保留两份同源验证输入：
+本目录清理后，只保留四份同源验证输入：
 
 | 案例 | 输入文件 | 用途 |
 |---|---|---|
-| FIM 同源 | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` | 全耦合法，同源 pressure 标定初始压力和位移荷载，`crossStorageOffDiagScale="1.0"`。这是当前主对比中的 FIM 输入。 |
-| Seq 同源 | `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | 迭代耦合法，同源 pressure 标定初始压力和位移荷载，`crossStorageOffDiagScale="1.0"`。这是当前主对比中的 Seq 输入。 |
+| FIM effective | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` | 全耦合法，同源 pressure 标定，effective mechanics/storage 输入。 |
+| FIM intrinsic | `DPDP_N2_dispdriven_fim_intrinsic_sameSourcePressure.xml` | 全耦合法，同源 pressure 标定，intrinsic mechanics/storage 输入。 |
+| Seq effective | `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | 迭代耦合法，同源 pressure 标定，effective mechanics/storage 输入。 |
+| Seq intrinsic | `DPDP_N2_dispdriven_seq_intrinsic_sameSourcePressure.xml` | 迭代耦合法，同源 pressure 标定，intrinsic mechanics/storage 输入。 |
 
 已删除的历史三案例曾使用的输出目录：
 
@@ -21,9 +23,22 @@
 - Seq 同源输入：`DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml`
 - FIM 输出：`/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/fim`
 - Seq 输出：`/tmp/dpdp_same_source_smooth_dt300_full_20260716_124345/seq`
-- 英文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_EN.png`
-- 中文图：`analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_CN.png`
-- 新旧位移荷载对比：`analitical_result/load_curve_old_vs_sameSourcePressure_20260716_0313.png`
+- 旧中英文图已由 2026-07-17 的简洁 FIM/Seq 图替代并删除。
+
+2026-07-17 新增四输入模式一致性验证：
+
+- FIM effective 输出：`/tmp/dpdp_four_input_modes_20260717_162548/fim_eff`
+- Seq effective 输出：`/tmp/dpdp_four_input_modes_20260717_162548/seq_eff`
+- FIM intrinsic 输出：`/tmp/dpdp_intrinsic_full_homogenized_20260717_164549/fim_intrinsic`
+- Seq intrinsic 输出：`/tmp/dpdp_intrinsic_full_homogenized_20260717_164549/seq_intrinsic`
+- 最终图：`analitical_result/GEOS_pressure_four_input_modes_scriptAnalytical_20260717_1648.png`
+- 结论：旧 Sequential intrinsic runtime composite-pressure 路径不等价；改为 FIM/Seq
+  intrinsic 均在初始化时均匀化 matrix/fracture mechanics/Biot，并缓存本征参数重构 storage。
+
+2026-07-17 清理后，当前只保留两组对比图：
+
+- 简洁 FIM/Seq 图：`analitical_result/GEOS_pressure_FIM_Seq_scriptAnalytical_20260717_1705.png`
+- FIM/Seq effective/intrinsic 图：`analitical_result/GEOS_pressure_four_input_modes_scriptAnalytical_20260717_1648.png`
 
 本轮只比较当前解析脚本、FIM 同源、Seq 同源，不再把 0.911 拟合输入放入主图。图例中不强调
 `crossStorageOffDiagScale`，中文图将 FIM/Seq 分别标为“全耦合法”和“迭代耦合法”；输入文件仍是
@@ -33,6 +48,25 @@
 `build/bin/geosx`，而 Seq 修复提交在其后；重新编译后，同一输入可完整跑通。此次还修正了
 同源 XML 生成物的格式问题：生成注释必须放在 XML declaration 之后，`loadFunction0000000`
 片段改为 `.txt`，避免被全仓库 XML validation 当作完整 XML 校验。
+
+2026-07-17 核查 `useIntrinsicInput=0` 输入语义时发现，当前主 XML 的力学/Biot 是 effective 参数，
+但 `DualContinuumCrossFlow` 仍通过 `intrinsic*` 字段读取 storage reconstruction 参数，字段名容易
+误导。受控测试中仅把这些 `intrinsic*` 数值替换为 effective K/Biot 后，FIM matrix peak 从约
+`1.0747` 放大到 `2.6890`，Seq matrix peak 从约 `1.0734` 放大到 `2.6563`；对应 storage 只剩正确
+值的约 `Smm=0.161`、`Sff=0.0718`、`Smf=0.0291`。因此不能用 effective K/Biot 替换旧 intrinsic
+字段。代码新增 direct effective storage 输入，当前主 XML 改为：
+
+```text
+effectiveMatrixStorage=5.95755344271165954e-10
+effectiveFractureStorage=5.46327412521659742e-10
+effectiveCrossStorage=-5.08769676169630689e-10
+```
+
+这些数值与旧 intrinsic reconstruction 得到的 storage matrix 同源，用于消除输入命名混乱，不是新增
+经验缩放。随后代码进一步收紧为两种互斥 mechanics/storage 模式：`useIntrinsicInput=1` 为默认
+本征 mechanics/storage 输入并由代码均匀化/重构 storage；`useIntrinsicInput=0` 为等效
+mechanics/storage 输入，必须给 direct effective storage，且禁止
+`intrinsic*` storage 字段。
 
 ## 关键结果
 
@@ -50,7 +84,8 @@
 
 此前 `final_pressure_compare.png` 和 `GEOS_pressure_compare_FIM0911_FIM1000_Seq_analytical_20260715_0928.png`
 使用的是 `script/dpdp_mandel_analytical.py` 曲线。2026-07-15 后续检查发现，该脚本曲线与手动
-Fig. 5c CSV 不一致，因此下面改用 workflow 指定的手动 CSV 作为压力主基准。
+Fig. 5c CSV 不一致；当前 workflow 将程序一致性主图明确为解析脚本基准，手动 CSV 只作为论文图取点
+诊断。
 
 按手动 Fig. 5c CSV 统计的误差：
 
@@ -127,20 +162,21 @@ PDF 直接核查：用 PyMuPDF 渲染论文第 12 页后，Fig. 5c primary 曲�
 
 ## 已清理的历史图片
 
-`analitical_result/` 只长期保留手动解析 CSV、当前主对比图和用于说明历史混源错误的 load 曲线。
+`analitical_result/` 只长期保留手动解析 CSV、当前简洁 FIM/Seq 对比图和当前
+effective/intrinsic 四案例对比图。
 2026-07-15 清理掉该目录中旧阶段 PNG，包括旧 FIM/Seq 单案例图、digitized 对比图、BROKEN/历史
 kappa 试验图和旧 Fig5c 诊断图。2026-07-16 继续删除旧 total-stress/scale 对比图、旧三案例 Fig5c
 图、旧 sameSourcePressure 临时对比图，以及 `script/` 目录下早期 `GEOS_vs_analytical*.png` 截图。
-当前保留图片为：
+2026-07-17 继续删除旧 sameSource CN/EN 图、effectiveStorage/intrinsicPhiPerm 中间图、
+旧 load curve 图及其配套 CSV。当前保留图片为：
 
-- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_CN.png`
-- `analitical_result/GEOS_pressure_sameSource_FIM_Seq_analytical_20260716_1245_EN.png`
-- `analitical_result/load_curve_old_vs_sameSourcePressure_20260716_0313.png`
+- `analitical_result/GEOS_pressure_FIM_Seq_scriptAnalytical_20260717_1705.png`
+- `analitical_result/GEOS_pressure_four_input_modes_scriptAnalytical_20260717_1648.png`
 
 ## 已清理的历史输入表
 
-`mandel_input_tables/` 保留基础初始位移表，以及同源 pressure 验证 XML 引用的
-`same_source_pressure_calibrated/` 表：
+`mandel_input_tables/` 只保留同源 pressure 验证 XML 引用的
+`same_source_pressure_calibrated/` 表和生成 summary：
 
 - `xlin.geos`, `ylin.geos`, `zlin.geos`, `ux.geos`
 - `xlin2.geos`, `ylin2.geos`, `zlin2.geos`, `uz.geos`
@@ -149,6 +185,8 @@ kappa 试验图和旧 Fig5c 诊断图。2026-07-16 继续删除旧 total-stress/
 
 2026-07-16 删除 `same_source_displacement_calibrated/`，该目录只是检查旧位移标定来源的中间生成物；
 历史错误已记录在本文和 findings 中，最终同源 XML 只引用 `same_source_pressure_calibrated/`。
+
+2026-07-17 删除 `mandel_input_tables/` 根目录下旧 `ux/uz/xlin*/ylin*/zlin*` 表；当前四个 XML 均不再引用这些文件。
 
 - `u_z_0.5.geos`
 - `u_z_analitical.csv`

@@ -66,10 +66,6 @@
     <DualContinuumCrossFlow
             interporosityExchangeCoefficient="0.0"
             fractureVolumeFraction="0.03"
-            intrinsicMatrixBiot="0.9593"
-            intrinsicMatrixBulkModulus="1.1e9"
-            intrinsicFractureBiot="0.9992"
-            intrinsicFractureBulkModulus="2.25e7"
             crossStorageOffDiagScale="0.911"
             fractureSpacingLx="10"
             fractureSpacingLy="10"

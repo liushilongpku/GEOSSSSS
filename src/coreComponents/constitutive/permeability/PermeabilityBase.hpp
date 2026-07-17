@@ -165,6 +165,12 @@ public:
   void scaleHorizontalPermeability( arrayView1d< real64 const > scalingFactors ) const;
 
   /**
+   * @brief Utility function to scale all permeability tensor components.
+   * @param[in] scalingFactors the vector of scaling factors (one value per cell)
+   */
+  void scalePermeability( arrayView1d< real64 const > scalingFactors ) const;
+
+  /**
    * @brief Initialize the permeability state
    */
   virtual void initializeState() const

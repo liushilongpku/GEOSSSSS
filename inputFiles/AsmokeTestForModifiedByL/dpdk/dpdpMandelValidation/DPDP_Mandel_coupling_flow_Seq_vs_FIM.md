@@ -53,10 +53,7 @@ Flow -> Mechanics 映射
   relaxSequentialFlowPressure
   flowSolver()->saveSequentialIterationState
   copyFracturePressureToMesh1
-  若 useIntrinsicInput != 0:
-    swapToCompositePressure
-  否则:
-    保持当前 p_m / p_f 表示，不使用复合压力
+  保持当前 p_m / p_f 表示，不使用复合压力
   updateBulkDensity
 
 求解力学子问题
@@ -64,8 +61,6 @@ Flow -> Mechanics 映射
   位移增量给出单元体应变增量 dEps_v
 
 Mechanics -> Flow 映射
-  若使用复合压力:
-    restoreCompositePressure
   在 mesh1 上计算平均体应变增量
   更新 matrix porosity/permeability/fluid state
   将同一共享体应变增量映射给 fracture
@@ -90,19 +85,14 @@ useIntrinsicInput="0"
 因此它是 **effective-input Sequential**。在该路径中：
 
 - matrix/fracture 力学本构中的 `K/G/Biot` 已经是有效介质输入；
+- `DualContinuumCrossFlow` 必须使用 `effectiveMatrixStorage`、`effectiveFractureStorage`、
+  `effectiveCrossStorage`，不能再混入 `intrinsic*` storage 输入；
 - 力学映射不使用 `p_eq` 复合压力；
 - matrix 固定应力映射使用 `avgStress_m = K_m * dEps_v`；
 - fracture 固定应力映射使用 `avgStress_f = K_f * dEps_v`；
-- `DualContinuumCrossFlow` 中的 intrinsic 参数只用于双孔隙 storage 公式检查和组装。
 
-只有 `useIntrinsicInput != 0` 时，Sequential 才使用复合压力技巧：
-
-```text
-alpha_m * p_eq = abar_m * p_m + abar_f * p_f
-```
-
-这个 intrinsic-input 路径会在力学前临时把 `p_m` 换成 `p_eq`，力学后再恢复真实 `p_m`。
-不能把这个分支误写成当前主 Seq 的通用流程。
+`useIntrinsicInput=1` 的 Sequential 也在初始化时把 matrix/fracture 本构均匀化为 effective
+mechanics/Biot，并保留本征参数用于 storage 重构；不再使用历史 runtime composite-pressure 分支。
 
 ### 1.3 当前 Seq 稳定化要点
 
@@ -171,8 +161,10 @@ N=2 形式：
 1/Mbar_ij = -abar_i * abar_j / Kbar * crossStorageOffDiagScale
 ```
 
-其中 intrinsic 参数来自 `DualContinuumCrossFlow` 的 intrinsic 输入；effective Biot/模量用于
-力学侧和当前有效介质输入。
+当前 GEOS 只允许两种一致模式：`useIntrinsicInput=1` 时由材料本构中的本征参数反算 storage，
+不允许 direct effective storage；`useIntrinsicInput=0` 时当前 effective FIM/Seq XML 使用
+`effectiveMatrixStorage`、`effectiveFractureStorage`、`effectiveCrossStorage` 直接输入同一组
+effective storage。旧的 CrossFlow `intrinsic*` storage reconstruction XML 属性已删除。
 
 `crossStorageOffDiagScale="1.0"` 是无经验 offdiag 缩放对照。`crossStorageOffDiagScale="0.911"`
 是历史经验拟合输入，已删除，不再作为当前验证输入；它不应误写成无修正物理输入。
@@ -185,12 +177,14 @@ FIM Newton 步长由 `fimNewtonRelaxation` 控制。代码默认值是 `0.5`；�
 
 ## 3. 当前保留输入文件
 
-截至 2026-07-16，本目录用于主验证的 XML 为：
+截至 2026-07-17，本目录用于验证的 XML 为：
 
 | 输入文件 | 用途 |
 |---|---|
-| `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` | 同源 pressure 标定 FIM 输入 |
-| `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | 同源 pressure 标定 Sequential 输入 |
+| `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` | 同源 pressure 标定 FIM effective 输入 |
+| `DPDP_N2_dispdriven_fim_intrinsic_sameSourcePressure.xml` | 同源 pressure 标定 FIM intrinsic 输入 |
+| `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | 同源 pressure 标定 Sequential effective 输入 |
+| `DPDP_N2_dispdriven_seq_intrinsic_sameSourcePressure.xml` | 同源 pressure 标定 Sequential intrinsic 输入 |
 
 旧的 `correctLF`、stress-load、intrinsic/effective、0.911 拟合和非同源试验 deck 不再作为当前主验证输入。
 历史试错文件的清理记录见 `DPDP_Mandel_trial_history_and_cleanup.md`。
@@ -204,11 +198,11 @@ FIM Newton 步长由 `fimNewtonRelaxation` 控制。代码默认值是 `0.5`；�
 | 求解结构 | 外层 Picard/固定应力分裂，交替解力学和双流动 | 单体雅可比，`u/p_m/p_f` 同时 Newton |
 | 力学网格 | 只在 mesh1 解位移 | 只在 mesh1 解位移 |
 | fracture 力学作用 | 通过压力映射、共享体应变和 fracture porosity 更新进入流动 | 显式组装 K_upf/K_pfu，并更新 fracture porosity/mass |
-| 当前主输入模式 | `useIntrinsicInput=0`，effective-input，不使用复合压力 | effective-input FIM |
-| 复合压力 | 仅 intrinsic-input Sequential 使用 | 不使用 |
+| 当前输入模式 | effective 与 intrinsic 两种 deck 均保留；intrinsic 初始化均匀化 | effective 与 intrinsic 两种 deck 均保留；intrinsic 初始化均匀化 |
+| 复合压力 | 历史 runtime composite-pressure 分支已禁用 | 不使用 |
 | cross-storage offdiag | Sequential split 下对外迭代滞后，保证固定点迭代收缩 | 直接进入单体 residual/Jacobian |
 | relaxation | 当前验证不需要 pressure relaxation | XML 可显式设置 `fimNewtonRelaxation`；代码默认 0.5 |
-| 当前代表 deck | `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` |
+| 当前代表 deck | `DPDP_N2_dispdriven_seq_eff_sameSourcePressure.xml` / `DPDP_N2_dispdriven_seq_intrinsic_sameSourcePressure.xml` | `DPDP_N2_dispdriven_fim_eff_direct_mesh10_sameSourcePressure.xml` / `DPDP_N2_dispdriven_fim_intrinsic_sameSourcePressure.xml` |
 
 ---
 
