@@ -58,6 +58,14 @@ public:
                                                                    real64 gravityCoefficient,
                                                                    real64 Lz ) const override;
 
+  void setupGravityDrainagePressureFromPhaseMassDensities(
+    arrayView3d< real64 const > const matrixPhaseMassDensity,
+    arrayView2d< real64 const > const matrixPhaseVolumeFraction,
+    arrayView3d< real64 const > const fracturePhaseMassDensity,
+    arrayView2d< real64 const > const fracturePhaseVolumeFraction,
+    real64 gravityCoefficient,
+    real64 Lz ) const override;
+
   /**
    * @brief Update gravity drainage pressure
    * @param[in] gravityCoefficient gravity coefficient (g in m/s^2)

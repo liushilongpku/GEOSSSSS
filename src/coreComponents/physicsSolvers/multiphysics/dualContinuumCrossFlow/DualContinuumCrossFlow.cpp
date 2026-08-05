@@ -9,6 +9,7 @@
 #include "constitutive/gravityDrainagePressure/SimpleGravityDrainagePressure.hpp"
 #include "physicsSolvers/fluidFlow/StencilAccessors.hpp"
 #include "physicsSolvers/fluidFlow/SinglePhaseBaseFields.hpp"
+#include "physicsSolvers/fluidFlow/CompositionalMultiphaseBaseFields.hpp"
 #include "constitutive/fluid/multifluid/MultiFluidBase.hpp"
 #include "constitutive/fluid/singlefluid/SingleFluidBase.hpp"
 
@@ -326,16 +327,22 @@ void DualContinuumCrossFlow::setupGravityDrainagePressure( MeshLevel & meshMatri
           constitutive::MultiFluidBase const * multiFluidMatrix = matrixConstitutiveModels.getGroupPointer< constitutive::MultiFluidBase >( fluidNameMatrix );
           if( multiFluidMatrix )
           {
-            // Use TOTAL densities on both sides so the density contrast (rho_f - rho_m)
-            // is dimensionally consistent (mixing a single matrix phase density with the
-            // fracture total density is physically meaningless). The 2-arg overload
-            // computes the SIGNED Kazemi gravity-drainage pressure.
-            arrayView2d< real64 const > const matrixFluidTotalDensity = multiFluidMatrix->totalDensity();
+            arrayView3d< real64 const > const matrixPhaseMassDensity = multiFluidMatrix->phaseMassDensity();
+            arrayView2d< real64 const > const matrixPhaseVolumeFraction =
+              matrixSubRegion.getField< fields::flow::phaseVolumeFraction >();
 
             constitutive::MultiFluidBase const & fluidFracture = fractureConstitutiveModels.getGroup< constitutive::MultiFluidBase >( fluidNameFracture );
-            arrayView2d< real64 const > const fractureFluidTotalDensity = fluidFracture.totalDensity();
+            arrayView3d< real64 const > const fracturePhaseMassDensity = fluidFracture.phaseMassDensity();
+            arrayView2d< real64 const > const fracturePhaseVolumeFraction =
+              fractureSubRegion.getField< fields::flow::phaseVolumeFraction >();
 
-            gdModel.setupGravityDrainagePressure( matrixFluidTotalDensity, fractureFluidTotalDensity, gravityCoefficient, m_fracSpacingLz );
+            gdModel.setupGravityDrainagePressureFromPhaseMassDensities(
+              matrixPhaseMassDensity,
+              matrixPhaseVolumeFraction,
+              fracturePhaseMassDensity,
+              fracturePhaseVolumeFraction,
+              gravityCoefficient,
+              m_fracSpacingLz );
           }
           else
           {

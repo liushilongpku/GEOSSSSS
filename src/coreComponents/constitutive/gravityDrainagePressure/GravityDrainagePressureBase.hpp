@@ -116,6 +116,21 @@ public:
                                      real64 gravityCoefficient,
                                      real64 Lz ) const;
 
+  /**
+   * @brief Initialize GDP from phase mass densities and phase volume fractions.
+   *
+   * The phase volume fractions are pore-volume saturations.  This overload is
+   * needed when the flow equations use molar densities, because GDP requires a
+   * mass-density contrast.
+   */
+  virtual void setupGravityDrainagePressureFromPhaseMassDensities(
+    arrayView3d< real64 const > const matrixPhaseMassDensity,
+    arrayView2d< real64 const > const matrixPhaseVolumeFraction,
+    arrayView3d< real64 const > const fracturePhaseMassDensity,
+    arrayView2d< real64 const > const fracturePhaseVolumeFraction,
+    real64 gravityCoefficient,
+    real64 Lz ) const;
+
 protected:
 
   array2d< real64 > m_gravityDrainagePressure;

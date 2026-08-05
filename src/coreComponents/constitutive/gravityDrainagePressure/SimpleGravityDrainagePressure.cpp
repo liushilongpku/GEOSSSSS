@@ -75,6 +75,33 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressure(arrayView3d< re
   } );
 }
 
+void SimpleGravityDrainagePressure::setupGravityDrainagePressureFromPhaseMassDensities(
+  arrayView3d< real64 const > const matrixPhaseMassDensity,
+  arrayView2d< real64 const > const matrixPhaseVolumeFraction,
+  arrayView3d< real64 const > const fracturePhaseMassDensity,
+  arrayView2d< real64 const > const fracturePhaseVolumeFraction,
+  real64 gravityCoefficient,
+  real64 Lz ) const
+{
+  localIndex const numE = m_gravityDrainagePressure.size( 0 );
+  localIndex const numPhase = matrixPhaseMassDensity.size( 2 );
+  auto gravDrainPressView = m_gravityDrainagePressure.toView();
+
+  forAll< parallelDevicePolicy<> >( numE, [=] GEOS_HOST_DEVICE ( localIndex const ei )
+  {
+    real64 matrixMassDensity = 0.0;
+    real64 fractureMassDensity = 0.0;
+    for( localIndex ip = 0; ip < numPhase; ++ip )
+    {
+      matrixMassDensity += matrixPhaseVolumeFraction[ei][ip] * matrixPhaseMassDensity[ei][0][ip];
+      fractureMassDensity += fracturePhaseVolumeFraction[ei][ip] * fracturePhaseMassDensity[ei][0][ip];
+    }
+
+    // GDP requires a mass-density contrast even when the flow equations use molar variables.
+    gravDrainPressView[ei][0] = gravityCoefficient * ( fractureMassDensity - matrixMassDensity ) * Lz / 2;
+  } );
+}
+
 void SimpleGravityDrainagePressure::updateState( real64 const gravityCoefficient,
                                                   arrayView1d< real64 const > const & densityMatrix,
                                                   arrayView1d< real64 const > const & densityFracture,

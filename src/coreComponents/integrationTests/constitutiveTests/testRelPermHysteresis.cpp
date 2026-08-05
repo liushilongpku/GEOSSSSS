@@ -133,12 +133,23 @@ public:
 
 };
 
+real64 referenceTrappedGasSat( real64 const shy )
+{
+  real64 constexpr maxGasSat = 0.78;
+  real64 constexpr landCoefficient = 1.6;
+  real64 constexpr jerauldA = 0.1;
+  real64 const denominator = 1.0 + jerauldA * ( maxGasSat - shy )
+                             + landCoefficient * ( shy / maxGasSat );
+  return shy / denominator;
+}
+
 template< typename TBL_WRAPPER >
 void testValuesAgainstReference( TBL_WRAPPER const & relpermTblWrapper,
                                  real64 const & sat_nw,
                                  real64 const & shy,
                                  real64 const & refRelPerm_w,
                                  real64 const & refRelPerm_nw,
+                                 real64 const & refTrappedSat_nw,
                                  real64 const & relTol )
 {
   integer const numPhases = 2;
@@ -181,7 +192,10 @@ void testValuesAgainstReference( TBL_WRAPPER const & relpermTblWrapper,
 
   checkRelativeError( phaseRelPerm[0][0][ipWetting], refRelPerm_w, relTol );
   checkRelativeError( phaseRelPerm[0][0][ipNonWetting], refRelPerm_nw, relTol );
-  //TODO check phaseTrappedVolFraction
+  checkRelativeError( phaseTrappedVolFrac[0][0][ipWetting], 0.22, relTol );
+  checkRelativeError( phaseTrappedVolFrac[0][0][ipNonWetting],
+                      LvArray::math::min( sat_nw, refTrappedSat_nw ),
+                      relTol );
 }
 
 TEST_F( KilloughHysteresisTest, KilloughTwoPhaseHysteresisTest )
@@ -214,6 +228,10 @@ TEST_F( KilloughHysteresisTest, KilloughTwoPhaseHysteresisTest )
     { 0.920000, 0.860285, 0.716467, 0.581413, 0.456038, 0.341595, 0.238939, 0.149497, 0.075697, 0.022777, 0.000000, 0.000000 },
     { 1.000000, 0.848929, 0.705493, 0.571229, 0.446815, 0.333110, 0.231251, 0.142852, 0.070502, 0.020172, 0.000000, 0.000000 } };
 
+  // Independent Land/Jerauld endpoint values for Shy = 0.5, 0.75 and 0.78.
+  // C = (0.78 - 0) / (0.30 - 0) - 1 = 1.6, a = 0.1 and b = 0.
+  real64 const trappedGasSat[] = { 0.243470009489088, 0.295105784073368, 0.3 };
+
   real64 const relTol = 5e-5;
 
   // saved cycle
@@ -233,6 +251,7 @@ TEST_F( KilloughHysteresisTest, KilloughTwoPhaseHysteresisTest )
       testValuesAgainstReference( relpermTblWrapper,
                                   increasingGasSat[iSat], increasingGasSat[iSat],
                                   drainageRelPerm_w_values[iSat], drainageRelPerm_g_values[iSat],
+                                  referenceTrappedGasSat( increasingGasSat[iSat] ),
                                   relTol );
     }
 
@@ -242,6 +261,7 @@ TEST_F( KilloughHysteresisTest, KilloughTwoPhaseHysteresisTest )
       testValuesAgainstReference( relpermTblWrapper,
                                   decreasingGasSat[iSat], shy[count],
                                   scanningRelPerm_w_i[count][iSat], scanningRelPerm_g_i[count][iSat],
+                                  trappedGasSat[count],
                                   relTol );
     }
   }
