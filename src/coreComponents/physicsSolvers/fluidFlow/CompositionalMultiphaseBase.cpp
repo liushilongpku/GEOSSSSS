@@ -166,6 +166,12 @@ CompositionalMultiphaseBase::CompositionalMultiphaseBase( const string & name,
     setApplyDefaultValue( 1 ).
     setDescription( "Flag indicating whether simple accumulation form is used" );
 
+  this->registerWrapper( viewKeyStruct::logMassResidualDiagnosticsString(), &m_logMassResidualDiagnostics ).
+    setSizedFromParent( 0 ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setApplyDefaultValue( 0 ).
+    setDescription( "Flag indicating whether unnormalized component mass residual diagnostics are logged" );
+
   this->registerWrapper( viewKeyStruct::minCompDensString(), &m_minCompDens ).
     setSizedFromParent( 0 ).
     setInputFlag( InputFlags::OPTIONAL ).
@@ -974,6 +980,15 @@ void CompositionalMultiphaseBase::initializeFluidState( MeshLevel & mesh,
     // Initialize/update dependent state quantities
 
     updateCompAmount( subRegion );
+
+    // The initial compAmount is computed after FlowSolverBase has saved its
+    // converged fields during porosity initialization. Keep the accumulation
+    // reference synchronized with the actual initial inventory.
+    arrayView2d< real64 const, compflow::USD_COMP > const compAmount =
+      subRegion.template getField< flow::compAmount >();
+    arrayView2d< real64, compflow::USD_COMP > const compAmount_n =
+      subRegion.template getField< flow::compAmount_n >();
+    compAmount_n.setValues< parallelDevicePolicy<> >( compAmount );
     updatePhaseVolumeFraction( subRegion );
 
     // Update the constitutive models that only depend on

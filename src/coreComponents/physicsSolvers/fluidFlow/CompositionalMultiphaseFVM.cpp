@@ -616,6 +616,49 @@ real64 CompositionalMultiphaseFVM::calculateResidualNorm( real64 const & GEOS_UN
     getConvergenceStats().setResidualValue( "Rvol", globalResidualNorm[1] );
   }
 
+  // The raw reduction is an expensive diagnostic. Intermediate Newton states can have
+  // very large residuals and are not relevant to an accepted time step, so only log
+  // the near-converged states used for the mass-closure audit.  The audit separates
+  // the mass-equation residual from later poromechanics state refreshes: this tells us
+  // whether an apparent inventory increase is already present in the flow solve or is
+  // introduced after the flow equations have been assembled/solved.
+  if( m_logMassResidualDiagnostics != 0 && globalResidualNorm[0] < 1.0e-2 )
+  {
+    real64 localTotalMassResidual = 0.0;
+    real64 localCo2MassResidual = 0.0;
+
+    forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&]( string const &,
+                                                                 MeshLevel const & mesh,
+                                                                 string_array const & regionNames )
+    {
+      mesh.getElemManager().forElementSubRegions( regionNames,
+                                                  [&]( localIndex const,
+                                                       ElementSubRegionBase const & subRegion )
+      {
+        arrayView1d< globalIndex const > const dofNumber =
+          subRegion.getReference< array1d< globalIndex > >( dofKey );
+        arrayView1d< integer const > const ghostRank = subRegion.ghostRank();
+
+        for( localIndex ei = 0; ei < subRegion.size(); ++ei )
+        {
+          if( ghostRank[ei] >= 0 )
+          {
+            continue;
+          }
+
+          localIndex const localRow = LvArray::integerConversion< localIndex >( dofNumber[ei] - rankOffset );
+          localTotalMassResidual += localRhs[localRow];
+          localCo2MassResidual += localRhs[localRow + (m_useTotalMassEquation > 0 ? 1 : 0)];
+        }
+      } );
+    } );
+
+    real64 const totalMassResidual = MpiWrapper::sum( localTotalMassResidual );
+    real64 const co2MassResidual = MpiWrapper::sum( localCo2MassResidual );
+    GEOS_LOG_RANK_0( GEOS_FMT( "{}: MASS-RESIDUAL rawTotal={:.12e} rawCO2={:.12e} normalizedMass={:.12e} ",
+                               getName(), totalMassResidual, co2MassResidual, globalResidualNorm[0] ) );
+  }
+
   return residualNorm;
 }
 

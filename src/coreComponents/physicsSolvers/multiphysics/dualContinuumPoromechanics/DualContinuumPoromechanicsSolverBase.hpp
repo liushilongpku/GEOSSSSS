@@ -138,6 +138,13 @@ public:
                       "logs norms of hand-assembled FIM coupling blocks and pressure updates "
                       "(K_upf, cross-storage, dp_m/dp_f). Does not change the assembled system." );
 
+    this->registerWrapper( viewKeyStruct::logSequentialMassDiagnosticsString(), &m_logSequentialMassDiagnostics ).
+      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
+      setApplyDefaultValue( 0 ).
+      setDescription( "Diagnostic switch for sequential dual-continuum poromechanics. When nonzero, "
+                      "logs matrix and fracture CO2 inventories before and after the mechanics-to-flow "
+                      "porosity/state updates. Does not change the solution." );
+
     this->registerWrapper( viewKeyStruct::useIntrinsicInputString(), &m_useIntrinsicInput ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
       setApplyDefaultValue( 1 ).
@@ -498,6 +505,10 @@ public:
         m_tempCompositePressure_n.clear();
       }
       Base::updateBulkDensity( domain );
+      if( m_logSequentialMassDiagnostics != 0 )
+      {
+        logSequentialMassInventory( domain, "afterFlow" );
+      }
     }
     else if( solverType == static_cast< integer >( SolverType::SolidMechanics )
              && !this->m_performStressInitialization )
@@ -568,10 +579,26 @@ public:
             m_tempVolStrainIncr.push_back( delta_eps_v );
           }
         }
+        if( m_logSequentialMassDiagnostics != 0 )
+        {
+          logSequentialMassInventory( domain, "beforeMatrixPorosity" );
+        }
         this->flowSolver()->updatePorosityAndPermeability( subRegion );
+        if( m_logSequentialMassDiagnostics != 0 )
+        {
+          logSequentialMassInventory( domain, "afterMatrixPorosity" );
+        }
         this->flowSolver()->primarySolver()->updateFluidState( subRegion );
+        if( m_logSequentialMassDiagnostics != 0 )
+        {
+          logSequentialMassInventory( domain, "afterMatrixFluidState" );
+        }
         this->updateBulkDensity( subRegion );
       } );
+      if( m_logSequentialMassDiagnostics != 0 )
+      {
+        logSequentialMassInventory( domain, "afterMatrixState" );
+      }
       m_tempCompositePressure.clear();
       m_tempCompositePressure_n.clear();
 
@@ -638,10 +665,26 @@ public:
                   : K_f[kf] * delta_eps_v - pressureStressIncrement;
               }
             }
+            if( m_logSequentialMassDiagnostics != 0 )
+            {
+              logSequentialMassInventory( domain, "beforeFracturePorosity" );
+            }
             this->flowSolver()->secondarySolver()->updatePorosityAndPermeability( fracSubReg );
+            if( m_logSequentialMassDiagnostics != 0 )
+            {
+              logSequentialMassInventory( domain, "afterFracturePorosity" );
+            }
             this->flowSolver()->secondarySolver()->updateFluidState( fracSubReg );
+            if( m_logSequentialMassDiagnostics != 0 )
+            {
+              logSequentialMassInventory( domain, "afterFractureFluidState" );
+            }
           } );
         }
+      }
+      if( m_logSequentialMassDiagnostics != 0 )
+      {
+        logSequentialMassInventory( domain, "afterFractureState" );
       }
     }
   }
@@ -3177,6 +3220,132 @@ public:
 
 private:
 
+  // Report the inventory at the sequential split points.  The stages are recorded
+  // because mechanics changes porosity between the flow and mechanics sub-solves,
+  // and updateFluidState() can then rewrite compAmount from phi*V*rho.  Comparing
+  // afterFlow, afterPorosity, and afterFluidState therefore identifies the exact
+  // stage that changes the inventory, while matrix/fracture and total sums distinguish
+  // continuum redistribution from a non-conservative change in global mass.  The values
+  // are reconstructed from the same compAmount field used by the accumulation kernel,
+  // so this diagnostic observes the split coupling without perturbing the solve.
+  void logSequentialMassInventory( DomainPartition & domain, char const * stage ) const
+  {
+    if constexpr ( !isMultiphaseFlow )
+    {
+      GEOS_UNUSED_VAR( domain, stage );
+      return;
+    }
+
+    MeshBody & matrix = domain.getMeshBody( "mesh1" );
+    MeshBody & fracture = domain.getMeshBody( "mesh2" );
+    MeshLevel & matrixMesh = matrix.getMeshLevels().getGroup< MeshLevel >( 0 );
+    MeshLevel & fractureMesh = fracture.getMeshLevels().getGroup< MeshLevel >( 0 );
+
+    using DualFlow = DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER >;
+    DualFlow & dualFlow = *this->flowSolver();
+    string_array const & matrixRegions = dualFlow.template getReference< string_array >( "matrixRegionList" );
+    string_array const & fractureRegions = dualFlow.template getReference< string_array >( "fractureRegionList" );
+
+    real64 co2M = 0.0;
+    real64 co2MN = 0.0;
+    real64 co2DerivedM = 0.0;
+    real64 poreM = 0.0;
+    real64 co2F = 0.0;
+    real64 co2FN = 0.0;
+    real64 co2DerivedF = 0.0;
+    real64 poreF = 0.0;
+
+    CompositionalMultiphaseFormulationType const formulationType =
+      dualFlow.primarySolver()->template getReference< CompositionalMultiphaseFormulationType >(
+        CompositionalMultiphaseBase::viewKeyStruct::formulationTypeString() );
+
+    auto accumulate = [&]( MeshLevel & mesh,
+                           string_array const & regions,
+                           real64 & co2,
+                           real64 & co2N,
+                           real64 & co2Derived,
+                           real64 & poreVolume )
+    {
+      mesh.getElemManager().forElementSubRegions< CellElementSubRegion >(
+        regions,
+        [&]( localIndex const, CellElementSubRegion & subRegion )
+      {
+        arrayView1d< integer const > const ghostRank = subRegion.ghostRank();
+        arrayView1d< real64 const > const volume = subRegion.getElementVolume();
+        string const & solidName = subRegion.template getReference< string >(
+          Base::viewKeyStruct::porousMaterialNamesString() );
+        constitutive::CoupledSolidBase const & porousMaterial =
+          this->template getConstitutiveModel< constitutive::CoupledSolidBase >( subRegion, solidName );
+        arrayView2d< real64 const > const porosity = porousMaterial.getPorosity();
+        arrayView2d< real64 const, compflow::USD_COMP > const compAmount =
+          subRegion.template getField< fields::flow::compAmount >();
+        arrayView2d< real64 const, compflow::USD_COMP > const compAmountN =
+          subRegion.template getField< fields::flow::compAmount_n >();
+
+        arrayView2d< real64 const, compflow::USD_COMP > compDens;
+        arrayView2d< real64 const, compflow::USD_COMP > compFrac;
+        arrayView2d< real64 const, constitutive::multifluid::USD_FLUID > totalDens;
+        if( formulationType == CompositionalMultiphaseFormulationType::OverallComposition )
+        {
+          compFrac = subRegion.template getField< fields::flow::globalCompFraction >();
+          string const & fluidName = subRegion.template getReference< string >(
+            CompositionalMultiphaseBase::viewKeyStruct::fluidNamesString() );
+          constitutive::MultiFluidBase const & fluid =
+            this->template getConstitutiveModel< constitutive::MultiFluidBase >( subRegion, fluidName );
+          totalDens = fluid.totalDensity();
+        }
+        else
+        {
+          compDens = subRegion.template getField< fields::flow::globalCompDensity >();
+        }
+
+        for( localIndex k = 0; k < subRegion.size(); ++k )
+        {
+          if( ghostRank[k] < 0 )
+          {
+            co2 += compAmount[k][0];
+            co2N += compAmountN[k][0];
+            real64 const currentComponentDensity =
+              formulationType == CompositionalMultiphaseFormulationType::OverallComposition
+              ? compFrac[k][0] * totalDens[k][0]
+              : compDens[k][0];
+            co2Derived += porosity[k][0] * volume[k] * currentComponentDensity;
+            poreVolume += porosity[k][0] * volume[k];
+          }
+        }
+      } );
+    };
+
+    accumulate( matrixMesh, matrixRegions, co2M, co2MN, co2DerivedM, poreM );
+    accumulate( fractureMesh, fractureRegions, co2F, co2FN, co2DerivedF, poreF );
+
+    co2M = MpiWrapper::sum( co2M );
+    co2MN = MpiWrapper::sum( co2MN );
+    co2DerivedM = MpiWrapper::sum( co2DerivedM );
+    poreM = MpiWrapper::sum( poreM );
+    co2F = MpiWrapper::sum( co2F );
+    co2FN = MpiWrapper::sum( co2FN );
+    co2DerivedF = MpiWrapper::sum( co2DerivedF );
+    poreF = MpiWrapper::sum( poreF );
+
+    real64 const total = co2M + co2F;
+    real64 const totalN = co2MN + co2FN;
+    real64 const derivedTotal = co2DerivedM + co2DerivedF;
+    real64 const avgDensM = poreM > 0.0 ? co2M / poreM : 0.0;
+    real64 const avgDensF = poreF > 0.0 ? co2F / poreF : 0.0;
+
+    GEOS_LOG_RANK_0( GEOS_FMT( "{}: SEQ-MASS stage={} co2M={:.12e} co2MN={:.12e} dM={:.12e} "
+                               "derivedM={:.12e} storedMinusDerivedM={:.12e} poreM={:.12e} cbarM={:.12e} "
+                               "co2F={:.12e} co2FN={:.12e} dF={:.12e} derivedF={:.12e} "
+                               "storedMinusDerivedF={:.12e} poreF={:.12e} cbarF={:.12e} "
+                               "total={:.12e} totalN={:.12e} dTotal={:.12e} derivedTotal={:.12e} "
+                               "storedMinusDerivedTotal={:.12e}",
+                               this->getName(), stage,
+                               co2M, co2MN, co2M - co2MN, co2DerivedM, co2M - co2DerivedM, poreM, avgDensM,
+                               co2F, co2FN, co2F - co2FN, co2DerivedF, co2F - co2DerivedF, poreF, avgDensF,
+                               total, totalN, total - totalN, derivedTotal, total - derivedTotal ) );
+  }
+
   // Accessor for dual continuum flow solver
   DualContinuumFlowSolverBase< PRIMARY_FLOW_SOLVER, SECONDARY_FLOW_SOLVER > * dualContinuumFlowSolver() const
   {
@@ -3218,6 +3387,7 @@ public:
     { return "enableFracturePorosityStrainCoupling"; }
     static constexpr char const * enableFimCrossStorageString() { return "enableFimCrossStorage"; }
     static constexpr char const * logFimCouplingDiagnosticsString() { return "logFimCouplingDiagnostics"; }
+    static constexpr char const * logSequentialMassDiagnosticsString() { return "logSequentialMassDiagnostics"; }
     static constexpr char const * useIntrinsicInputString() { return "useIntrinsicInput"; }
     static constexpr char const * autoInitializeStressString() { return "autoInitializeStress"; }
     static constexpr char const * effectiveBulkModulusString() { return "effectiveBulkModulus"; }
@@ -3254,6 +3424,8 @@ public:
   integer m_enableFimCrossStorage = 1;
 
   integer m_logFimCouplingDiagnostics = 0;
+
+  integer m_logSequentialMassDiagnostics = 0;
 
   // Input mode for dual-continuum mechanics/storage parameters (default 1 = intrinsic input).
   // Porosity and permeability are always intrinsic input and are scaled by the continuum volume
