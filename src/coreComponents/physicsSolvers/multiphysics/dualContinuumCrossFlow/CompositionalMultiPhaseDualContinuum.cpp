@@ -69,7 +69,8 @@ assembleCouplingTerms(real64 const GEOS_UNUSED_PARAM( time_n ),
     kernelFlags.set( KernelFlags::Dispersion );
   if( this->primarySolver()->isuseTotalMassEquation()  )
     kernelFlags.set( KernelFlags::TotalMassEquation );
-  if( this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence && this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence)
+  if( this->primarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence &&
+      this->secondarySolver()->getgravityDensityScheme() == GravityDensityScheme::PhasePresence )
     kernelFlags.set( KernelFlags::CheckPhasePresenceInGravity );
   if( Base::getGravityDrainageFlag() )
     kernelFlags.set( KernelFlags::GravityDrainage);

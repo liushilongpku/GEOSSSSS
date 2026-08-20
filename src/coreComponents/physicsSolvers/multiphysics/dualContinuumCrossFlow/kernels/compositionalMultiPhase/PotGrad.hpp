@@ -146,14 +146,13 @@ struct PotGrad
         }
       }
 
-      real64 gravityDrainagePressure = 0.0;
-      if(hasGravityDraingae)
-      {
-        gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][0];
-      }
-
       if( i==0 ) //判断是应该使用那种物质中的场
       {
+        real64 gravityDrainagePressure = 0.0;
+        if( hasGravityDraingae )
+        {
+          gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][0];
+        }
         // GDP is added to matrix-side pressure (Kazemi model: P_grav = |g * (rho_f - rho_m) * Lz / 2|).
         // GDP is treated as an explicit source term: updated every timestep via updateState(),
         // held constant during Newton iterations (no dGDP/dP or dGDP/dC Jacobian contributions).
@@ -180,7 +179,11 @@ struct PotGrad
         // need to add contributions from both cells the mean density depends on
         for( integer j = 0; j < numFluxSupportPoints; ++j )
         {
-          dGravHead_dP[j] += dDensMean_dP[j] * gravD + dGravD_dP * densMean;
+          dGravHead_dP[j] += dDensMean_dP[j] * gravD;
+          if( j == i )
+          {
+            dGravHead_dP[j] += dGravD_dP * densMean;
+          }
           for( integer jc = 0; jc < numComp; ++jc )
           {
             dGravHead_dC[j][jc] += dDensMean_dC[j][jc] * gravD;
@@ -192,8 +195,8 @@ struct PotGrad
         //std::cout << "phase " << ip << " in block "<< i << " has pressure of " << pres_m[er][esr][ei]<< " and the cappres is :"<< capPressure<< std::endl;
         real64 const dP = pres_f[er][esr][ei] - capPressure;
         presGrad += -trans[i] * dP;
-        dPresGrad_dTrans += dP;
-        dPresGrad_dP[i] += -trans[i] * ( 1 - dCapPressure_dP ) + dTrans_dPres[i] * dP;
+        dPresGrad_dTrans -= dP;
+        dPresGrad_dP[i] += -trans[i] * ( 1 - dCapPressure_dP ) - dTrans_dPres[i] * dP;
         for( integer jc = 0; jc < numComp; ++jc )
         {
           dPresGrad_dC[i][jc] += trans[i] * dCapPressure_dC[jc];
@@ -201,8 +204,8 @@ struct PotGrad
 
         real64 const gC = gravCoef_f[er][esr][ei];
         real64 const gravD = -trans[i] * gC;
-        real64 const dGravD_dTrans = gC;
-        real64 const dGravD_dP = dTrans_dPres[i] * gC;
+        real64 const dGravD_dTrans = -gC;
+        real64 const dGravD_dP = -dTrans_dPres[i] * gC;
 
         // the density used in the potential difference is always a mass density
         // unlike the density used in the phase mobility, which is a mass density
@@ -213,7 +216,11 @@ struct PotGrad
         // need to add contributions from both cells the mean density depends on
         for( integer j = 0; j < numFluxSupportPoints; ++j )
         {
-          dGravHead_dP[j] += dDensMean_dP[j] * gravD + dGravD_dP * densMean;
+          dGravHead_dP[j] += dDensMean_dP[j] * gravD;
+          if( j == i )
+          {
+            dGravHead_dP[j] += dGravD_dP * densMean;
+          }
           for( integer jc = 0; jc < numComp; ++jc )
           {
             dGravHead_dC[j][jc] += dDensMean_dC[j][jc] * gravD;
