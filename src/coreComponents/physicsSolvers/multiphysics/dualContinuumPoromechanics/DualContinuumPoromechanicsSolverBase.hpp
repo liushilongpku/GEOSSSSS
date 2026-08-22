@@ -89,13 +89,11 @@ public:
     : Base( name, parent )
   {
     this->registerWrapper( viewKeyStruct::fractureVolumeFractionString(), &m_fractureVolumeFraction ).
-      setInputFlag( dataRepository::InputFlags::OPTIONAL ).
-      setApplyDefaultValue( -1.0 ).
+      setInputFlag( dataRepository::InputFlags::REQUIRED ).
       setDescription( "Fracture volume fraction v_f = V_f / (V_m+V_f). "
-                      "Default (<0) computes v_f from mesh element volumes. "
-                      "Set explicitly when the mesh does not reflect the "
-                      "physical volume fractions (e.g. dual-continuum models "
-                      "with co-located meshes)." );
+                      "It is required because dual-continuum mesh supports can "
+                      "be co-located; the matrix fraction is v_m=1-v_f and "
+                      "v_m+v_f=1." );
 
     this->registerWrapper( viewKeyStruct::fimNewtonRelaxationString(), &m_fimNewtonRelaxation ).
       setInputFlag( dataRepository::InputFlags::OPTIONAL ).
@@ -203,6 +201,9 @@ public:
     // must be set during postInputInitialization for pressure_k to be registered.
     if( this->getNonlinearSolverParameters().couplingType() == NonlinearSolverParameters::CouplingType::Sequential )
     {
+      // Sequential dual-continuum poromechanics uses the fixed-stress flow correction;
+      // pure dual-continuum flow leaves this poromechanics-only term disabled by default.
+      this->flowSolver()->setEnableCrossStorageCorrection( true );
       GEOS_THROW_IF( this->getNonlinearSolverParameters().m_subcyclingOption == 0,
                      GEOS_FMT( "{} {}: dual-continuum poromechanics Sequential coupling requires "
                                "subcycling=\"1\". A single-pass split leaves the fixed-stress "

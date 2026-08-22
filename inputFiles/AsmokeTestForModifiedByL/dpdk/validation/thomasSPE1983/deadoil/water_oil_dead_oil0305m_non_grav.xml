@@ -19,6 +19,7 @@
         fractureSpacingLx="0.305"
         fractureSpacingLy="0.3050"
         fractureSpacingLz="0.305"
+        fractureVolumeFraction="0.01"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
 <!--      这里的fractureSpacingLx、fractureSpacingLy、fractureSpacingLz是不起作用，在代码中硬编码形状因子25。-->
@@ -173,7 +174,7 @@
 
     <PressurePorosity
       name="fracturePorosity"
-      defaultReferencePorosity="0.01"
+      defaultReferencePorosity="1.0"
       referencePressure="43e6"
       compressibility="5.0e-10"/>
 <!--    几乎不可压缩-->

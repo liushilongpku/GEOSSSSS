@@ -1,0 +1,167 @@
+<!-- Purpose: isolate zero-gravity capillary-potential exchange in compositional dual-continuum flow. -->
+<Problem>
+  <NumericalMethods>
+    <FiniteVolume><TwoPointFluxApproximation name="fluidTPFA"/></FiniteVolume>
+  </NumericalMethods>
+
+  <Mesh>
+    <InternalMesh name="mesh1" elementTypes="{ C3D8 }" xCoords="{ 0, 1 }" yCoords="{ 0, 1 }" zCoords="{ 0, 1 }"
+      nx="{ 1 }" ny="{ 1 }" nz="{ 1 }" cellBlockNames="{ matrixBlock }"/>
+    <InternalMesh name="mesh2" elementTypes="{ C3D8 }" xCoords="{ 0, 1 }" yCoords="{ 0, 1 }" zCoords="{ 0, 1 }"
+      nx="{ 1 }" ny="{ 1 }" nz="{ 1 }" cellBlockNames="{ fractureBlock }"/>
+  </Mesh>
+
+  <Geometry>
+    <Box name="fixedBoundary" xMin="{ -0.01, -0.01, -0.01 }" xMax="{ 1.01, 1.01, 1.01 }"/>
+  </Geometry>
+
+  <ElementRegions>
+    <CellElementRegion name="matrixRegion" meshBody="mesh1" cellBlocks="{ matrixBlock }"
+      materialList="{ matrixRock, fluid, relperm, matrixCapPressure }"/>
+    <CellElementRegion name="fractureRegion" meshBody="mesh2" cellBlocks="{ fractureBlock }"
+      materialList="{ fractureRock, fluid, relperm, fractureCapPressure }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CO2BrinePhillipsFluid name="fluid" phaseNames="{ gas, water }" componentNames="{ co2, water }"
+      componentMolarWeight="{ 44e-3, 18e-3 }" phasePVTParaFiles="{ pvtgas.txt, pvtliquid.txt }"
+      flashModelParaFile="co2flash.txt"/>
+    <BrooksCoreyRelativePermeability name="relperm" phaseNames="{ gas, water }"
+      phaseMinVolumeFraction="{ 0.05, 0.30 }" phaseRelPermExponent="{ 1.5, 1.5 }"
+      phaseRelPermMaxValue="{ 0.9, 0.9 }"/>
+    <!-- The matrix has a finite water entry pressure; the fracture is the zero-capillary reference. -->
+    <BrooksCoreyCapillaryPressure name="matrixCapPressure" phaseNames="{ gas, water }"
+      phaseMinVolumeFraction="{ 0.05, 0.30 }" phaseCapPressureExponentInv="{ 1.0, 2.0 }"
+      phaseEntryPressure="{ 0.0, 5.0e5 }" capPressureEpsilon="1.0e-8"/>
+    <BrooksCoreyCapillaryPressure name="fractureCapPressure" phaseNames="{ gas, water }"
+      phaseMinVolumeFraction="{ 0.05, 0.30 }" phaseCapPressureExponentInv="{ 1.0, 2.0 }"
+      phaseEntryPressure="{ 0.0, 0.0 }" capPressureEpsilon="1.0e-8"/>
+    <NullModel name="matrixSolid"/>
+    <PressurePorosity name="matrixPorosity" defaultReferencePorosity="0.2" referencePressure="0.0" compressibility="1.0e-8"/>
+    <ConstantPermeability name="matrixPerm" permeabilityComponents="{ 1.0e-12, 1.0e-12, 1.0e-12 }"/>
+    <CompressibleSolidConstantPermeability name="matrixRock" solidModelName="matrixSolid" porosityModelName="matrixPorosity"
+      permeabilityModelName="matrixPerm"/>
+    <NullModel name="fractureSolid"/>
+    <PressurePorosity name="fracturePorosity" defaultReferencePorosity="0.2" referencePressure="0.0" compressibility="1.0e-8"/>
+    <ConstantPermeability name="fracturePerm" permeabilityComponents="{ 1.0e-12, 1.0e-12, 1.0e-12 }"/>
+    <CompressibleSolidConstantPermeability name="fractureRock" solidModelName="fractureSolid" porosityModelName="fracturePorosity"
+      permeabilityModelName="fracturePerm"/>
+  </Constitutive>
+
+  <Solvers gravityVector="{ 0.0, 0.0, 0.0 }">
+    <CompositionalMultiphaseFVM name="matrixFlow" discretization="fluidTPFA" temperature="368.15" logLevel="1"
+      useMass="1" useSimpleAccumulation="0" maxCompFractionChange="0.5" logMassResidualDiagnostics="1" targetRegions="{ mesh1/matrixRegion }">
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="None" maxTimeStepCuts="5" timeStepCutFactor="0.5"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+    <CompositionalMultiphaseFVM name="fractureFlow" discretization="fluidTPFA" temperature="368.15" logLevel="1"
+      useMass="1" useSimpleAccumulation="0" maxCompFractionChange="0.5" logMassResidualDiagnostics="1" targetRegions="{ mesh2/fractureRegion }">
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="None" maxTimeStepCuts="5" timeStepCutFactor="0.5"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+    <CompositionalMultiPhaseDualContinuumFVM name="dualFlow" flowSolverName="matrixFlow" flowSolverName1="fractureFlow" logLevel="1"
+      matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
+      <DualContinuumCrossFlow fractureSpacingLx="1.0" fractureSpacingLy="1.0" fractureSpacingLz="1.0"
+        gravityDrainageFlag="0" fractureVolumeFraction="0.5"
+        matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="None" maxTimeStepCuts="5" timeStepCutFactor="0.5"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiPhaseDualContinuumFVM>
+  </Solvers>
+
+  <FieldSpecifications>
+    <FieldSpecification name="matrixPressure" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="pressure" setNames="{ all }" scale="1.0e6"/>
+    <FieldSpecification name="fracturePressure" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="pressure" setNames="{ all }" scale="1.0e6"/>
+    <FieldSpecification name="matrixCo2" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.006"/>
+    <FieldSpecification name="matrixWater" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.994"/>
+    <FieldSpecification name="fractureCo2" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.006"/>
+    <FieldSpecification name="fractureWater" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.994"/>
+  </FieldSpecifications>
+
+  <Events maxTime="10">
+    <PeriodicEvent name="solverApplications" forceDt="0.001" target="/Solvers/dualFlow"/>
+    <PeriodicEvent name="phaseMatrixCollection" timeFrequency="0.01" target="/Tasks/phaseMatrixCollection"/>
+    <PeriodicEvent name="phaseFractureCollection" timeFrequency="0.01" target="/Tasks/phaseFractureCollection"/>
+    <PeriodicEvent name="pressureMatrixCollection" timeFrequency="0.01" target="/Tasks/pressureMatrixCollection"/>
+    <PeriodicEvent name="pressureFractureCollection" timeFrequency="0.01" target="/Tasks/pressureFractureCollection"/>
+    <PeriodicEvent name="compMatrixCollection" timeFrequency="0.01" target="/Tasks/compMatrixCollection"/>
+    <PeriodicEvent name="compFractureCollection" timeFrequency="0.01" target="/Tasks/compFractureCollection"/>
+    <PeriodicEvent name="capMatrixCollection" timeFrequency="0.01" target="/Tasks/capMatrixCollection"/>
+    <PeriodicEvent name="capFractureCollection" timeFrequency="0.01" target="/Tasks/capFractureCollection"/>
+    <PeriodicEvent name="relpermMatrixCollection" timeFrequency="0.01" target="/Tasks/relpermMatrixCollection"/>
+    <PeriodicEvent name="relpermFractureCollection" timeFrequency="0.01" target="/Tasks/relpermFractureCollection"/>
+    <PeriodicEvent name="mobMatrixCollection" timeFrequency="0.01" target="/Tasks/mobMatrixCollection"/>
+    <PeriodicEvent name="mobFractureCollection" timeFrequency="0.01" target="/Tasks/mobFractureCollection"/>
+    <PeriodicEvent name="amountMatrixCollection" timeFrequency="0.01" target="/Tasks/amountMatrixCollection"/>
+    <PeriodicEvent name="amountFractureCollection" timeFrequency="0.01" target="/Tasks/amountFractureCollection"/>
+    <PeriodicEvent name="phaseMatrixOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/phaseMatrixOutput"/>
+    <PeriodicEvent name="phaseFractureOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/phaseFractureOutput"/>
+    <PeriodicEvent name="pressureMatrixOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/pressureMatrixOutput"/>
+    <PeriodicEvent name="pressureFractureOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/pressureFractureOutput"/>
+    <PeriodicEvent name="compMatrixOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/compMatrixOutput"/>
+    <PeriodicEvent name="compFractureOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/compFractureOutput"/>
+    <PeriodicEvent name="capMatrixOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/capMatrixOutput"/>
+    <PeriodicEvent name="capFractureOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/capFractureOutput"/>
+    <PeriodicEvent name="relpermMatrixOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/relpermMatrixOutput"/>
+    <PeriodicEvent name="relpermFractureOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/relpermFractureOutput"/>
+    <PeriodicEvent name="mobMatrixOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/mobMatrixOutput"/>
+    <PeriodicEvent name="mobFractureOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/mobFractureOutput"/>
+    <PeriodicEvent name="amountMatrixOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/amountMatrixOutput"/>
+    <PeriodicEvent name="amountFractureOutput" timeFrequency="0.01" targetExactTimestep="0" target="/Outputs/amountFractureOutput"/>
+  </Events>
+
+  <Tasks>
+    <PackCollection name="phaseMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock"
+      fieldName="phaseVolumeFraction"/>
+    <PackCollection name="phaseFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock"
+      fieldName="phaseVolumeFraction"/>
+    <PackCollection name="pressureMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock"
+      fieldName="pressure"/>
+    <PackCollection name="pressureFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock"
+      fieldName="pressure"/>
+    <PackCollection name="compMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock"
+      fieldName="globalCompFraction"/>
+    <PackCollection name="compFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock"
+      fieldName="globalCompFraction"/>
+    <PackCollection name="capMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock"
+      fieldName="matrixCapPressure_phaseCapPressure"/>
+    <PackCollection name="capFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock"
+      fieldName="fractureCapPressure_phaseCapPressure"/>
+    <PackCollection name="relpermMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock"
+      fieldName="relperm_phaseRelPerm"/>
+    <PackCollection name="relpermFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock"
+      fieldName="relperm_phaseRelPerm"/>
+    <PackCollection name="mobMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock"
+      fieldName="phaseMobility"/>
+    <PackCollection name="mobFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock"
+      fieldName="phaseMobility"/>
+    <PackCollection name="amountMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock"
+      fieldName="compAmount"/>
+    <PackCollection name="amountFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock"
+      fieldName="compAmount"/>
+  </Tasks>
+
+  <Outputs>
+    <TimeHistory name="phaseMatrixOutput" sources="{ /Tasks/phaseMatrixCollection }" filename="I0_matrix_phase_history"/>
+    <TimeHistory name="phaseFractureOutput" sources="{ /Tasks/phaseFractureCollection }" filename="I0_fracture_phase_history"/>
+    <TimeHistory name="pressureMatrixOutput" sources="{ /Tasks/pressureMatrixCollection }" filename="I0_matrix_pressure_history"/>
+    <TimeHistory name="pressureFractureOutput" sources="{ /Tasks/pressureFractureCollection }" filename="I0_fracture_pressure_history"/>
+    <TimeHistory name="compMatrixOutput" sources="{ /Tasks/compMatrixCollection }" filename="I0_matrix_comp_history"/>
+    <TimeHistory name="compFractureOutput" sources="{ /Tasks/compFractureCollection }" filename="I0_fracture_comp_history"/>
+    <TimeHistory name="capMatrixOutput" sources="{ /Tasks/capMatrixCollection }" filename="I0_matrix_cap_history"/>
+    <TimeHistory name="capFractureOutput" sources="{ /Tasks/capFractureCollection }" filename="I0_fracture_cap_history"/>
+    <TimeHistory name="relpermMatrixOutput" sources="{ /Tasks/relpermMatrixCollection }" filename="I0_matrix_relperm_history"/>
+    <TimeHistory name="relpermFractureOutput" sources="{ /Tasks/relpermFractureCollection }" filename="I0_fracture_relperm_history"/>
+    <TimeHistory name="mobMatrixOutput" sources="{ /Tasks/mobMatrixCollection }" filename="I0_matrix_mob_history"/>
+    <TimeHistory name="mobFractureOutput" sources="{ /Tasks/mobFractureCollection }" filename="I0_fracture_mob_history"/>
+    <TimeHistory name="amountMatrixOutput" sources="{ /Tasks/amountMatrixCollection }" filename="I0_matrix_amount_history"/>
+    <TimeHistory name="amountFractureOutput" sources="{ /Tasks/amountFractureCollection }" filename="I0_fracture_amount_history"/>
+  </Outputs>
+</Problem>

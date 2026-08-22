@@ -15,6 +15,7 @@
       fractureSpacingLx="1.0"
       fractureSpacingLy="1.0"
       fractureSpacingLz="1.0"
+      fractureVolumeFraction="0.05"
       gravityDrainageFlag="1"
       matrixRegionList="{ Region1 }"
       fractureRegionList="{ Region2 }"/>
@@ -175,7 +176,7 @@
 
     <PressurePorosity
             name="rockPorosity_DPDK"
-            defaultReferencePorosity="0.05"
+            defaultReferencePorosity="1.0"
             referencePressure="0.0"
             compressibility="1e-8"/>
 
@@ -200,7 +201,7 @@
             setNames="{ all }"
             objectPath="ElementRegions"
             fieldName="rockPorosity_DPDK_referencePorosity"
-            scale="0.05"/>
+            scale="1.0"/>
 
     <FieldSpecification
             name="initialPressure1"

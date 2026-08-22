@@ -15,6 +15,7 @@
                     fractureSpacingLx="1.0"
                     fractureSpacingLy="1.0"
                     fractureSpacingLz="1.0"
+                    fractureVolumeFraction="0.2"
                     matrixRegionList="{ Region1 }"
                     fractureRegionList="{ Region2 }"/>
             <LinearSolverParameters
@@ -133,7 +134,7 @@
                 name="Region2"
                 meshBody="mesh2"
                 cellBlocks="{ block2 }"
-                materialList="{ fluid, rock, relperm, diffusion  }"/>
+                materialList="{ fluid, fractureRock, relperm, diffusion  }"/>
     </ElementRegions>
 
     <Constitutive>
@@ -161,6 +162,19 @@
                 referenceInternalEnergy="0"/>
         <ConstantPermeability
                 name="rockPerm"
+                permeabilityComponents="{ 1.0e-13, 1.0e-13, 1.0e-13 }"/>
+        <CompressibleSolidConstantPermeability
+                name="fractureRock"
+                solidModelName="nullSolid"
+                porosityModelName="fracturePorosity"
+                permeabilityModelName="fracturePerm"/>
+        <PressurePorosity
+                name="fracturePorosity"
+                defaultReferencePorosity="1.0"
+                referencePressure="0.0"
+                compressibility="1.0e-9"/>
+        <ConstantPermeability
+                name="fracturePerm"
                 permeabilityComponents="{ 1.0e-13, 1.0e-13, 1.0e-13 }"/>
 
         <CO2BrinePhillipsFluid
@@ -328,8 +342,8 @@
                 targetMesh="mesh2"
                 setNames="{ all }"
                 objectPath="ElementRegions"
-                fieldName="rockPorosity_referencePorosity"
-                scale="0.05"/>
+                fieldName="fracturePorosity_referencePorosity"
+                scale="1.0"/>
 
         <FieldSpecification
                 name="initialPressure1"

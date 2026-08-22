@@ -16,6 +16,7 @@
         fractureSpacingLx="3.05"
         fractureSpacingLy="3.05"
         fractureSpacingLz="3.05"
+        fractureVolumeFraction="0.29"
         gravityDrainageFlag="1"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
@@ -134,7 +135,7 @@
       name="Region2"
       meshBody="mesh2"
       cellBlocks="{ block2 }"
-      materialList="{ fluid, rock, relperm, fractureCappres ,gravityDrainagePressure}"/>
+            materialList="{ fluid, fractureRock, relperm, fractureCappres ,gravityDrainagePressure}"/>
   </ElementRegions>
 
   <Constitutive>
@@ -162,6 +163,19 @@
       defaultReferencePorosity="0.29"
       referencePressure="31.12e6"
       compressibility="1.0e-9"/>
+    <CompressibleSolidConstantPermeability
+      name="fractureRock"
+      solidModelName="nullSolid"
+      porosityModelName="fracturePorosity"
+      permeabilityModelName="fracturePerm"/>
+    <PressurePorosity
+      name="fracturePorosity"
+      defaultReferencePorosity="1.0"
+      referencePressure="31.12e6"
+      compressibility="1.0e-9"/>
+    <ConstantPermeability
+      name="fracturePerm"
+      permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
 
     <TableRelativePermeability
       name="relperm"

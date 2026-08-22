@@ -19,6 +19,7 @@
         fractureSpacingLx="3.05"
         fractureSpacingLy="3.05"
         fractureSpacingLz="3.05"
+        fractureVolumeFraction="0.01"
         gravityDrainageFlag="1"
         matrixRegionList="{ Region1 }"
         fractureRegionList="{ Region2 }"/>
@@ -177,7 +178,7 @@
 
     <PressurePorosity
       name="fracturePorosity"
-      defaultReferencePorosity="0.01"
+      defaultReferencePorosity="1.0"
       referencePressure="43e6"
       compressibility="5.0e-10"/>
 <!--    几乎不可压缩-->

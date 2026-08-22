@@ -66,11 +66,11 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
 
   registerWrapper( viewKeyStruct::fractureVolumeFractionString(),
                    &m_fractureVolumeFraction ).
-    setApplyDefaultValue( -1.0 ).
-    setInputFlag( InputFlags::OPTIONAL ).
+    setInputFlag( InputFlags::REQUIRED ).
     setDescription( "Fracture (secondary continuum) volume fraction v_f used by the "
-                    "multi-porosity effective storage matrix. <0 disables the "
-                    "cross-storage correction (legacy per-continuum storage)." );
+                    "multi-porosity effective storage matrix. It is required for "
+                    "co-located dual-continuum meshes; the matrix fraction is "
+                    "v_m=1-v_f and v_m+v_f=1." );
 
   registerWrapper( viewKeyStruct::effectiveMatrixStorageString(), &m_effectiveMatrixStorage ).
     setApplyDefaultValue( 0.0 ).setInputFlag( InputFlags::OPTIONAL ).

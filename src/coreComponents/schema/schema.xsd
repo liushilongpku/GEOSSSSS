@@ -3222,8 +3222,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="fractureSpacingLy" type="real64" use="required" />
 		<!--fractureSpacingLz => Fracture spacing in Z direction-->
 		<xsd:attribute name="fractureSpacingLz" type="real64" use="required" />
-		<!--fractureVolumeFraction => Fracture (secondary continuum) volume fraction v_f used by the multi-porosity effective storage matrix. <0 disables the cross-storage correction (legacy per-continuum storage).-->
-		<xsd:attribute name="fractureVolumeFraction" type="real64" default="-1" />
+		<!--fractureVolumeFraction => Fracture (secondary continuum) volume fraction v_f used by the multi-porosity effective storage matrix. It is required for co-located dual-continuum meshes; the matrix fraction is v_m=1-v_f and v_m+v_f=1.-->
+		<xsd:attribute name="fractureVolumeFraction" type="real64" use="required" />
 		<!--gravityDrainageFlag => flag of gravity drainage-->
 		<xsd:attribute name="gravityDrainageFlag" type="integer" default="0" />
 		<!--interporosityExchangeCoefficient => Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}]. When > 0, bypasses the Kazemi shape-factor formula and uses transmissibility = Gamma * mu * V_element.-->
@@ -3349,8 +3349,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="enableFracturePorosityStrainCoupling" type="integer" default="1" />
 		<!--fimNewtonRelaxation => FullyImplicit Newton step under-relaxation factor (0,1]. The monolithic dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable.-->
 		<xsd:attribute name="fimNewtonRelaxation" type="real64" default="0.5" />
-		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). Default (<0) computes v_f from mesh element volumes. Set explicitly when the mesh does not reflect the physical volume fractions (e.g. dual-continuum models with co-located meshes).-->
-		<xsd:attribute name="fractureVolumeFraction" type="real64" default="-1" />
+		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). It is required because dual-continuum mesh supports can be co-located; the matrix fraction is v_m=1-v_f and v_m+v_f=1.-->
+		<xsd:attribute name="fractureVolumeFraction" type="real64" use="required" />
 		<!--initialDt => Initial time-step value required by the solver to the event manager.-->
 		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
 		<!--isThermal => Flag indicating whether the problem is thermal or not. Set isThermal="1" to enable the thermal coupling-->
@@ -3370,6 +3370,8 @@ Information output from lower logLevels is added with the desired log level
 2
  - The summary of declared fields and coupling-->
 		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--logSequentialMassDiagnostics => Diagnostic switch for sequential dual-continuum poromechanics. When nonzero, logs matrix and fracture CO2 inventories before and after the mechanics-to-flow porosity/state updates. Does not change the solution.-->
+		<xsd:attribute name="logSequentialMassDiagnostics" type="integer" default="0" />
 		<!--sequentialPressureRelaxation => Sequential outer-loop pressure under-relaxation factor (0,1]. Values below 1 mix the dual-flow pressure solution with the previous outer iterate before mapping pressure to mechanics. Set 1.0 to disable.-->
 		<xsd:attribute name="sequentialPressureRelaxation" type="real64" default="1" />
 		<!--solidSolverName => Name of the solid solver used by the coupled solver-->
@@ -3480,6 +3482,8 @@ Information output from lower logLevels is added with the desired log level
 2
  - The summary of declared fields and coupling-->
 		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--logMassResidualDiagnostics => Flag indicating whether unnormalized component mass residual diagnostics are logged-->
+		<xsd:attribute name="logMassResidualDiagnostics" type="integer" default="0" />
 		<!--maxAbsolutePressureChange => Maximum (absolute) pressure change in a Newton iteration-->
 		<xsd:attribute name="maxAbsolutePressureChange" type="real64" default="-1" />
 		<!--maxCompFractionChange => Maximum (absolute) change in a component fraction in a Newton iteration-->
@@ -3600,6 +3604,8 @@ Information output from lower logLevels is added with the desired log level
 2
  - The summary of declared fields and coupling-->
 		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--logMassResidualDiagnostics => Flag indicating whether unnormalized component mass residual diagnostics are logged-->
+		<xsd:attribute name="logMassResidualDiagnostics" type="integer" default="0" />
 		<!--maxAbsolutePressureChange => Maximum (absolute) pressure change in a Newton iteration-->
 		<xsd:attribute name="maxAbsolutePressureChange" type="real64" default="-1" />
 		<!--maxCompFractionChange => Maximum (absolute) change in a component fraction in a Newton iteration-->
@@ -5114,8 +5120,8 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="enableFracturePorosityStrainCoupling" type="integer" default="1" />
 		<!--fimNewtonRelaxation => FullyImplicit Newton step under-relaxation factor (0,1]. The monolithic dual-porosity pressure blocks produce a period-2 (lambda~=-1) Newton oscillation; 0.5 damps it (midpoint = exact solution). Set 1.0 to disable.-->
 		<xsd:attribute name="fimNewtonRelaxation" type="real64" default="0.5" />
-		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). Default (<0) computes v_f from mesh element volumes. Set explicitly when the mesh does not reflect the physical volume fractions (e.g. dual-continuum models with co-located meshes).-->
-		<xsd:attribute name="fractureVolumeFraction" type="real64" default="-1" />
+		<!--fractureVolumeFraction => Fracture volume fraction v_f = V_f / (V_m+V_f). It is required because dual-continuum mesh supports can be co-located; the matrix fraction is v_m=1-v_f and v_m+v_f=1.-->
+		<xsd:attribute name="fractureVolumeFraction" type="real64" use="required" />
 		<!--initialDt => Initial time-step value required by the solver to the event manager.-->
 		<xsd:attribute name="initialDt" type="real64" default="1e+99" />
 		<!--isThermal => Flag indicating whether the problem is thermal or not. Set isThermal="1" to enable the thermal coupling-->
@@ -5135,6 +5141,8 @@ Information output from lower logLevels is added with the desired log level
 2
  - The summary of declared fields and coupling-->
 		<xsd:attribute name="logLevel" type="integer" default="0" />
+		<!--logSequentialMassDiagnostics => Diagnostic switch for sequential dual-continuum poromechanics. When nonzero, logs matrix and fracture CO2 inventories before and after the mechanics-to-flow porosity/state updates. Does not change the solution.-->
+		<xsd:attribute name="logSequentialMassDiagnostics" type="integer" default="0" />
 		<!--sequentialPressureRelaxation => Sequential outer-loop pressure under-relaxation factor (0,1]. Values below 1 mix the dual-flow pressure solution with the previous outer iterate before mapping pressure to mechanics. Set 1.0 to disable.-->
 		<xsd:attribute name="sequentialPressureRelaxation" type="real64" default="1" />
 		<!--solidSolverName => Name of the solid solver used by the coupled solver-->

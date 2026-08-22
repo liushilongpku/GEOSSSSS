@@ -161,9 +161,9 @@ public:
         }
 
         real64 const phi = poro.getDefaultReferencePorosity();
-        GEOS_THROW_IF( phi <= 0.0 || phi >= 1.0,
-                       GEOS_FMT( "{}: fracture subregion '{}' has invalid intrinsic "
-                                 "defaultReferencePorosity={}. Expected a porosity in (0,1).",
+        GEOS_THROW_IF( phi <= 0.0 || phi > 1.0,
+                       GEOS_FMT( "{}: fracture subregion '{}' has invalid intrinsic " 
+                                 "defaultReferencePorosity={}. Expected a porosity in (0,1].",
                                  this->getName(), subRegion.getName(), phi ),
                        std::runtime_error );
         if( phi <= fv )
@@ -364,7 +364,7 @@ public:
     return m_crossFlow.getInterporosityExchangeCoefficient();
   }
 
-  /// Fracture volume fraction v_f (from DualContinuumCrossFlow); <0 = unset
+  /// Required REV fracture volume fraction v_f (from DualContinuumCrossFlow)
   real64 getFractureVolumeFraction() const
   {
     return m_crossFlow.getFractureVolumeFraction();
@@ -1084,7 +1084,9 @@ private:
   //std::shared_ptr< DualContinuumCrossFlow > m_crossFlow;
   DualContinuumCrossFlow m_crossFlow;
   real64 m_transferCoefficient;
-  bool m_enableCrossStorageCorrection = true;  // sequential-only; disabled for FullyImplicit coupling
+  // Cross-storage correction is a poromechanics term. Pure dual-continuum flow cases
+  // must retain the independent continuum storage equations unless poromechanics enables it.
+  bool m_enableCrossStorageCorrection = false;
   bool m_volumeFractionsAppliedToReferencePorosity = false;
   bool m_childSolversInitializedForDualContinuum = false;
   

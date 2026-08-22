@@ -15,6 +15,7 @@
               fractureSpacingLx="1.0"
               fractureSpacingLy="1.0"
               fractureSpacingLz="1.0"
+              fractureVolumeFraction="0.19"
               matrixRegionList="{ matrix_region }"
               fractureRegionList="{ fracture_region }"/>
       <LinearSolverParameters
@@ -125,7 +126,7 @@
       name="fracture_region"
       meshBody="mesh2"
       cellBlocks="{ bc_f }"
-      materialList="{ fluid, rock, relperm,cappres }"/>
+      materialList="{ fluid, fractureRock, relperm,cappres }"/>
   </ElementRegions>
 <!-- 需要添加毛管力 -->
   <NumericalMethods>
@@ -174,6 +175,19 @@
       compressibility="1.0e-9"/>
     <ConstantPermeability
       name="rockPerm"
+      permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
+    <CompressibleSolidConstantPermeability
+      name="fractureRock"
+      solidModelName="nullSolid"
+      porosityModelName="fracturePorosity"
+      permeabilityModelName="fracturePerm"/>
+    <PressurePorosity
+      name="fracturePorosity"
+      defaultReferencePorosity="1.0"
+      referencePressure="31e6"
+      compressibility="1.0e-9"/>
+    <ConstantPermeability
+      name="fracturePerm"
       permeabilityComponents="{ 1.0e-15, 1.0e-15, 1.0e-15 }"/>
 
 

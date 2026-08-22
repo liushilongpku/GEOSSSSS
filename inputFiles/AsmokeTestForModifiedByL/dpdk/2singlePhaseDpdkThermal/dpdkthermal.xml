@@ -15,6 +15,7 @@
               fractureSpacingLx="1.0"
               fractureSpacingLy="1.0"
               fractureSpacingLz="1.0"
+              fractureVolumeFraction="0.05"
               matrixRegionList="{ Region1 }"
               fractureRegionList="{ Region2 }"/>
       <LinearSolverParameters
@@ -121,7 +122,7 @@
             name="Region2"
             meshBody="mesh2"
             cellBlocks="{ block2 }"
-            materialList="{ water, rock, thermalCond }"/>
+            materialList="{ water, rock_DPDK, thermalCond_DPDK }"/>
   </ElementRegions>
 
   <Constitutive>
@@ -182,7 +183,7 @@
 
     <PressurePorosity
             name="rockPorosity_DPDK"
-            defaultReferencePorosity="0.05"
+            defaultReferencePorosity="1.0"
             referencePressure="0.0"
             compressibility="1e-8"/>
 
@@ -218,8 +219,8 @@
             targetMesh="mesh2"
             setNames="{ all }"
             objectPath="ElementRegions"
-            fieldName="rockPorosity_referencePorosity"
-            scale="0.05"/>
+            fieldName="rockPorosity_DPDK_referencePorosity"
+            scale="1.0"/>
 
     <FieldSpecification
             name="initialPressure1"

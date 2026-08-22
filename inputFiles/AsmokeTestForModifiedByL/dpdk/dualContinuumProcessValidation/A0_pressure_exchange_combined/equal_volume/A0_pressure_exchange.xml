@@ -1,0 +1,73 @@
+<!-- Purpose: isolate single-phase pressure exchange between one matrix and one fracture cell. -->
+<Problem>
+  <Solvers>
+    <SinglePhaseFVM name="matrixFlow" discretization="singlePhaseTPFA" targetRegions="{ mesh1/matrixRegion }" logLevel="1">
+      <NonlinearSolverParameters newtonTol="1.0e-10" newtonMaxIter="8"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </SinglePhaseFVM>
+    <SinglePhaseFVM name="fractureFlow" discretization="singlePhaseTPFA" targetRegions="{ mesh2/fractureRegion }" logLevel="1">
+      <NonlinearSolverParameters newtonTol="1.0e-10" newtonMaxIter="8"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </SinglePhaseFVM>
+    <DualContinuumFVM name="dualFlow" flowSolverName="matrixFlow" flowSolverName1="fractureFlow"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }"
+      matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }" logLevel="1">
+      <DualContinuumCrossFlow fractureSpacingLx="100.0" fractureSpacingLy="100.0" fractureSpacingLz="100.0"
+        gravityDrainageFlag="0" fractureVolumeFraction="0.5"
+        matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters newtonTol="1.0e-10" newtonMaxIter="10"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </DualContinuumFVM>
+  </Solvers>
+
+  <Mesh>
+    <InternalMesh name="mesh1" elementTypes="{ C3D8 }" xCoords="{ 0, 1 }" yCoords="{ 0, 1 }" zCoords="{ 0, 1 }"
+      nx="{ 1 }" ny="{ 1 }" nz="{ 1 }" cellBlockNames="{ matrixBlock }"/>
+    <InternalMesh name="mesh2" elementTypes="{ C3D8 }" xCoords="{ 0, 1 }" yCoords="{ 0, 1 }" zCoords="{ 0, 1 }"
+      nx="{ 1 }" ny="{ 1 }" nz="{ 1 }" cellBlockNames="{ fractureBlock }"/>
+  </Mesh>
+
+  <NumericalMethods>
+    <FiniteVolume><TwoPointFluxApproximation name="singlePhaseTPFA"/></FiniteVolume>
+  </NumericalMethods>
+
+  <ElementRegions>
+    <CellElementRegion name="matrixRegion" meshBody="mesh1" cellBlocks="{ matrixBlock }" materialList="{ water, rock }"/>
+    <CellElementRegion name="fractureRegion" meshBody="mesh2" cellBlocks="{ fractureBlock }" materialList="{ water, rock }"/>
+  </ElementRegions>
+
+  <Constitutive>
+    <CompressibleSinglePhaseFluid name="water" defaultDensity="1000" referenceDensity="1000"
+      defaultViscosity="0.001" referencePressure="0" compressibility="1.0e-12" viscosibility="0"/>
+    <CompressibleSolidConstantPermeability name="rock" solidModelName="nullSolid"
+      porosityModelName="porosity" permeabilityModelName="permeability"/>
+    <NullModel name="nullSolid"/>
+    <PressurePorosity name="porosity" defaultReferencePorosity="0.2" referencePressure="0" compressibility="1.0e-12"/>
+    <ConstantPermeability name="permeability" permeabilityComponents="{ 1.0e-12, 1.0e-12, 1.0e-12 }"/>
+  </Constitutive>
+
+  <FieldSpecifications>
+    <FieldSpecification name="matrixPressure" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="pressure" setNames="{ all }" scale="2.0e6"/>
+    <FieldSpecification name="fracturePressure" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="pressure" setNames="{ all }" scale="1.0e6"/>
+  </FieldSpecifications>
+
+  <Events maxTime="2.0">
+    <PeriodicEvent name="solverApplications" forceDt="0.02" target="/Solvers/dualFlow"/>
+    <PeriodicEvent name="pressureMatrixCollection" timeFrequency="0.02" target="/Tasks/pressureMatrixCollection"/>
+    <PeriodicEvent name="pressureFractureCollection" timeFrequency="0.02" target="/Tasks/pressureFractureCollection"/>
+    <PeriodicEvent name="pressureMatrixOutput" timeFrequency="0.02" targetExactTimestep="0" target="/Outputs/pressureMatrixOutput"/>
+    <PeriodicEvent name="pressureFractureOutput" timeFrequency="0.02" targetExactTimestep="0" target="/Outputs/pressureFractureOutput"/>
+  </Events>
+
+  <Tasks>
+    <PackCollection name="pressureMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock" fieldName="pressure"/>
+    <PackCollection name="pressureFractureCollection" objectPath="mesh2/ElementRegions/fractureRegion/fractureBlock" fieldName="pressure"/>
+  </Tasks>
+
+  <Outputs>
+    <TimeHistory name="pressureMatrixOutput" sources="{ /Tasks/pressureMatrixCollection }" filename="A0_matrix_pressure_history"/>
+    <TimeHistory name="pressureFractureOutput" sources="{ /Tasks/pressureFractureCollection }" filename="A0_fracture_pressure_history"/>
+  </Outputs>
+</Problem>
