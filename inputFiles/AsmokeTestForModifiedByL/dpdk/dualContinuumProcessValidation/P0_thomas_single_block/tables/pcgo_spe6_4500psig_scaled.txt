@@ -1,0 +1,11 @@
+# Purpose: record the matrix gas/oil capillary-pressure table used by the updated P0 SPE6 deck.
+# Key information: Thomas 5545-psig Pc values scaled by sigma(4500 psig)/sigma(5545 psig)=5.2442396313.
+# Sg                 Pc_go [Pa]
+0.00                 -26756.7399
+0.05                 -16994.1683
+0.10                 -11932.0611
+0.20                 -2169.4895
+0.30                 7593.1346
+0.40                 17355.7062
+0.50                 27118.3302
+0.55                 45920.3453

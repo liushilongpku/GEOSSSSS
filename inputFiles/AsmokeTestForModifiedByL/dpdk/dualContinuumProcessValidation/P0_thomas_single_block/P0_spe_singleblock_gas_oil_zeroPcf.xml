@@ -1,4 +1,4 @@
-<!-- Purpose: reproduce SPE Sixth Comparative Project single-block gas/oil gravity drainage, zero fracture Pc. -->
+<!-- Purpose: reproduce the SPE6 single-block gas/oil gravity-drainage approximation with zero fracture Pc. Key information: 4500-psig live-oil matrix, dissolved gas only initially, and Thomas IFT-scaled matrix gas/oil Pc. -->
 <Problem>
   <NumericalMethods>
     <FiniteVolume><TwoPointFluxApproximation name="fluidTPFA"/></FiniteVolume>
@@ -63,12 +63,13 @@
   <FieldSpecifications>
     <FieldSpecification name="matrixPressure" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
       fieldName="pressure" setNames="{ all }" scale="3.10264065e7"/>
+    <!-- Initial matrix: 4500-psig live oil; gas component is dissolved, not a free-gas phase. -->
     <FieldSpecification name="matrixOilFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.786"/>
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.58112639"/>
     <FieldSpecification name="matrixGasFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.0"/>
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.13187000"/>
     <FieldSpecification name="matrixWaterFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.214"/>
+      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.28700361"/>
     <FieldSpecification name="fracturePressure" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
       fieldName="pressure" setNames="{ all }" scale="3.10264065e7"/>
     <FieldSpecification name="fractureGasFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
@@ -77,7 +78,7 @@
       fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.0005"/>
     <FieldSpecification name="fractureWaterFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
       fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.0005"/>
-    <!-- Constant fracture pressure = 4,500 psig production boundary (SPE single-block producer). -->
+    <!-- Constant 4,500-psig near-pure-gas external-state approximation; this is not the SPE6 universal well specification. -->
     <FieldSpecification name="fractureConstantPressure" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
       fieldName="pressure" setNames="{ all }" scale="3.10264065e7"/>
     <FieldSpecification name="fractureConstantGasFrac" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
@@ -98,8 +99,9 @@
       values="{ 0.000, 0.018, 0.090, 0.250, 0.440, 0.620, 0.800, 1.000 }" interpolation="linear"/>
     <TableFunction name="waterCapPresTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
+    <!-- Thomas gas/oil Pc at 5545 psig scaled by sigma(4500 psig)/sigma(5545 psig)=5.24423963. -->
     <TableFunction name="gasCapPresTable" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
-      values="{ -5102.12, -3240.54, -2275.27, -413.69, 1447.90, 3309.48, 5171.07, 8756.34 }" interpolation="linear"/>
+      values="{ -26756.7399, -16994.1683, -11932.0611, -2169.4895, 7593.1346, 17355.7062, 27118.3302, 45920.3453 }" interpolation="linear"/>
     <TableFunction name="fracWaterCapPresTable" coordinates="{ 0.0, 1.0 }" values="{ 0.0, 0.0 }" interpolation="linear"/>
     <TableFunction name="fracGasCapPresTable" coordinates="{ 0.0, 1.0 }" values="{ 0.0, 0.0 }" interpolation="linear"/>
   </Functions>

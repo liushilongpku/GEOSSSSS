@@ -1,5 +1,6 @@
 # Purpose: restore the Thomas/SPE6 live-oil pvto_bo.txt table used by the recovered P0 single-block deck.
 Rs[sm3/sm3]	Pbub[Pa]	Bo[m3/sm3]	Visc(Pa.s)
+0.0		101325.0	1.0		4.094350526E-03
 65.3655		11643176.1	1.30010		5.29E-04
 		38332780.5	1.22606		5.96E-04
 		48364651.9	1.20036		6.21E-04
