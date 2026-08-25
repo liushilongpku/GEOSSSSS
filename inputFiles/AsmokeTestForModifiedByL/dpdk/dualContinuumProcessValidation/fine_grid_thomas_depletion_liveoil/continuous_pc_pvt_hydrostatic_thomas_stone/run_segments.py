@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-REPOSITORY = ROOT.parents[6]
+REPOSITORY = ROOT.parents[5]
 DEFAULT_GEOS = REPOSITORY / "build/bin/geosx"
 
 

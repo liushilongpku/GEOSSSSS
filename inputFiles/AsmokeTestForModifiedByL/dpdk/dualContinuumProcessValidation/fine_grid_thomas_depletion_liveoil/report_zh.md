@@ -17,7 +17,7 @@
 
 最终案例位于：
 
-`fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/`
+`continuous_pc_pvt_hydrostatic_thomas_stone/`
 
 | 时间 | GEOS | Thomas Fig. 4 读图基准 | 差值 |
 | ---: | ---: | ---: | ---: |
@@ -56,24 +56,24 @@ $S_w\approx0.20$ 的有效范围内采用 $k_{row}\approx1$，并保持 Thomas �
 
 ### 采收率
 
-![采收率与 Thomas Fig. 4 对比](fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/analysis/figures/recovery_comparison.png)
+![采收率与 Thomas Fig. 4 对比](continuous_pc_pvt_hydrostatic_thomas_stone/analysis/figures/recovery_comparison.png)
 
 ### 裂缝动态静水压力
 
-![裂缝动态静水压力检查](fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/analysis/figures/fracture_hydrostatic_check.png)
+![裂缝动态静水压力检查](continuous_pc_pvt_hydrostatic_thomas_stone/analysis/figures/fracture_hydrostatic_check.png)
 
 2.5 年末端压力函数误差约为 $1.01\times10^{-3}$ Pa，25 个分段全链最大绝对压力误差约为
 $0.362$ Pa。
 
 ### 纵向饱和度
 
-![2.5 年纵向饱和度](fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/analysis/figures/final_vertical_saturation.png)
+![2.5 年纵向饱和度](continuous_pc_pvt_hydrostatic_thomas_stone/analysis/figures/final_vertical_saturation.png)
 
 最终状态呈现上部气饱和度高、下部油饱和度高的空间分布，符合气油重力排驱的物理图像。
 
 ## 5. 可复现文件
 
-- 基础输入：`fine_grid_thomas_depletion_liveoil/thomas_10ft_7x7x8_liveoil_depletion.xml`
+- 基础输入：`thomas_10ft_7x7x8_liveoil_depletion.xml`
 - 最终输入生成：`continuous_pc_pvt_hydrostatic_thomas_stone/generate_decks.py`
 - 25 个分段输入：`continuous_pc_pvt_hydrostatic_thomas_stone/decks/right/`
 - 顺序重启动运行：`continuous_pc_pvt_hydrostatic_thomas_stone/run_segments.py`
@@ -85,9 +85,9 @@ $0.362$ Pa。
 生成、运行和分析命令：
 
 ```bash
-python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/P0_thomas_single_block/fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/generate_decks.py
-python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/P0_thomas_single_block/fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/run_segments.py --variant right
-python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/P0_thomas_single_block/fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/analysis/analyze_results.py
+python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/generate_decks.py
+python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/run_segments.py --variant right
+python3 inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/fine_grid_thomas_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/analysis/analyze_results.py
 ```
 
 GEOS 运行生成的 `runs/`、HDF5、VTK、重启动文件和日志不进入 Git。Git 只保存输入、脚本、汇总
