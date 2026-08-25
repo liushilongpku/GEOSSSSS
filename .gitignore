@@ -47,3 +47,6 @@ wellSolver_rates/
 
 # Local solver benchmarking workspace
 inputFiles/dualPorosityDualPerm/solver_speed_comparison/
+
+# Thomas single-block validation runtime data; keep only decks and summaries.
+inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/P0_thomas_single_block/**/runs/
