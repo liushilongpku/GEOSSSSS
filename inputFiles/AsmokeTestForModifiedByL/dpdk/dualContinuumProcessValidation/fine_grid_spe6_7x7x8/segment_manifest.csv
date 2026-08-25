@@ -1,0 +1,22 @@
+# Purpose: map each 0.25-year SPE6 reporting interval to its restart deck.
+segment,start_years,end_years,deck
+0,0.00,0.25,decks/segment_00_0p00_to_0p25yr.xml
+1,0.25,0.50,decks/segment_01_0p25_to_0p50yr.xml
+2,0.50,0.75,decks/segment_02_0p50_to_0p75yr.xml
+3,0.75,1.00,decks/segment_03_0p75_to_1p00yr.xml
+4,1.00,1.25,decks/segment_04_1p00_to_1p25yr.xml
+5,1.25,1.50,decks/segment_05_1p25_to_1p50yr.xml
+6,1.50,1.75,decks/segment_06_1p50_to_1p75yr.xml
+7,1.75,2.00,decks/segment_07_1p75_to_2p00yr.xml
+8,2.00,2.25,decks/segment_08_2p00_to_2p25yr.xml
+9,2.25,2.50,decks/segment_09_2p25_to_2p50yr.xml
+10,2.50,2.75,decks/segment_10_2p50_to_2p75yr.xml
+11,2.75,3.00,decks/segment_11_2p75_to_3p00yr.xml
+12,3.00,3.25,decks/segment_12_3p00_to_3p25yr.xml
+13,3.25,3.50,decks/segment_13_3p25_to_3p50yr.xml
+14,3.50,3.75,decks/segment_14_3p50_to_3p75yr.xml
+15,3.75,4.00,decks/segment_15_3p75_to_4p00yr.xml
+16,4.00,4.25,decks/segment_16_4p00_to_4p25yr.xml
+17,4.25,4.50,decks/segment_17_4p25_to_4p50yr.xml
+18,4.50,4.75,decks/segment_18_4p50_to_4p75yr.xml
+19,4.75,5.00,decks/segment_19_4p75_to_5p00yr.xml
