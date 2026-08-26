@@ -1,0 +1,3 @@
+# Purpose: restore the Thomas/SPE6 live-oil pvtw_bo.txt table used by the recovered P0 single-block deck.
+#	Pref[bar]?不应该是pa吗	Bw[m3/sm3]	Cp[1/bar]	    Visc[cP]
+	17236900	1.07	4.15E-10	3.49E-04

@@ -1,0 +1,22 @@
+# Purpose: digitized Thomas 1983 Fig. 4 reference for the 10-ft detailed 3D model.
+# Key information: plot readings have about +/-1 percentage-point uncertainty; the text states about 46% final recovery.
+time_years,oil_recovery_pct
+0.0,0.0
+0.1,5.0
+0.2,10.0
+0.3,15.0
+0.4,21.0
+0.5,27.0
+0.6,31.0
+0.7,34.0
+0.8,36.5
+0.9,38.5
+1.0,40.0
+1.2,42.0
+1.4,43.5
+1.6,44.8
+1.8,45.7
+2.0,46.0
+2.5,46.0
+3.0,46.0
+4.0,46.0
