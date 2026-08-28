@@ -32,11 +32,13 @@ AGENTS.md
 *.pvd
 *.hdf5
 *.mtx
+*.root
 *vtkOutput*/
 *siloOutput*/
 fluxStats*/
 wellSolver_rates/
 *.log
+**/runs/
 
 # Personal/local tool configs and work dirs
 .claude/
@@ -48,6 +50,4 @@ wellSolver_rates/
 # Local solver benchmarking workspace
 inputFiles/dualPorosityDualPerm/solver_speed_comparison/
 
-# Thomas validation runtime data; keep only decks and summaries.
-inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/P0_thomas_single_block/**/runs/
-inputFiles/AsmokeTestForModifiedByL/dpdk/dualContinuumProcessValidation/fine_grid_thomas_depletion_liveoil/**/runs/
+# (Generic **/runs/ rule above covers all GEOS runtime output directories.)

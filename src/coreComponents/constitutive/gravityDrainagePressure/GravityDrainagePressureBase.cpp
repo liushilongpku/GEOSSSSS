@@ -74,7 +74,9 @@ void GravityDrainagePressureBase::setupGravityDrainagePressureFromPhaseMassDensi
 void GravityDrainagePressureBase::allocateConstitutiveData( dataRepository::Group & parent,
                                                             localIndex const numPts )
 {
-  localIndex const phaseNumber = 1;
+  // Store one gravity-drainage head per phase. The single-phase path uses only
+  // index 0, while the compositional multiphase path uses one entry per phase.
+  localIndex const phaseNumber = 3;
   m_gravityDrainagePressure.resize( numPts, phaseNumber);
   m_gravityDrainagePressure.zero();
 

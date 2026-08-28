@@ -11,12 +11,11 @@
   </Mesh>
   <ElementRegions>
     <CellElementRegion name="matrixRegion" meshBody="mesh1" cellBlocks="{ matrixBlock }"
-      materialList="{ matrixRock, fluid, relperm, matrixCapPressure, gravityDrainagePressure }"/>
+      materialList="{ matrixRock, fluid, relperm, matrixCapPressure }"/>
     <CellElementRegion name="fractureRegion" meshBody="mesh2" cellBlocks="{ fractureBlock }"
       materialList="{ fractureRock, fluid, relperm, fractureCapPressure }"/>
   </ElementRegions>
   <Constitutive>
-    <SimpleGravityDrainagePressure name="gravityDrainagePressure"/>
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
@@ -42,21 +41,21 @@
   <Solvers gravityVector="{ 0.0, 0.0, -9.81 }">
     <CompositionalMultiphaseFVM name="matrixFlow" discretization="fluidTPFA" temperature="366.0" logLevel="1"
       useMass="1" useSimpleAccumulation="0" maxCompFractionChange="0.5" targetRegions="{ mesh1/matrixRegion }">
-      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="None" maxTimeStepCuts="10" timeStepCutFactor="0.5" maxSubSteps="5000000"/>
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5" maxSubSteps="5000000"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>
     </CompositionalMultiphaseFVM>
     <CompositionalMultiphaseFVM name="fractureFlow" discretization="fluidTPFA" temperature="366.0" logLevel="1"
       useMass="1" useSimpleAccumulation="0" maxCompFractionChange="0.5" targetRegions="{ mesh2/fractureRegion }">
-      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="None" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>
     </CompositionalMultiphaseFVM>
-    <CompositionalMultiPhaseDualContinuumFVM name="dualFlow" flowSolverName="matrixFlow" flowSolverName1="fractureFlow" logLevel="1" initialDt="50.0"
+    <CompositionalMultiPhaseDualContinuumFVM name="dualFlow" flowSolverName="matrixFlow" flowSolverName1="fractureFlow" logLevel="1" initialDt="5.0"
       matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
       <DualContinuumCrossFlow fractureSpacingLx="3.05" fractureSpacingLy="3.05" fractureSpacingLz="3.05"
-        gravityDrainageFlag="1" fractureVolumeFraction="0.01"
+        gravityDrainageFlag="0" fractureVolumeFraction="0.01"
         matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
-      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="None" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>
     </CompositionalMultiPhaseDualContinuumFVM>
   </Solvers>
@@ -104,8 +103,20 @@
     -->
     <TableFunction name="gasRelPermTable" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
       values="{ 0.0, 0.026, 0.062, 0.140, 0.210, 0.290, 0.370, 0.420 }" interpolation="linear"/>
-    <TableFunction name="oilRelPermTableForOG" coordinates="{ 0.45, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 1.00 }"
-      values="{ 0.000, 0.018, 0.090, 0.250, 0.440, 0.620, 0.800, 1.000 }" interpolation="linear"/>
+    <!--
+      Thomas Table 4 gas/oil pseudo kro, listed against Sg, converted to GEOS
+      oil-phase-volume-fraction coordinates via So = 0.80 - Sg (Sw = 0.20):
+        Sg=0.55 -> So=0.25, kro=0.0
+        Sg=0.50 -> So=0.30, kro=0.070
+        Sg=0.40 -> So=0.40, kro=0.25
+        Sg=0.30 -> So=0.50, kro=0.44
+        Sg=0.20 -> So=0.60, kro=0.62
+        Sg=0.10 -> So=0.70, kro=0.80
+        Sg=0.05 -> So=0.75, kro=0.89
+        Sg=0.00 -> So=0.80, kro=1.0
+    -->
+    <TableFunction name="oilRelPermTableForOG" coordinates="{ 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80 }"
+      values="{ 0.0, 0.070, 0.25, 0.44, 0.62, 0.80, 0.89, 1.0 }" interpolation="linear"/>
     <TableFunction name="waterCapPresTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
     <!--

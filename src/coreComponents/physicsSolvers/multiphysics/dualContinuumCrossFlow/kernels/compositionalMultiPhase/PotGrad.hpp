@@ -156,63 +156,37 @@ struct PotGrad
         real64 dGDP_dC[numFluxSupportPoints][numComp]{};
         if( hasGravityDraingae )
         {
-          gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][0];
-          // GDP = g_z * Lz/2 * (rho_f_mix - rho_mix), where
-          //   rho_side_mix = sum_ip S_side,ip * rho_side,ip.
-          // Recover the local density-difference scale from the stored GDP value to
-          // build the implicit dGDP/dP and dGDP/dC Jacobian contributions. The scale
-          // is protected against a vanishing density difference (GDP close to zero),
-          // where the derivative is negligible anyway.
-          real64 rho_m_mix = 0.0;
-          real64 rho_f_mix = 0.0;
-          for( integer jp = 0; jp < numPhase; ++jp )
-          {
-            rho_m_mix += phaseVolFrac_m[er][esr][ei][jp] * phaseMassDens_m[er][esr][ei][0][jp];
-            rho_f_mix += phaseVolFrac_f[seri[1]][sesri[1]][sei[1]][jp] * phaseMassDens_f[seri[1]][sesri[1]][sei[1]][0][jp];
-          }
-          real64 const densityDiff = rho_f_mix - rho_m_mix;
+          // Per-phase gravity-drainage head: GDP = s * |g| * rho_ip * Lz/2, stored per
+          // phase in gravityDrainagePressure_m (s = sign(rho_m_mix - rho_f_mix)). Using
+          // each phase's own density makes the heads differ, producing the
+          // phase-relative gravity force that drives counter-current drainage (as
+          // opposed to a mixture-density scalar, which is absorbed by the
+          // reference-pressure DOF).
+          gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][ip];
+          // GDP = c * rho_ip with c = s * |g| * Lz/2 treated as a locally constant
+          // scale, so dGDP/dx = (GDP/rho_ip) * d rho_ip/dx. Only the matrix-side phase
+          // density enters.
+          real64 const rho_ip = phaseMassDens_m[er][esr][ei][0][ip];
           real64 gdpScale = 0.0;
-          real64 const tolScale = std::max( std::fabs( rho_f_mix ), std::fabs( rho_m_mix ) );
-          if( std::fabs( densityDiff ) > 1.0e-12 * std::max( 1.0, tolScale ) )
+          if( std::fabs( rho_ip ) > 1.0e-12 )
           {
-            gdpScale = gravityDrainagePressure / densityDiff;
+            gdpScale = gravityDrainagePressure / rho_ip;
           }
-          // dGDP/dx = gdpScale * d(rho_f_mix - rho_mix)/dx
-          // matrix side (support point 0): d rho_m_mix/dx
-          for( integer jp = 0; jp < numPhase; ++jp )
+          dGDP_dP[0] = gdpScale * dPhaseMassDens_m[er][esr][ei][0][ip][Deriv::dP];
+          for( integer jc = 0; jc < numComp; ++jc )
           {
-            real64 const s_m = phaseVolFrac_m[er][esr][ei][jp];
-            real64 const rho_m = phaseMassDens_m[er][esr][ei][0][jp];
-            dGDP_dP[0] += -gdpScale * ( dPhaseVolFrac_m[er][esr][ei][jp][Deriv::dP] * rho_m
-                                        + s_m * dPhaseMassDens_m[er][esr][ei][0][jp][Deriv::dP] );
-            for( integer jc = 0; jc < numComp; ++jc )
-            {
-              dGDP_dC[0][jc] += -gdpScale * ( dPhaseVolFrac_m[er][esr][ei][jp][Deriv::dC+jc] * rho_m
-                                              + s_m * dPhaseMassDens_m[er][esr][ei][0][jp][Deriv::dC+jc] );
-            }
+            dGDP_dC[0][jc] = gdpScale * dPhaseMassDens_m[er][esr][ei][0][ip][Deriv::dC+jc];
           }
-          // fracture side (support point 1): d rho_f_mix/dx
-          for( integer jp = 0; jp < numPhase; ++jp )
-          {
-            real64 const s_f = phaseVolFrac_f[seri[1]][sesri[1]][sei[1]][jp];
-            real64 const rho_f = phaseMassDens_f[seri[1]][sesri[1]][sei[1]][0][jp];
-            dGDP_dP[1] += gdpScale * ( dPhaseVolFrac_f[seri[1]][sesri[1]][sei[1]][jp][Deriv::dP] * rho_f
-                                       + s_f * dPhaseMassDens_f[seri[1]][sesri[1]][sei[1]][0][jp][Deriv::dP] );
-            for( integer jc = 0; jc < numComp; ++jc )
-            {
-              dGDP_dC[1][jc] += gdpScale * ( dPhaseVolFrac_f[seri[1]][sesri[1]][sei[1]][jp][Deriv::dC+jc] * rho_f
-                                             + s_f * dPhaseMassDens_f[seri[1]][sesri[1]][sei[1]][0][jp][Deriv::dC+jc] );
-            }
-          }
+          // Fracture side (support point 1): GDP does not depend on fracture density.
+          dGDP_dP[1] = 0.0;
         }
-        // GDP is added to matrix-side pressure (Kazemi model: P_grav = |g * (rho_f - rho_m) * Lz / 2|).
-        // GDP is now included implicitly: its dGDP/dP and dGDP/dC are added to the
-        // matrix/fracture pressure and component Jacobian entries below.
+        // GDP is added to matrix-side pressure. It is included implicitly: its
+        // dGDP/dP and dGDP/dC are added to the matrix pressure/component Jacobian
+        // entries below (fracture side has no GDP contribution).
         real64 const dP = pres_m[er][esr][ei] - capPressure + gravityDrainagePressure;
         presGrad += trans[i] * dP;
         dPresGrad_dTrans += dP;
         dPresGrad_dP[i] += trans[i] * ( 1 - dCapPressure_dP + dGDP_dP[i] ) + dTrans_dPres[i] * dP;
-        // GDP also depends on the fracture-side (support point 1) state.
         dPresGrad_dP[1] += trans[i] * dGDP_dP[1];
         for( integer jc = 0; jc < numComp; ++jc )
         {
