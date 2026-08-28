@@ -228,15 +228,18 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & GEOS_UNUSED_PARAM
         localIndex elementIndices[2] = { i, fractureElementIndex };
         // Compute Geometric Weights [Wx, Wy, Wz]
         //薄板形状的形状因子，乘体积是因为算这个网格的交换而不是每单位体积的交换
-        // W = 4 * V / L^2
+        // Thomas 1983 uses sigma = 25 / L^2 (25 for 1-ft, 0.25 for 10-ft), i.e.
+        // sigma = 4(1/Lx^2 + 1/Ly^2 + 1/Lz^2) * (25/12). The Kazemi factor 4 is
+        // therefore replaced by 25/3 so that the isotropic shape factor equals 25/L^2.
+        // W = (25/3) * V / L^2
         //长方形的是 kazemi
         // W = 4(1/a²+1/b²+1/c²)
         // 修正：从数组中获取第 i 个单元的体积
         real64 const Volume = cellVolumeArrayViewMatrix[i];
         real64 shapeFactory[3];
-        shapeFactory[0] = 4.0 * Volume * invLx2;
-        shapeFactory[1] = 4.0 * Volume * invLy2;
-        shapeFactory[2] = 4.0 * Volume * invLz2;
+        shapeFactory[0] = ( 25.0 / 3.0 ) * Volume * invLx2;
+        shapeFactory[1] = ( 25.0 / 3.0 ) * Volume * invLy2;
+        shapeFactory[2] = ( 25.0 / 3.0 ) * Volume * invLz2;
         //        shapeFactory[0] = 2.69*Volume;
         //        shapeFactory[1] = 2.69*Volume;
         //        shapeFactory[2] = 2.69*Volume;

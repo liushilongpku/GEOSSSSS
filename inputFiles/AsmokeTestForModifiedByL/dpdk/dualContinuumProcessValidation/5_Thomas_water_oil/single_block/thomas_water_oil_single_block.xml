@@ -13,7 +13,7 @@
     <CellElementRegion name="matrixRegion" meshBody="mesh1" cellBlocks="{ matrixBlock }"
       materialList="{ matrixRock, fluid, relperm, matrixCapPressure, gravityDrainagePressure }"/>
     <CellElementRegion name="fractureRegion" meshBody="mesh2" cellBlocks="{ fractureBlock }"
-      materialList="{ fractureRock, fluid, relperm, fractureCapPressure }"/>
+      materialList="{ fractureRock, fluid, fractureRelperm, fractureCapPressure }"/>
   </ElementRegions>
   <Constitutive>
     <SimpleGravityDrainagePressure name="gravityDrainagePressure"/>
@@ -31,6 +31,11 @@
     <TableRelativePermeability name="relperm" phaseNames="{ oil, gas, water }"
       wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
       nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
+      threePhaseInterpolator="STONEII"/>
+    <!-- Fracture relperm: water kr = krw(Pc=0) = 0.03 (Eq. 23); oil/gas straight line. -->
+    <TableRelativePermeability name="fractureRelperm" phaseNames="{ oil, gas, water }"
+      wettingIntermediateRelPermTableNames="{ fracWaterRelPermTable, fracOilRelPermTableForOW }"
+      nonWettingIntermediateRelPermTableNames="{ fracGasRelPermTable, fracOilRelPermTableForOG }"
       threePhaseInterpolator="STONEII"/>
     <TableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
       wettingIntermediateCapPressureTableName="waterCapPresTable"
@@ -113,7 +118,7 @@
       values="{ -5102.12, -3240.54, -2275.27, -413.69, 1447.90, 3309.48, 5171.07, 8756.34 }" interpolation="linear"/>
 
     <TableFunction name="fracWaterRelPermTable" coordinates="{ 0.0, 1.0 }"
-      values="{ 0.0, 1.0 }" interpolation="linear"/>
+      values="{ 0.0, 0.030 }" interpolation="linear"/>
     <TableFunction name="fracOilRelPermTableForOW" coordinates="{ 0.0, 1.0 }"
       values="{ 0.0, 1.0 }" interpolation="linear"/>
     <TableFunction name="fracGasRelPermTable" coordinates="{ 0.0, 1.0 }"
