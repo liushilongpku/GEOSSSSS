@@ -1,0 +1,165 @@
+<!-- Purpose: reproduce the Thomas 1983 10-ft gas/oil single-block gravity-drainage case with the dual-continuum single-cell formulation. Key information: 5545-psig live-oil matrix, gas-filled fracture continuum, 0.75-psi/day fracture depletion, and the Thomas Fig. 4 ultimate-recovery target of about 46% at 2.5 years. -->
+<Problem>
+  <NumericalMethods>
+    <FiniteVolume><TwoPointFluxApproximation name="fluidTPFA"/></FiniteVolume>
+  </NumericalMethods>
+  <Mesh>
+    <InternalMesh name="mesh1" elementTypes="{ C3D8 }" xCoords="{ 0, 3.05 }" yCoords="{ 0, 3.05 }" zCoords="{ 0, 3.05 }"
+      nx="{ 1 }" ny="{ 1 }" nz="{ 1 }" cellBlockNames="{ matrixBlock }"/>
+    <InternalMesh name="mesh2" elementTypes="{ C3D8 }" xCoords="{ 0, 3.05 }" yCoords="{ 0, 3.05 }" zCoords="{ 0, 3.05 }"
+      nx="{ 1 }" ny="{ 1 }" nz="{ 1 }" cellBlockNames="{ fractureBlock }"/>
+  </Mesh>
+  <ElementRegions>
+    <CellElementRegion name="matrixRegion" meshBody="mesh1" cellBlocks="{ matrixBlock }"
+      materialList="{ matrixRock, fluid, relperm, matrixCapPressure }"/>
+    <CellElementRegion name="fractureRegion" meshBody="mesh2" cellBlocks="{ fractureBlock }"
+      materialList="{ fractureRock, fluid, relperm, fractureCapPressure }"/>
+  </ElementRegions>
+  <Constitutive>
+    <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
+      surfaceDensities="{ 819.18, 0.929, 1041.2 }"
+      componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
+      tableFiles="{ tables/pvto_bo.txt, tables/pvtg_norv_bo.txt, tables/pvtw_bo.txt }"/>
+    <NullModel name="nullSolid"/>
+    <PressurePorosity name="matrixPorosity" defaultReferencePorosity="0.30" referencePressure="3.83327805e7" compressibility="5.076e-10"/>
+    <ConstantPermeability name="matrixPerm" permeabilityComponents="{ 9.869233e-16, 9.869233e-16, 9.869233e-16 }"/>
+    <CompressibleSolidConstantPermeability name="matrixRock" solidModelName="nullSolid" porosityModelName="matrixPorosity" permeabilityModelName="matrixPerm"/>
+    <PressurePorosity name="fracturePorosity" defaultReferencePorosity="1.0" referencePressure="3.83327805e7" compressibility="5.076e-10"/>
+    <ConstantPermeability name="fracturePerm" permeabilityComponents="{ 9.869233e-13, 9.869233e-13, 9.869233e-13 }"/>
+    <CompressibleSolidConstantPermeability name="fractureRock" solidModelName="nullSolid" porosityModelName="fracturePorosity" permeabilityModelName="fracturePerm"/>
+    <TableRelativePermeability name="relperm" phaseNames="{ oil, gas, water }"
+      wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
+      nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
+      threePhaseInterpolator="STONEII"/>
+    <TableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
+      wettingIntermediateCapPressureTableName="waterCapPresTable"
+      nonWettingIntermediateCapPressureTableName="gasCapPresTable"/>
+    <TableCapillaryPressure name="fractureCapPressure" phaseNames="{ oil, gas, water }"
+      wettingIntermediateCapPressureTableName="fracWaterCapPresTable"
+      nonWettingIntermediateCapPressureTableName="fracGasCapPresTable"/>
+  </Constitutive>
+  <Solvers gravityVector="{ 0.0, 0.0, -9.81 }">
+    <CompositionalMultiphaseFVM name="matrixFlow" discretization="fluidTPFA" temperature="366.0" logLevel="1"
+      useMass="1" useSimpleAccumulation="0" maxCompFractionChange="0.5" targetRegions="{ mesh1/matrixRegion }">
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5" maxSubSteps="5000000"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+    <CompositionalMultiphaseFVM name="fractureFlow" discretization="fluidTPFA" temperature="366.0" logLevel="1"
+      useMass="1" useSimpleAccumulation="0" maxCompFractionChange="0.5" targetRegions="{ mesh2/fractureRegion }">
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiphaseFVM>
+    <CompositionalMultiPhaseDualContinuumFVM name="dualFlow" flowSolverName="matrixFlow" flowSolverName1="fractureFlow" logLevel="1" initialDt="5.0"
+      matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
+      targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
+      <DualContinuumCrossFlow fractureSpacingLx="3.05" fractureSpacingLy="3.05" fractureSpacingLz="3.05"
+        gravityDrainageFlag="0" fractureVolumeFraction="0.01"
+        matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
+      <LinearSolverParameters solverType="direct" directParallel="0"/>
+    </CompositionalMultiPhaseDualContinuumFVM>
+  </Solvers>
+  <FieldSpecifications>
+    <!-- Initial matrix: Thomas Table 4 state at 5545 psig; gas component is dissolved gas. -->
+    <FieldSpecification name="matrixPressure" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="pressure" setNames="{ all }" scale="3.83327805e7"/>
+    <FieldSpecification name="matrixOilFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.53683289"/>
+    <FieldSpecification name="matrixGasFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.16590112"/>
+    <FieldSpecification name="matrixWaterFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.29726599"/>
+    <!-- Initial fracture continuum: gas-filled at the same pressure, matching the surrounding gas environment. -->
+    <FieldSpecification name="fracturePressure" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="pressure" setNames="{ all }" scale="3.83327805e7"/>
+    <FieldSpecification name="fractureGasFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.999"/>
+    <FieldSpecification name="fractureOilFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.0005"/>
+    <FieldSpecification name="fractureWaterFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.0005"/>
+    <!-- Thomas depletion: the fracture continuum follows a 0.75-psi/day pressure decline as the draining oil leaves the matrix. -->
+    <FieldSpecification name="fractureDepletionPressure" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="pressure" setNames="{ all }" functionName="pressureDecline" scale="1.0"/>
+    <FieldSpecification name="fractureBoundaryGasFrac" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.999"/>
+    <FieldSpecification name="fractureBoundaryOilFrac" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.0005"/>
+    <FieldSpecification name="fractureBoundaryWaterFrac" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
+      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.0005"/>
+  </FieldSpecifications>
+  <Functions>
+    <TableFunction name="waterRelPermTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
+      values="{ 0.0, 0.005, 0.010, 0.020, 0.030, 0.045, 0.060, 0.110, 0.180, 0.230 }" interpolation="linear"/>
+    <!-- Thomas Eq. (25): krow is a function of Sw, which remains approximately Swc=0.20 here,
+         so krow stays near 1 over the active oil-saturation range (same fix as the fine-grid case). -->
+    <TableFunction name="oilRelPermTableForOW" coordinates="{ 0.0, 0.001, 1.0 }"
+      values="{ 0.0, 0.998, 1.0 }" interpolation="linear"/>
+    <!--
+      Thomas 1983 Table 4 GAS/OIL PSEUDODATA at 5545 psig. The single-cell
+      fracture model in the paper uses these PSEUDO relative-permeability curves
+      (not the Table 3 rock curves), and they are the values that reproduce the
+      46% ultimate recovery of Fig. 4.
+    -->
+    <TableFunction name="gasRelPermTable" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
+      values="{ 0.0, 0.026, 0.062, 0.140, 0.210, 0.290, 0.370, 0.420 }" interpolation="linear"/>
+    <!--
+      Thomas Table 4 gas/oil pseudo kro, listed against Sg, converted to GEOS
+      oil-phase-volume-fraction coordinates via So = 0.80 - Sg (Sw = 0.20):
+        Sg=0.55 -> So=0.25, kro=0.0
+        Sg=0.50 -> So=0.30, kro=0.070
+        Sg=0.40 -> So=0.40, kro=0.25
+        Sg=0.30 -> So=0.50, kro=0.44
+        Sg=0.20 -> So=0.60, kro=0.62
+        Sg=0.10 -> So=0.70, kro=0.80
+        Sg=0.05 -> So=0.75, kro=0.89
+        Sg=0.00 -> So=0.80, kro=1.0
+    -->
+    <TableFunction name="oilRelPermTableForOG" coordinates="{ 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80 }"
+      values="{ 0.0, 0.070, 0.25, 0.44, 0.62, 0.80, 0.89, 1.0 }" interpolation="linear"/>
+    <TableFunction name="waterCapPresTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
+      values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
+    <!--
+      Thomas 1983 Table 4 gas/oil pseudo-capillary-pressure data at 5545 psig.
+      GEOS internally uses p_g = p_o - pc_og, so the input values are the
+      negative of the Thomas table (same convention as the SPE6 single-block
+      deck) to give the correct gravity-drainage gas pressure potential.
+    -->
+    <TableFunction name="gasCapPresTable" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
+      values="{ -16530.8688, -10499.3496, -7371.8748, -1340.3556, 4691.1960, 10722.7152, 16754.2668, 28370.5416 }" interpolation="linear"/>
+
+    <TableFunction name="fracWaterRelPermTable" coordinates="{ 0.0, 1.0 }"
+      values="{ 0.0, 1.0 }" interpolation="linear"/>
+    <TableFunction name="fracOilRelPermTableForOW" coordinates="{ 0.0, 1.0 }"
+      values="{ 0.0, 1.0 }" interpolation="linear"/>
+    <TableFunction name="fracGasRelPermTable" coordinates="{ 0.0, 1.0 }"
+      values="{ 0.0, 1.0 }" interpolation="linear"/>
+    <TableFunction name="fracOilRelPermTableForOG" coordinates="{ 0.0, 1.0 }"
+      values="{ 0.0, 1.0 }" interpolation="linear"/>
+    <TableFunction name="fracWaterCapPresTable" coordinates="{ 0.0, 1.0 }"
+      values="{ 0.0, 0.0 }" interpolation="linear"/>
+    <TableFunction name="fracGasCapPresTable" coordinates="{ 0.0, 1.0 }"
+      values="{ 0.0, 0.0 }" interpolation="linear"/>
+    <!-- 0.75 psi/day over 2.5 years: 38332780.5 - 0.75*6894.757293168*2.5*365 = 33614180.98 Pa. -->
+    <TableFunction name="pressureDecline" inputVarNames="{time}"
+      coordinates="{ 0.0, 78840000.0 }"
+      values="{ 38332780.5, 33614180.98 }" interpolation="linear"/>
+  </Functions>
+  <Events maxTime="78840000.0">
+    <PeriodicEvent name="solverApplications" maxEventDt="2.0e4" target="/Solvers/dualFlow"/>
+    <PeriodicEvent name="phaseMatrixCollection" timeFrequency="7.884e6" target="/Tasks/phaseMatrixCollection"/>
+    <PeriodicEvent name="phaseMatrixOutput" timeFrequency="7.884e6" targetExactTimestep="0" target="/Outputs/phaseMatrixOutput"/>
+    <PeriodicEvent name="amountMatrixCollection" timeFrequency="7.884e6" target="/Tasks/amountMatrixCollection"/>
+    <PeriodicEvent name="amountMatrixOutput" timeFrequency="7.884e6" targetExactTimestep="0" target="/Outputs/amountMatrixOutput"/>
+    <PeriodicEvent name="vtkOutput" timeFrequency="7.884e6" target="/Outputs/vtkFinalOutput"/>
+  </Events>
+  <Tasks>
+    <PackCollection name="phaseMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock" fieldName="phaseVolumeFraction"/>
+    <PackCollection name="amountMatrixCollection" objectPath="mesh1/ElementRegions/matrixRegion/matrixBlock" fieldName="compAmount"/>
+  </Tasks>
+  <Outputs>
+    <VTK name="vtkFinalOutput"/>
+    <TimeHistory name="phaseMatrixOutput" sources="{ /Tasks/phaseMatrixCollection }" filename="thomas_matrix_phase_history"/>
+    <TimeHistory name="amountMatrixOutput" sources="{ /Tasks/amountMatrixCollection }" filename="thomas_matrix_amount_history"/>
+  </Outputs>
+</Problem>
