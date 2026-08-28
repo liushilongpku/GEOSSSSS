@@ -82,7 +82,7 @@ Thomas Fig. 2 列为论文插图 `imbibition recovery, 10-ft block` 的读图值
 | 1.50 | 34.987 | 33.4 | +1.587 |
 | **1.90** | **34.988** | **34.0** | **+0.988** |
 
-![单块采收率与 Thomas Fig. 2 对比](analysis/figures/recovery_comparison.png)
+![单块采收率与 Thomas Fig. 2 对比](figures/recovery_comparison.png)
 
 终态 `So=0.521, Sw=0.479, Sg=0.000`，对应平衡 `Pc_wo = −(ρ_w − ρ_o) g H/2 ≈ −5.8 kPa`
 （`Sw≈0.478`），与 Thomas 平衡条件精确一致；全程无自由气。
@@ -98,7 +98,7 @@ Thomas Fig. 2 列为论文插图 `imbibition recovery, 10-ft block` 的读图值
 
 - 主输入：[`thomas_water_oil_single_block.xml`](thomas_water_oil_single_block.xml)
 - 采收率数据：[`analysis/recovery_results.csv`](analysis/recovery_results.csv)
-- 对比图：[`analysis/figures/recovery_comparison.png`](analysis/figures/recovery_comparison.png)
+- 对比图：[`figures/recovery_comparison.png`](figures/recovery_comparison.png)
 - 论文参考曲线：[`reference/thomas_fig2_10ft.csv`](reference/thomas_fig2_10ft.csv)（Fig. 2 读图）
 - PVT 表：[`tables/`](tables/)
 
