@@ -54,6 +54,7 @@
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
       <DualContinuumCrossFlow fractureSpacingLx="3.05" fractureSpacingLy="3.05" fractureSpacingLz="3.05"
         gravityDrainageFlag="0" fractureVolumeFraction="0.01"
+        shapeFactorType="direct" shapeFactorValue="3.9344"
         matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
       <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>

@@ -2,6 +2,7 @@
 #define GEOS_DUALCONTINUUMCROSSFLOW_HPP
 
 #include "dataRepository/Group.hpp"
+#include "common/format/EnumStrings.hpp"
 #include "physicsSolvers/multiphysics/dualContinuumCrossFlow/kernels/DualContinuumStencil.hpp"
 
 namespace geos
@@ -18,6 +19,14 @@ class DofManager;
 class DualContinuumCrossFlow : public dataRepository::Group
 {
 public:
+  /// Enumerator for the matrix-fracture shape factor formulation. Extend this list
+  /// (and the matching ENUM_STRINGS block) to add new shape factor models.
+  enum class ShapeFactorType : integer
+  {
+    Direct,  ///< Directly specified shape factor sigma [m^-2] (isotropic, via shapeFactorValue)
+    Kazemi   ///< Kazemi: sigma = 4(1/Lx^2 + 1/Ly^2 + 1/Lz^2)
+  };
+
   // Constructor
   DualContinuumCrossFlow( string const & name, Group * parent );
 
@@ -50,6 +59,12 @@ public:
   // Accessor for fracture spacing
   real64 getFracSpacingLz() const { return m_fracSpacingLz; }
 
+  // Accessor for the shape factor formulation
+  ShapeFactorType getShapeFactorType() const { return m_shapeFactorType; }
+
+  // Accessor for the directly specified shape factor value
+  real64 getShapeFactorValue() const { return m_shapeFactorValue; }
+
   static string catalogName() { return "DualContinuumCrossFlow"; }
 
   struct viewKeyStruct : public dataRepository::Group::viewKeyStruct
@@ -61,6 +76,10 @@ public:
     static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
     static constexpr char const * DualContinuumStencilString() {return "DualContinuumStencil";}
     static constexpr char const * gravityDrainageFlag() { return "gravityDrainageFlag"; }
+    /// Shape factor formulation (direct value or Kazemi).
+    static constexpr char const * shapeFactorTypeString() { return "shapeFactorType"; }
+    /// Directly specified shape factor sigma [m^-2], used when shapeFactorType=direct.
+    static constexpr char const * shapeFactorValueString() { return "shapeFactorValue"; }
     /// Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}].
     /// When > 0, bypasses the Kazemi shape-factor formula and uses
     /// transmissibility = Gamma * mu * V_element.
@@ -126,6 +145,12 @@ private:
   real64 m_fracSpacingLy;
   real64 m_fracSpacingLz;
 
+  /// Shape factor formulation (direct value or Kazemi)
+  ShapeFactorType m_shapeFactorType = ShapeFactorType::Kazemi;
+
+  /// Directly specified shape factor sigma [m^-2] (used when shapeFactorType=direct)
+  real64 m_shapeFactorValue = 0.0;
+
   string_array m_matrixRegionList;
   string_array m_fractureRegionList;
 
@@ -155,6 +180,10 @@ private:
   DualContinuumStencil m_stencil;
 };
 
+/// Declare strings associated with the shape factor formulation enumeration.
+ENUM_STRINGS( DualContinuumCrossFlow::ShapeFactorType,
+              "direct",
+              "kazemi" );
 
 } // namespace geos
 

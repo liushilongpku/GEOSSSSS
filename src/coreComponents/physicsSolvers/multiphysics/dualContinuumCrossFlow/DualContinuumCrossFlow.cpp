@@ -56,6 +56,18 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
         setDefaultValue( 0 ).
         setDescription( "flag of gravity drainage" );
 
+  registerWrapper( viewKeyStruct::shapeFactorTypeString(), &m_shapeFactorType ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Matrix-fracture shape factor formulation. Valid options:\n* " +
+                    EnumStrings< ShapeFactorType >::concat( "\n* " ) ).
+    setApplyDefaultValue( ShapeFactorType::Kazemi );
+
+  registerWrapper( viewKeyStruct::shapeFactorValueString(), &m_shapeFactorValue ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setApplyDefaultValue( 0.0 ).
+    setDescription( "Directly specified matrix-fracture shape factor sigma [m^-2], "
+                    "used when shapeFactorType=direct." );
+
   registerWrapper( viewKeyStruct::interporosityExchangeCoefficientString(),
                    &m_interporosityExchangeCoefficient ).
     setApplyDefaultValue( 0.0 ).
@@ -227,28 +239,26 @@ void DualContinuumCrossFlow::setupCrossFlow( DomainPartition & GEOS_UNUSED_PARAM
         localIndex subRegionIndices[2] = { subRegionIdx, subRegionIdx }; // Assuming default subregion 0
         localIndex elementIndices[2] = { i, fractureElementIndex };
         // Compute Geometric Weights [Wx, Wy, Wz]
-        //薄板形状的形状因子，乘体积是因为算这个网格的交换而不是每单位体积的交换
-        // Thomas 1983 uses sigma = 25 / L^2 (25 for 1-ft, 0.25 for 10-ft), i.e.
-        // sigma = 4(1/Lx^2 + 1/Ly^2 + 1/Lz^2) * (25/12). The Kazemi factor 4 is
-        // therefore replaced by 25/3 so that the isotropic shape factor equals 25/L^2.
-        // W = (25/3) * V / L^2
-        //长方形的是 kazemi
-        // W = 4(1/a²+1/b²+1/c²)
+        // 薄板形状的形状因子，乘体积是因为算这个网格的交换而不是每单位体积的交换
+        // The shape factor formulation is selectable:
+        //   - direct: sigma supplied directly [m^-2] (isotropic), W = (sigma/3) * V
+        //   - kazemi: sigma = 4(1/Lx^2 + 1/Ly^2 + 1/Lz^2), W_i = 4 * V / L_i^2
         // 修正：从数组中获取第 i 个单元的体积
         real64 const Volume = cellVolumeArrayViewMatrix[i];
         real64 shapeFactory[3];
-        shapeFactory[0] = ( 25.0 / 3.0 ) * Volume * invLx2;
-        shapeFactory[1] = ( 25.0 / 3.0 ) * Volume * invLy2;
-        shapeFactory[2] = ( 25.0 / 3.0 ) * Volume * invLz2;
-        //        shapeFactory[0] = 2.69*Volume;
-        //        shapeFactory[1] = 2.69*Volume;
-        //        shapeFactory[2] = 2.69*Volume;
-//                shapeFactory[0] = 0.9*Volume;
-//                shapeFactory[1] = 0.9*Volume;
-//                shapeFactory[2] = 0.9*Volume;
-//                shapeFactory[0] = 90*Volume;
-//                shapeFactory[1] = 90*Volume;
-//                shapeFactory[2] = 90*Volume;
+        if( m_shapeFactorType == ShapeFactorType::Direct )
+        {
+          real64 const sigmaPerDir = m_shapeFactorValue / 3.0;
+          shapeFactory[0] = sigmaPerDir * Volume;
+          shapeFactory[1] = sigmaPerDir * Volume;
+          shapeFactory[2] = sigmaPerDir * Volume;
+        }
+        else // Kazemi
+        {
+          shapeFactory[0] = 4.0 * Volume * invLx2;
+          shapeFactory[1] = 4.0 * Volume * invLy2;
+          shapeFactory[2] = 4.0 * Volume * invLz2;
+        }
         // Add to Stencil
         m_stencil.add( 2, regionIndices, subRegionIndices, elementIndices, shapeFactory, ConnIdx );
         ConnIdx++;
