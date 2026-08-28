@@ -1,4 +1,4 @@
-# Purpose: Thomas 1983 water/oil single-block dual-continuum matrix oil-component recovery vs time; Thomas Fig.2 10-ft curve as reference.
+# Purpose: Thomas 1983 water/oil single-block dual-continuum oil-component recovery vs time; Thomas Fig.2 10-ft curve as reference.
 time_years,oil_recovery_pct,thomas_fig2_pct
 0.00,0.000,0.0
 0.10,21.109,18.2

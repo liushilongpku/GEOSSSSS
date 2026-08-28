@@ -1,15 +1,14 @@
-<!-- Purpose: implement the Thomas 1983 10-ft water/oil imbibition fine-grid case. Key information: 43-MPa (above bubble point) live-oil matrix block, surrounding water held at constant composition and constant pressure (Dirichlet fracture shell cells), and the Thomas Fig. 2 ultimate-recovery target of about 34.2% at 2 years. -->
+<!-- Purpose: implement the Thomas 1983 10-ft water/oil imbibition fine-grid case (Thomas Table 1 7x7x8 grid: 0.001-ft shell + 5x5x6 interior matrix). Key information: 43-MPa (above bubble point) live-oil matrix block, surrounding water held at constant composition and constant pressure (Dirichlet fracture shell cells), and the Thomas Fig. 2 ultimate-recovery target of about 34.2% at 2 years. -->
 <Problem>
   <NumericalMethods>
     <FiniteVolume><TwoPointFluxApproximation name="fluidTPFA"/></FiniteVolume>
   </NumericalMethods>
-
-  <!-- Table 1 interior grid (5 x 5 x 6 matrix cells) plus a 1-ft outer fracture shell held at constant water. -->
+  <!-- Thomas Table 1: x/y = 0.001, 1, 2, 4, 2, 1, 0.001 ft; z = 0.001, 1, 2, 2, 2, 2, 1, 0.001 ft. -->
   <Mesh>
     <InternalMesh name="mesh1" elementTypes="{ C3D8 }"
-      xCoords="{ 0.0, 0.3048, 0.6096, 1.2192, 2.4384, 3.048, 3.3528, 3.6576 }"
-      yCoords="{ 0.0, 0.3048, 0.6096, 1.2192, 2.4384, 3.048, 3.3528, 3.6576 }"
-      zCoords="{ 0.0, 0.3048, 0.6096, 1.2192, 1.8288, 2.4384, 3.048, 3.3528, 3.6576 }"
+      xCoords="{ 0.0, 0.0003048, 0.3051048, 0.9147048, 2.1339048, 2.7435048, 3.0483048, 3.0486096 }"
+      yCoords="{ 0.0, 0.0003048, 0.3051048, 0.9147048, 2.1339048, 2.7435048, 3.0483048, 3.0486096 }"
+      zCoords="{ 0.0, 0.0003048, 0.3051048, 0.9147048, 1.5243048, 2.1339048, 2.7435048, 3.0483048, 3.0486096 }"
       nx="{ 1, 1, 1, 1, 1, 1, 1 }"
       ny="{ 1, 1, 1, 1, 1, 1, 1 }"
       nz="{ 1, 1, 1, 1, 1, 1, 1, 1 }"
@@ -65,6 +64,7 @@
         f_6_5_7, f_0_6_7, f_1_6_7, f_2_6_7, f_3_6_7, f_4_6_7, f_5_6_7, f_6_6_7
       }"/>
   </Mesh>
+
 
   <!-- The outer 0.001-ft shell is assigned fracture values; the 150 interior cells are matrix values. -->
   <ElementRegions>
@@ -127,6 +127,8 @@
       }"
       materialList="{ fractureRock, fluid, fractureRelperm, fractureCapPressure }"/>
   </ElementRegions>
+
+
 
   <Constitutive>
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
@@ -248,7 +250,7 @@
       values="{ 517.1, 586.1, 655.0, 792.9, 999.7, 1758.2, 2661.4 }" interpolation="linear"/>
 
     <TableFunction name="fractureWaterRelPermTable" coordinates="{ 0.0, 1.0 }"
-      values="{ 0.0, 1.0 }" interpolation="linear"/>
+      values="{ 0.0, 0.030 }" interpolation="linear"/>
     <TableFunction name="fractureOilRelPermTableForOW" coordinates="{ 0.0, 1.0 }"
       values="{ 0.0, 1.0 }" interpolation="linear"/>
     <TableFunction name="fractureGasRelPermTable" coordinates="{ 0.0, 1.0 }"
@@ -262,14 +264,14 @@
     <!-- Hydrostatic pressure profiles: 43 MPa at the matrix-block center (z = 1.8288 m). -->
     <SymbolicFunction name="matrixHydrostatic" inputVarNames="{ elementCenter }"
       variableNames="{ x, y, z }"
-      expression="4.3e7+5758.5*(1.8288-z)"/>
+      expression="4.3e7+5758.5*(1.5243048-z)"/>
     <SymbolicFunction name="boundaryHydrostatic" inputVarNames="{ elementCenter }"
       variableNames="{ x, y, z }"
-      expression="4.3e7+9546*(1.8288-z)"/>
+      expression="4.3e7+9546*(1.5243048-z)"/>
   </Functions>
 
   <Events maxTime="63072000.0">
-    <PeriodicEvent name="solverApplications" maxEventDt="2.0e4" target="/Solvers/flowSolver"/>
+    <PeriodicEvent name="solverApplications" target="/Solvers/flowSolver"/>
     <PeriodicEvent name="vtkOutput" timeFrequency="3.1536e6" target="/Outputs/vtkOutput"/>
     <PeriodicEvent name="matrixPhaseCollection" timeFrequency="3.1536e6" target="/Tasks/matrixPhaseCollection"/>
     <PeriodicEvent name="matrixPhaseHistory" timeFrequency="3.1536e6" targetExactTimestep="0" target="/Outputs/matrixPhaseHistory"/>
