@@ -132,7 +132,7 @@
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
-      tableFiles="{ pvto_bo_surface_condition.txt, ../tables/pvtg_norv_bo.txt, ../tables/pvtw_bo.txt }"/>
+      tableFiles="{ pvto_bo_surface_condition.txt, ../single_block/tables/pvtg_norv_bo.txt, ../single_block/tables/pvtw_bo.txt }"/>
 
     <NullModel name="nullSolid"/>
     <PressurePorosity name="matrixPorosity" defaultReferencePorosity="0.30"
@@ -152,9 +152,10 @@
       wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
       nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
       threePhaseInterpolator="STONEII"/>
-    <TableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
+    <PressureScaledTableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
       wettingIntermediateCapPressureTableName="waterCapPresTable"
-      nonWettingIntermediateCapPressureTableName="gasCapPresTable"/>
+      nonWettingIntermediateCapPressureTableName="gasCapPresTable"
+      pressureScalingTableName="gasOilSurfaceTensionScaling"/>
 
     <!-- The outer shell has zero capillary pressure and zero-residual straight-line fracture kr. -->
     <TableRelativePermeability name="fractureRelperm" phaseNames="{ oil, gas, water }"
@@ -206,19 +207,6 @@
     <FieldSpecification name="initialFractureWaterFrac" initialCondition="1" targetMesh="mesh1"
       objectPath="ElementRegions/fractureRegion" fieldName="globalCompFraction"
       component="2" setNames="{ all }" scale="0.0"/>
-    <!-- Fracture shell composition is held fixed at pure gas throughout the run. -->
-    <FieldSpecification name="fractureFixedOilFrac" initialCondition="0" targetMesh="mesh1"
-      objectPath="ElementRegions/fractureRegion" fieldName="globalCompFraction"
-      component="0" setNames="{ all }" scale="0.0"/>
-    <FieldSpecification name="fractureFixedGasFrac" initialCondition="0" targetMesh="mesh1"
-      objectPath="ElementRegions/fractureRegion" fieldName="globalCompFraction"
-      component="1" setNames="{ all }" scale="1.0"/>
-    <FieldSpecification name="fractureFixedWaterFrac" initialCondition="0" targetMesh="mesh1"
-      objectPath="ElementRegions/fractureRegion" fieldName="globalCompFraction"
-      component="2" setNames="{ all }" scale="0.0"/>
-    <FieldSpecification name="fractureFixedPressure" initialCondition="0" targetMesh="mesh1"
-      objectPath="ElementRegions/fractureRegion" fieldName="pressure"
-      setNames="{ all }" functionName="pressureDecline" scale="1.0"/>
 
     <FieldSpecification name="initialTemperature" initialCondition="1" targetMesh="mesh1"
       objectPath="ElementRegions" fieldName="temperature"
@@ -258,6 +246,11 @@
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
     <TableFunction name="gasCapPresTable" coordinates="{ 0.0, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
       values="{ 517.1, 586.1, 655.0, 792.9, 999.7, 1758.2, 2661.4 }" interpolation="linear"/>
+    <!-- Thomas Table 2 gas/oil surface tension sigma [dyn/cm] vs pressure, normalized by
+         sigma_I = sigma(5545 psig) = 0.090 dyn/cm (Eq. 28 scaling factor sigma(P)/sigma_I). -->
+    <TableFunction name="gasOilSurfaceTensionScaling" inputVarNames="{pressure}"
+      coordinates="{ 1.154182e7, 1.400325e7, 1.744374e7, 2.062222e7, 2.449707e7, 2.833745e7, 3.132978e7, 3.402563e7, 3.623195e7, 3.823143e7 }"
+      values="{ 66.666667, 52.222222, 36.666667, 24.444444, 14.222222, 8, 4.9333333, 2.8333333, 1.7222222, 1 }" interpolation="linear"/>
 
     <TableFunction name="fractureWaterRelPermTable" coordinates="{ 0.0, 1.0 }"
       values="{ 0.0, 1.0 }" interpolation="linear"/>
@@ -276,7 +269,7 @@
       values="{ 38332780.5, 28895581.5 }" interpolation="linear"/>
   </Functions>
 
-  <Events maxTime="1.5768e8">
+  <Events maxTime="7.884e7">
     <PeriodicEvent name="solverApplications" maxEventDt="2.0e5" target="/Solvers/flowSolver"/>
     <PeriodicEvent name="vtkOutput" timeFrequency="7.884e6" target="/Outputs/vtkOutput"/>
     <!-- Update representative-cell collections before writing their time histories. -->

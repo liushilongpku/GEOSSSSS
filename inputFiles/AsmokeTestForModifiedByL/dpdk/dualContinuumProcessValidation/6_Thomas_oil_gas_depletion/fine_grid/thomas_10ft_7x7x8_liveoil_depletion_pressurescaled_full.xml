@@ -132,7 +132,7 @@
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
-      tableFiles="{ pvto_bo_surface_condition.txt, ../tables/pvtg_norv_bo.txt, ../tables/pvtw_bo.txt }"/>
+      tableFiles="{ pvto_bo_surface_condition.txt, ../single_block/tables/pvtg_norv_bo.txt, ../single_block/tables/pvtw_bo.txt }"/>
 
     <NullModel name="nullSolid"/>
     <PressurePorosity name="matrixPorosity" defaultReferencePorosity="0.30"
@@ -152,9 +152,10 @@
       wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
       nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
       threePhaseInterpolator="STONEII"/>
-    <TableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
+    <PressureScaledTableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
       wettingIntermediateCapPressureTableName="waterCapPresTable"
-      nonWettingIntermediateCapPressureTableName="gasCapPresTable"/>
+      nonWettingIntermediateCapPressureTableName="gasCapPresTable"
+      pressureScalingTableName="gasOilSurfaceTensionScaling"/>
 
     <!-- The outer shell has zero capillary pressure and zero-residual straight-line fracture kr. -->
     <TableRelativePermeability name="fractureRelperm" phaseNames="{ oil, gas, water }"
@@ -171,7 +172,7 @@
       discretization="fluidTPFA" temperature="366.0" logLevel="1"
       useMass="1" useSimpleAccumulation="0" maxCompFractionChange="0.05"
       targetRegions="{ mesh1/matrixRegion, mesh1/fractureRegion }">
-      <NonlinearSolverParameters newtonTol="1.0e-3" newtonMaxIter="80"
+      <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="80"
         lineSearchAction="Attempt" maxTimeStepCuts="16" timeStepCutFactor="0.5"
         maxSubSteps="100000"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>
@@ -182,7 +183,7 @@
     <!-- Initial matrix: Thomas Table 4 state at 5545 psig; gas component is dissolved gas. -->
     <FieldSpecification name="initialMatrixPressure" initialCondition="1" targetMesh="mesh1"
       objectPath="ElementRegions/matrixRegion" fieldName="pressure"
-      setNames="{ all }" scale="3.83327805e7"/>
+      setNames="{ all }" functionName="initialMatrixHydrostatic" scale="1.0"/>
     <FieldSpecification name="initialMatrixOilFrac" initialCondition="1" targetMesh="mesh1"
       objectPath="ElementRegions/matrixRegion" fieldName="globalCompFraction"
       component="0" setNames="{ all }" scale="0.53683289"/>
@@ -196,7 +197,7 @@
     <!-- Initial fracture shell: gas-filled and at the same pressure, matching the external gas boundary. -->
     <FieldSpecification name="initialFracturePressure" initialCondition="1" targetMesh="mesh1"
       objectPath="ElementRegions/fractureRegion" fieldName="pressure"
-      setNames="{ all }" scale="3.83327805e7"/>
+      setNames="{ all }" functionName="initialFractureHydrostatic" scale="1.0"/>
     <FieldSpecification name="initialFractureOilFrac" initialCondition="1" targetMesh="mesh1"
       objectPath="ElementRegions/fractureRegion" fieldName="globalCompFraction"
       component="0" setNames="{ all }" scale="0.0"/>
@@ -218,7 +219,7 @@
       component="2" setNames="{ all }" scale="0.0"/>
     <FieldSpecification name="fractureFixedPressure" initialCondition="0" targetMesh="mesh1"
       objectPath="ElementRegions/fractureRegion" fieldName="pressure"
-      setNames="{ all }" functionName="pressureDecline" scale="1.0"/>
+      setNames="{ all }" functionName="fractureHydrostaticElement" scale="1.0"/>
 
     <FieldSpecification name="initialTemperature" initialCondition="1" targetMesh="mesh1"
       objectPath="ElementRegions" fieldName="temperature"
@@ -227,7 +228,7 @@
     <!-- Thomas depletion: all six external faces follow 0.75 psi/day pressure decline. -->
     <FieldSpecification name="depletionPressure" targetMesh="mesh1" objectPath="faceManager"
       fieldName="pressure" setNames="{ xneg, xpos, yneg, ypos, zneg, zpos }"
-      functionName="pressureDecline" scale="1.0"/>
+      functionName="fractureBoundaryHydrostatic" scale="1.0"/>
     <FieldSpecification name="boundaryOil" targetMesh="mesh1" objectPath="faceManager"
       fieldName="globalCompFraction" component="0" setNames="{ xneg, xpos, yneg, ypos, zneg, zpos }" scale="0.0"/>
     <FieldSpecification name="boundaryGas" targetMesh="mesh1" objectPath="faceManager"
@@ -241,8 +242,9 @@
   <Functions>
     <TableFunction name="waterRelPermTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
       values="{ 0.0, 0.005, 0.010, 0.020, 0.030, 0.045, 0.060, 0.110, 0.180, 0.230 }" interpolation="linear"/>
-    <TableFunction name="oilRelPermTableForOW" coordinates="{ 0.25, 0.30, 0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80 }"
-      values="{ 0.0, 0.042, 0.154, 0.304, 0.392, 0.492, 0.600, 0.723, 0.860, 1.000 }" interpolation="linear"/>
+    <!-- Thomas Eq. (25): krow is a function of Sw, which stays ~Swc=0.20 here. -->
+    <TableFunction name="oilRelPermTableForOW" coordinates="{ 0.0, 0.001, 1.0 }"
+      values="{ 0.0, 0.998, 1.0 }" interpolation="linear"/>
     <!-- Thomas 1983 Table 3: detailed 3D fine-grid rock relative permeability. -->
     <TableFunction name="gasRelPermTable" coordinates="{ 0.0, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
       values="{ 0.0, 0.015, 0.050, 0.103, 0.190, 0.310, 0.420 }" interpolation="linear"/>
@@ -258,6 +260,11 @@
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
     <TableFunction name="gasCapPresTable" coordinates="{ 0.0, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
       values="{ 517.1, 586.1, 655.0, 792.9, 999.7, 1758.2, 2661.4 }" interpolation="linear"/>
+    <!-- Thomas Table 2 gas/oil surface tension sigma [dyn/cm] vs pressure, normalized by
+         sigma_I = sigma(5545 psig) = 0.090 dyn/cm (Eq. 28 scaling factor sigma(P)/sigma_I). -->
+    <TableFunction name="gasOilSurfaceTensionScaling" inputVarNames="{pressure}"
+      coordinates="{ 1.154182e7, 1.400325e7, 1.744374e7, 2.062222e7, 2.449707e7, 2.833745e7, 3.132978e7, 3.402563e7, 3.623195e7, 3.823143e7 }"
+      values="{ 66.666667, 52.222222, 36.666667, 24.444444, 14.222222, 8, 4.9333333, 2.8333333, 1.7222222, 1 }" interpolation="linear"/>
 
     <TableFunction name="fractureWaterRelPermTable" coordinates="{ 0.0, 1.0 }"
       values="{ 0.0, 1.0 }" interpolation="linear"/>
@@ -271,13 +278,22 @@
       values="{ 0.0, 0.0 }" interpolation="linear"/>
     <TableFunction name="fractureGasCapPresTable" coordinates="{ 0.0, 1.0 }"
       values="{ 0.0, 0.0 }" interpolation="linear"/>
-    <TableFunction name="pressureDecline" inputVarNames="{time}"
-      coordinates="{ 0.0, 157680000.0 }"
-      values="{ 38332780.5, 28895581.5 }" interpolation="linear"/>
+    <SymbolicFunction name="initialMatrixHydrostatic" inputVarNames="{ elementCenter }"
+      variableNames="{ x, y, z }"
+      expression="38332780.5+5674.0059*(3.0486096-z)"/>
+    <SymbolicFunction name="initialFractureHydrostatic" inputVarNames="{ elementCenter }"
+      variableNames="{ x, y, z }"
+      expression="38332780.5+2332.60647416*(3.0486096-z)"/>
+    <SymbolicFunction name="fractureBoundaryHydrostatic" inputVarNames="{ faceCenter, time }"
+      variableNames="{ x, y, z, t }"
+      expression="38332780.5-0.0598503237254*t+2332.60647416*(3.0486096-z)"/>
+    <SymbolicFunction name="fractureHydrostaticElement" inputVarNames="{ elementCenter, time }"
+      variableNames="{ x, y, z, t }"
+      expression="38332780.5-0.0598503237254*t+2332.60647416*(3.0486096-z)"/>
   </Functions>
 
-  <Events maxTime="1.5768e8">
-    <PeriodicEvent name="solverApplications" maxEventDt="2.0e5" target="/Solvers/flowSolver"/>
+  <Events maxTime="7.884e7">
+    <PeriodicEvent name="solverApplications" maxEventDt="5.0e4" target="/Solvers/flowSolver"/>
     <PeriodicEvent name="vtkOutput" timeFrequency="7.884e6" target="/Outputs/vtkOutput"/>
     <!-- Update representative-cell collections before writing their time histories. -->
     <PeriodicEvent name="matrixPhaseCollection" timeFrequency="7.884e6"

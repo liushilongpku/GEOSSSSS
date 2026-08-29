@@ -11,11 +11,12 @@
   </Mesh>
   <ElementRegions>
     <CellElementRegion name="matrixRegion" meshBody="mesh1" cellBlocks="{ matrixBlock }"
-      materialList="{ matrixRock, fluid, relperm, matrixCapPressure }"/>
+      materialList="{ matrixRock, fluid, relperm, matrixCapPressure, gravityDrainagePressure }"/>
     <CellElementRegion name="fractureRegion" meshBody="mesh2" cellBlocks="{ fractureBlock }"
-      materialList="{ fractureRock, fluid, relperm, fractureCapPressure }"/>
+      materialList="{ fractureRock, fluid, fractureRelperm, fractureCapPressure }"/>
   </ElementRegions>
   <Constitutive>
+    <SimpleGravityDrainagePressure name="gravityDrainagePressure"/>
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
@@ -31,9 +32,15 @@
       wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
       nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
       threePhaseInterpolator="STONEII"/>
-    <TableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
+    <!-- Fracture relperm: straight-line endpoints (0 and 1) per Thomas 1983. -->
+    <TableRelativePermeability name="fractureRelperm" phaseNames="{ oil, gas, water }"
+      wettingIntermediateRelPermTableNames="{ fracWaterRelPermTable, fracOilRelPermTableForOW }"
+      nonWettingIntermediateRelPermTableNames="{ fracGasRelPermTable, fracOilRelPermTableForOG }"
+      threePhaseInterpolator="STONEII"/>
+    <PressureScaledTableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
       wettingIntermediateCapPressureTableName="waterCapPresTable"
-      nonWettingIntermediateCapPressureTableName="gasCapPresTable"/>
+      nonWettingIntermediateCapPressureTableName="gasCapPresTable"
+      pressureScalingTableName="gasOilSurfaceTensionScaling"/>
     <TableCapillaryPressure name="fractureCapPressure" phaseNames="{ oil, gas, water }"
       wettingIntermediateCapPressureTableName="fracWaterCapPresTable"
       nonWettingIntermediateCapPressureTableName="fracGasCapPresTable"/>
@@ -53,7 +60,7 @@
       matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
       <DualContinuumCrossFlow fractureSpacingLx="3.05" fractureSpacingLy="3.05" fractureSpacingLz="3.05"
-        gravityDrainageFlag="0" fractureVolumeFraction="0.01"
+        gravityDrainageFlag="1" fractureVolumeFraction="0.01"
         shapeFactorType="direct" shapeFactorValue="3.9344"
         matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
       <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
@@ -122,12 +129,23 @@
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
     <!--
       Thomas 1983 Table 4 gas/oil pseudo-capillary-pressure data at 5545 psig.
-      GEOS internally uses p_g = p_o - pc_og, so the input values are the
-      negative of the Thomas table (same convention as the SPE6 single-block
-      deck) to give the correct gravity-drainage gas pressure potential.
+      Pressure-dependent scaling (Eq. 28, Pc_go = sigma(P)/sigma_I * Pc_goI) is
+      applied via the pressureScalingTableName below (sigma table from Thomas
+      Table 2), so the input values are the raw 5545-psig pseudodata. GEOS
+      internally uses p_g = p_o - pc_og, so the input values are the negative of
+      the Thomas table.
     -->
     <TableFunction name="gasCapPresTable" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
       values="{ -5102.12, -3240.54, -2275.27, -413.69, 1447.90, 3309.48, 5171.07, 8756.34 }" interpolation="linear"/>
+
+    <!--
+      Thomas 1983 Table 2 gas/oil surface tension sigma [dyn/cm] vs pressure,
+      normalized by sigma_I = sigma(5545 psig) = 0.090 dyn/cm to give the
+      pressure-dependent scaling factor sigma(P)/sigma_I (Eq. 28).
+    -->
+    <TableFunction name="gasOilSurfaceTensionScaling" inputVarNames="{pressure}"
+      coordinates="{ 2.4497e7, 2.8337e7, 3.1330e7, 3.4026e7, 3.6232e7, 3.8231e7 }"
+      values="{ 14.2222, 8.0000, 4.9333, 2.8333, 1.7222, 1.0000 }" interpolation="linear"/>
 
     <TableFunction name="fracWaterRelPermTable" coordinates="{ 0.0, 1.0 }"
       values="{ 0.0, 1.0 }" interpolation="linear"/>
