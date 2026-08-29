@@ -1,5 +1,4 @@
-# Purpose: provide Thomas live-oil PVTO data with an explicit surface-condition branch.
-# Key information: pressures are absolute Pa; Bo is m3/sm3 and viscosity is Pa.s.
+<!-- Purpose: explicit Rs=0 surface-condition row for the Thomas 5545-psig live-oil fine-grid case. Key information: remaining rows are copied from the local Thomas/PVT table. -->
 Rs[sm3/sm3]    Pbub[Pa]       Bo[m3/sm3]    Visc(Pa.s)
 0.0            101325.0       1.0           0.004094350526003891
 65.3655        11643176.1     1.30010       5.29E-04

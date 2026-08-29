@@ -1,3 +1,0 @@
-# Purpose: provide Thomas Table 2 water PVT data with a GEOS absolute reference pressure.
-# Key information: 101325 Pa is added to the published 2500-psig reference pressure.
-17338225.0 1.07 4.15E-10 3.49E-04

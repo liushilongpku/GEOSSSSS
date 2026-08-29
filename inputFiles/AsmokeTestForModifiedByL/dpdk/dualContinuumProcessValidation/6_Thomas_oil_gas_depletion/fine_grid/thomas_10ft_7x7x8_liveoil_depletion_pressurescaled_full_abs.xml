@@ -132,7 +132,7 @@
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
-      tableFiles="{ pvto_bo_surface_condition.txt, ../single_block/tables/pvtg_norv_bo.txt, ../single_block/tables/pvtw_bo.txt }"/>
+      tableFiles="{ tables/pvto_bo_surface_condition.txt, tables/pvtg_norv_bo.txt, tables/pvtw_bo.txt }"/>
 
     <NullModel name="nullSolid"/>
     <PressurePorosity name="matrixPorosity" defaultReferencePorosity="0.30"
