@@ -23,6 +23,7 @@
 #include "constitutive/ConstitutivePassThruHandler.hpp"
 #include "constitutive/capillaryPressure/BrooksCoreyCapillaryPressure.hpp"
 #include "constitutive/capillaryPressure/JFunctionCapillaryPressure.hpp"
+#include "constitutive/capillaryPressure/PressureScaledTableCapillaryPressure.hpp"
 #include "constitutive/capillaryPressure/TableCapillaryPressure.hpp"
 #include "constitutive/capillaryPressure/VanGenuchtenCapillaryPressure.hpp"
 
@@ -38,6 +39,7 @@ void constitutiveUpdatePassThru( CapillaryPressureBase const & capPres,
 {
   ConstitutivePassThruHandler< BrooksCoreyCapillaryPressure,
                                JFunctionCapillaryPressure,
+                               PressureScaledTableCapillaryPressure,
                                TableCapillaryPressure,
                                VanGenuchtenCapillaryPressure >::execute( capPres, std::forward< LAMBDA >( lambda ) );
 }
@@ -48,6 +50,7 @@ void constitutiveUpdatePassThru( CapillaryPressureBase & capPres,
 {
   ConstitutivePassThruHandler< BrooksCoreyCapillaryPressure,
                                JFunctionCapillaryPressure,
+                               PressureScaledTableCapillaryPressure,
                                TableCapillaryPressure,
                                VanGenuchtenCapillaryPressure >::execute( capPres, std::forward< LAMBDA >( lambda ) );
 }

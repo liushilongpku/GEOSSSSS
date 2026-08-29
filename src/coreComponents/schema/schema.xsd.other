@@ -1697,6 +1697,7 @@
 			<xsd:element name="PorousViscoModifiedCamClayCarmanKozenyPermeability" type="PorousViscoModifiedCamClayCarmanKozenyPermeabilityType" />
 			<xsd:element name="PressurePermeability" type="PressurePermeabilityType" />
 			<xsd:element name="PressurePorosity" type="PressurePorosityType" />
+			<xsd:element name="PressureScaledTableCapillaryPressure" type="PressureScaledTableCapillaryPressureType" />
 			<xsd:element name="ProppantPermeability" type="ProppantPermeabilityType" />
 			<xsd:element name="ProppantPorosity" type="ProppantPorosityType" />
 			<xsd:element name="ProppantSlurryFluid" type="ProppantSlurryFluidType" />
@@ -2917,6 +2918,18 @@
 		<xsd:attribute name="porosity_n" type="real64_array2d" />
 		<!--referencePorosity => Reference porosity-->
 		<xsd:attribute name="referencePorosity" type="real64_array" />
+	</xsd:complexType>
+	<xsd:complexType name="PressureScaledTableCapillaryPressureType">
+		<!--capPresWrappers => (no description available)-->
+		<xsd:attribute name="capPresWrappers" type="LvArray_Array_lt_geos_TableFunction_KernelWrapper_cm_-1_cm_-camp_int_seq_lt_long_cm_-0l_gt__cm_-int_cm_-LvArray_ChaiBuffer_gt_" />
+		<!--dPhaseCapPressure_dPhaseVolFraction => Derivative of phase capillary pressure with respect to phase volume fraction-->
+		<xsd:attribute name="dPhaseCapPressure_dPhaseVolFraction" type="real64_array4d" />
+		<!--phaseCapPressure => Phase capillary pressure-->
+		<xsd:attribute name="phaseCapPressure" type="real64_array3d" />
+		<!--phaseOrder => (no description available)-->
+		<xsd:attribute name="phaseOrder" type="integer_array" />
+		<!--phaseTypes => (no description available)-->
+		<xsd:attribute name="phaseTypes" type="integer_array" />
 	</xsd:complexType>
 	<xsd:complexType name="ProppantPermeabilityType">
 		<!--dPerm_dDispJump => Derivative of rock permeability with respect to displacement jump-->

@@ -975,6 +975,10 @@
 					<xsd:selector xpath="PressurePorosity" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
+				<xsd:unique name="domainConstitutivePressureScaledTableCapillaryPressureUniqueName">
+					<xsd:selector xpath="PressureScaledTableCapillaryPressure" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
 				<xsd:unique name="domainConstitutiveProppantPermeabilityUniqueName">
 					<xsd:selector xpath="ProppantPermeability" />
 					<xsd:field xpath="@name" />
@@ -6720,6 +6724,7 @@ Information output from lower logLevels is added with the desired log level
 			<xsd:element name="PorousViscoModifiedCamClayCarmanKozenyPermeability" type="PorousViscoModifiedCamClayCarmanKozenyPermeabilityType" />
 			<xsd:element name="PressurePermeability" type="PressurePermeabilityType" />
 			<xsd:element name="PressurePorosity" type="PressurePorosityType" />
+			<xsd:element name="PressureScaledTableCapillaryPressure" type="PressureScaledTableCapillaryPressureType" />
 			<xsd:element name="ProppantPermeability" type="ProppantPermeabilityType" />
 			<xsd:element name="ProppantPorosity" type="ProppantPorosityType" />
 			<xsd:element name="ProppantSlurryFluid" type="ProppantSlurryFluidType" />
@@ -8276,6 +8281,26 @@ If you want to do a three-phase simulation, please use instead wettingIntermedia
 		<xsd:attribute name="defaultReferencePorosity" type="real64" default="-1" />
 		<!--referencePressure => Reference pressure for solid compressibility-->
 		<xsd:attribute name="referencePressure" type="real64" use="required" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="PressureScaledTableCapillaryPressureType">
+		<!--nonWettingIntermediateCapPressureTableName => Capillary pressure table [Pa] for the pair (non-wetting phase, intermediate phase)
+Note that this input is only used for three-phase flow.
+If you want to do a two-phase simulation, please use instead wettingNonWettingCapPressureTableName to specify the table names-->
+		<xsd:attribute name="nonWettingIntermediateCapPressureTableName" type="groupNameRef" default="" />
+		<!--phaseNames => List of fluid phases-->
+		<xsd:attribute name="phaseNames" type="groupNameRef_array" use="required" />
+		<!--pressureScalingTableName => Optional name of the pressure-dependent scaling factor table sigma(P)/sigma_ref (surface tension as a function of pressure). When provided, the gas/oil capillary pressure is scaled as Pc_go = sigma(P)/sigma_ref * Pc_go_table (Thomas 1983 Eq. 28). Leave empty to disable pressure-dependent scaling.-->
+		<xsd:attribute name="pressureScalingTableName" type="groupNameRef" default="" />
+		<!--wettingIntermediateCapPressureTableName => Capillary pressure table [Pa] for the pair (wetting phase, intermediate phase)
+Note that this input is only used for three-phase flow.
+If you want to do a two-phase simulation, please use instead wettingNonWettingCapPressureTableName to specify the table names-->
+		<xsd:attribute name="wettingIntermediateCapPressureTableName" type="groupNameRef" default="" />
+		<!--wettingNonWettingCapPressureTableName => Capillary pressure table [Pa] for the pair (wetting phase, non-wetting phase)
+Note that this input is only used for two-phase flow.
+If you want to do a three-phase simulation, please use instead wettingIntermediateCapPressureTableName and nonWettingIntermediateCapPressureTableName to specify the table names-->
+		<xsd:attribute name="wettingNonWettingCapPressureTableName" type="groupNameRef" default="" />
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>
