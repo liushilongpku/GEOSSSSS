@@ -87,7 +87,11 @@ GEOS 的 cross-flow 形状因子原用 Kazemi `4(1/Lx²+1/Ly²+1/Lz²) = 12/L²`
 
 ## 4. 运行结果
 
-GEOS 推进到 `6.3072e7 s`（2 年，TimeHistory 记录至 1.9 年），运行正常结束。油组分采收率，
+GEOS 推进到 `6.3072e7 s`（2 年，TimeHistory 记录至 1.9 年），运行正常结束。
+
+**统计口径**：本算例采收率按油组分**质量**计算，即 `R = 1 − m_o/m_o,0 × 100%`（`m_o` 为基质油组分
+质量，由 `compAmount` 求和）。因模型设定固定 43 MPa，油密度不变，与体积采收率严格相等
+（33.43% / 34.61%）。油组分采收率，
 Thomas Fig. 2 列为论文插图 `imbibition recovery, 10-ft block` 的读图值（`reference/thomas_fig2_10ft.csv`，
 ±1 pp 不确定度）：
 
