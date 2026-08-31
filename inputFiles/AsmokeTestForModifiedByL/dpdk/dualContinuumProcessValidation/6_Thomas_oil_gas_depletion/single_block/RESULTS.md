@@ -8,15 +8,15 @@ pressure-dependent vertical-equilibrium pseudocapillary table.
 
 | Case | 0.5-year recovery | 2.5-year recovery | Final `So/Sg/Sw` |
 | --- | ---: | ---: | --- |
-| GEOS, Thomas GDP on | 27.3123% | 45.5305% | 0.40516/0.39470/0.20014 |
-| GEOS, GDP off | 13.2473% | 18.7311% | 0.60453/0.19533/0.20014 |
+| GEOS, Thomas GDP on | 27.3364% | 45.5423% | 0.40507/0.39479/0.20014 |
+| GEOS, GDP off | 13.2576% | 18.7370% | 0.60449/0.19537/0.20014 |
 | Independent oracle, fracture `Pc=0` | 27.3141% | 45.4514% | `Sg=0.39554` at 2.5 years |
 | Thomas Fig. 4 | 27.0% | 46.0% | - |
 
 The GDP-on GEOS run used 3,963 time steps, with zero time-step cuts and zero
 discarded nonlinear iterations. Its 2.5-year recovery differs from Thomas by
-`-0.4695 pp`. The maximum GEOS-oracle recovery difference across all 11 stored
-times is `0.0792 pp`.
+`-0.4577 pp`. The maximum GEOS-oracle recovery difference across all 11 stored
+times is `0.0909 pp`.
 
 ## Result Files
 
@@ -40,6 +40,8 @@ times is `0.0792 pp`.
 - `tables/ve_pseudo_pc_sg_axis.txt`: gas-saturation axis.
 - `tables/ve_pseudo_pc_pressure_axis.txt`: absolute-pressure axis.
 - `tables/ve_pseudo_pc_values.txt`: two-dimensional pseudocapillary values.
+- Matrix three-phase relative permeability uses the existing GEOS
+  `TableRelativePermeability` model with the modified Stone-II interpolator.
 - `thomas_single_cell_oracle.py`: independent single-cell black-oil oracle.
 - `analyze_results.py`: computes oil-component mass recovery and plots Fig. 4 comparison.
 - `reproduce.py`: checks all case and repository dependencies; with `--run`,

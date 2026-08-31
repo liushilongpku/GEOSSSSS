@@ -52,11 +52,13 @@ def audit_deck(label: str, deck: Path) -> tuple[float, float, float]:
         if crossflow.attrib.get(name) != value:
             raise RuntimeError(f"{deck}: expected {name}={value!r}, got {crossflow.attrib.get(name)!r}")
     fluid = root.find("./Constitutive/BlackOilFluid")
-    relperm = root.find("./Constitutive/ThreePhaseTableRelativePermeability")
+    relperm = root.find("./Constitutive/TableRelativePermeability[@name='relperm']")
     if fluid is None or fluid.attrib.get("phaseNames") != "{ oil, gas, water }":
         raise RuntimeError(f"{deck}: BlackOilFluid phase order must be oil, gas, water")
     if relperm is None or relperm.attrib.get("phaseNames") != "{ oil, gas, water }":
         raise RuntimeError(f"{deck}: matrix relative-permeability phase order must be oil, gas, water")
+    if relperm.attrib.get("threePhaseInterpolator") != "STONEII":
+        raise RuntimeError(f"{deck}: matrix relative permeability must use STONEII")
     return components
 
 

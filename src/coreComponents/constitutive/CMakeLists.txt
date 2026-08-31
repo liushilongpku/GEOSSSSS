@@ -171,7 +171,6 @@ set( constitutive_headers
      relativePermeability/RelativePermeabilityFields.hpp
      relativePermeability/RelativePermeabilityInterpolators.hpp
      relativePermeability/TableRelativePermeability.hpp
-     relativePermeability/ThreePhaseTableRelativePermeability.hpp
      relativePermeability/TableRelativePermeabilityHelpers.hpp
      relativePermeability/TableRelativePermeabilityHysteresis.hpp
      relativePermeability/VanGenuchtenBakerRelativePermeability.hpp
@@ -325,7 +324,6 @@ set( constitutive_sources
      relativePermeability/KilloughHysteresis.cpp
      relativePermeability/RelativePermeabilityBase.cpp
      relativePermeability/TableRelativePermeability.cpp
-     relativePermeability/ThreePhaseTableRelativePermeability.cpp
      relativePermeability/TableRelativePermeabilityHelpers.cpp
      relativePermeability/TableRelativePermeabilityHysteresis.cpp
      relativePermeability/VanGenuchtenBakerRelativePermeability.cpp

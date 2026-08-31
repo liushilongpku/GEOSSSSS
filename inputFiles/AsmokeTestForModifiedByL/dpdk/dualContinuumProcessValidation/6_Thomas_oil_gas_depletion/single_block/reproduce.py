@@ -15,8 +15,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent
 EXPECTED_RECOVERY = {
-    "gdp_off": {0.5: 13.2473, 2.5: 18.7311},
-    "gdp_on": {0.5: 27.3123, 2.5: 45.5305},
+    "gdp_off": {0.5: 13.2576, 2.5: 18.7370},
+    "gdp_on": {0.5: 27.3364, 2.5: 45.5423},
 }
 DECKS = {
     "gdp_off": ROOT / "thomas_singleblock_gas_oil_gravity_drainage.xml",
@@ -32,7 +32,6 @@ INPUT_FILES = [
     ROOT / "reference/thomas_fig4_3d_model.csv",
 ]
 SOURCE_FILES = [
-    "src/coreComponents/constitutive/relativePermeability/ThreePhaseTableRelativePermeability.cpp",
     "src/coreComponents/constitutive/gravityDrainagePressure/ThomasGasOilGravityDrainagePressure.cpp",
     "src/coreComponents/constitutive/capillaryPressure/PressureScaledTableCapillaryPressure.cpp",
     "src/coreComponents/physicsSolvers/multiphysics/dualContinuumCrossFlow/DualContinuumCrossFlow.cpp",

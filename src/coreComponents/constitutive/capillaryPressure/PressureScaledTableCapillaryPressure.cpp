@@ -21,7 +21,6 @@
 
 #include "constitutive/capillaryPressure/TableCapillaryPressureHelpers.hpp"
 #include "functions/FunctionManager.hpp"
-#include "mesh/ElementSubRegionBase.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
 
 namespace geos
@@ -230,9 +229,8 @@ PressureScaledTableCapillaryPressure::createKernelWrapper()
   {
     // The model is registered under the sub-region's "ConstitutiveModels" group,
     // so go up two levels to reach the sub-region holding the flow::pressure field.
-    ElementSubRegionBase const & subRegion =
-      dynamic_cast< ElementSubRegionBase const & >( this->getParent().getParent() );
-    pressure = subRegion.getField< fields::flow::pressure >();
+    Group const & subRegion = this->getParent().getParent();
+    pressure = subRegion.getReference< array1d< real64 > >( fields::flow::pressure::key() );
   }
 
   bool const hasPressureScaling = !m_pressureScalingTableName.empty();

@@ -1714,6 +1714,7 @@
 			<xsd:element name="TableRelativePermeability" type="TableRelativePermeabilityType" />
 			<xsd:element name="TableRelativePermeabilityHysteresis" type="TableRelativePermeabilityHysteresisType" />
 			<xsd:element name="ThermalCompressibleSinglePhaseFluid" type="ThermalCompressibleSinglePhaseFluidType" />
+			<xsd:element name="ThomasGasOilGravityDrainagePressure" type="ThomasGasOilGravityDrainagePressureType" />
 			<xsd:element name="TwoPhaseImmiscibleFluid" type="TwoPhaseImmiscibleFluidType" />
 			<xsd:element name="VanGenuchtenBakerRelativePermeability" type="VanGenuchtenBakerRelativePermeabilityType" />
 			<xsd:element name="VanGenuchtenCapillaryPressure" type="VanGenuchtenCapillaryPressureType" />
@@ -3144,7 +3145,7 @@
 	</xsd:complexType>
 	<xsd:complexType name="SimpleGravityDrainagePressureType">
 		<!--gravityDrainagePressure => Gravity drainage pressure for dual continuum model-->
-		<xsd:attribute name="gravityDrainagePressure" type="real64_array2d" />
+		<xsd:attribute name="gravityDrainagePressure" type="real64_array3d" />
 	</xsd:complexType>
 	<xsd:complexType name="SinglePhaseThermalConductivityType">
 		<!--dEffectiveConductivity_dT => Derivative of effective conductivity w.r.t. temperature-->
@@ -3253,6 +3254,10 @@
 		<xsd:attribute name="internalEnergy_n" type="real64_array2d" />
 		<!--viscosity => Viscosity-->
 		<xsd:attribute name="viscosity" type="real64_array2d" />
+	</xsd:complexType>
+	<xsd:complexType name="ThomasGasOilGravityDrainagePressureType">
+		<!--gravityDrainagePressure => Gravity drainage pressure for dual continuum model-->
+		<xsd:attribute name="gravityDrainagePressure" type="real64_array3d" />
 	</xsd:complexType>
 	<xsd:complexType name="TwoPhaseImmiscibleFluidType">
 		<!--dPhaseDensity => Derivative of phase density with respect to pressure-->

@@ -1043,6 +1043,10 @@
 					<xsd:selector xpath="ThermalCompressibleSinglePhaseFluid" />
 					<xsd:field xpath="@name" />
 				</xsd:unique>
+				<xsd:unique name="domainConstitutiveThomasGasOilGravityDrainagePressureUniqueName">
+					<xsd:selector xpath="ThomasGasOilGravityDrainagePressure" />
+					<xsd:field xpath="@name" />
+				</xsd:unique>
 				<xsd:unique name="domainConstitutiveTwoPhaseImmiscibleFluidUniqueName">
 					<xsd:selector xpath="TwoPhaseImmiscibleFluid" />
 					<xsd:field xpath="@name" />
@@ -3268,6 +3272,10 @@ When set to 2 also output convergence information to a csv-->
 		<xsd:attribute name="gravityDrainageFlag" type="integer" default="0" />
 		<!--interporosityExchangeCoefficient => Direct interporosity exchange coefficient Gamma [Pa^{-1} s^{-1}]. When > 0, bypasses the Kazemi shape-factor formula and uses transmissibility = Gamma * mu * V_element.-->
 		<xsd:attribute name="interporosityExchangeCoefficient" type="real64" default="0" />
+		<!--matrixControlledExchangeUpwinding => Use matrix-side mobility for compositional matrix-fracture exchange. For fracture-to-matrix flow, scale mobility by fracture phase coverage and transport the fracture-side composition. The default is false, which preserves standard phase-potential upwinding.-->
+		<xsd:attribute name="matrixControlledExchangeUpwinding" type="integer" default="0" />
+		<!--matrixControlledReverseExchangeRelPerm => Effective matrix relative permeability for fracture-to-matrix exchange, ordered by fluid phase. A negative value uses the current matrix relative permeability. Required when matrixControlledExchangeUpwinding is enabled.-->
+		<xsd:attribute name="matrixControlledReverseExchangeRelPerm" type="real64_array" default="{0}" />
 		<!--matrixRegionList => List of matrix regions-->
 		<xsd:attribute name="matrixRegionList" type="string_array" use="required" />
 		<!--shapeFactorType => Matrix-fracture shape factor formulation. Valid options:
@@ -6741,6 +6749,7 @@ Information output from lower logLevels is added with the desired log level
 			<xsd:element name="TableRelativePermeability" type="TableRelativePermeabilityType" />
 			<xsd:element name="TableRelativePermeabilityHysteresis" type="TableRelativePermeabilityHysteresisType" />
 			<xsd:element name="ThermalCompressibleSinglePhaseFluid" type="ThermalCompressibleSinglePhaseFluidType" />
+			<xsd:element name="ThomasGasOilGravityDrainagePressure" type="ThomasGasOilGravityDrainagePressureType" />
 			<xsd:element name="TwoPhaseImmiscibleFluid" type="TwoPhaseImmiscibleFluidType" />
 			<xsd:element name="VanGenuchtenBakerRelativePermeability" type="VanGenuchtenBakerRelativePermeabilityType" />
 			<xsd:element name="VanGenuchtenCapillaryPressure" type="VanGenuchtenCapillaryPressureType" />
@@ -8291,6 +8300,8 @@ If you want to do a two-phase simulation, please use instead wettingNonWettingCa
 		<xsd:attribute name="nonWettingIntermediateCapPressureTableName" type="groupNameRef" default="" />
 		<!--phaseNames => List of fluid phases-->
 		<xsd:attribute name="phaseNames" type="groupNameRef_array" use="required" />
+		<!--pressureDependentTableName => Optional two-dimensional gas/oil capillary-pressure table Pc_go(Sg, pressure). This is mutually exclusive with pressureScalingTableName.-->
+		<xsd:attribute name="pressureDependentTableName" type="groupNameRef" default="" />
 		<!--pressureScalingTableName => Optional name of the pressure-dependent scaling factor table sigma(P)/sigma_ref (surface tension as a function of pressure). When provided, the gas/oil capillary pressure is scaled as Pc_go = sigma(P)/sigma_ref * Pc_go_table (Thomas 1983 Eq. 28). Leave empty to disable pressure-dependent scaling.-->
 		<xsd:attribute name="pressureScalingTableName" type="groupNameRef" default="" />
 		<!--wettingIntermediateCapPressureTableName => Capillary pressure table [Pa] for the pair (wetting phase, intermediate phase)
@@ -8597,6 +8608,10 @@ To neglect hysteresis on this phase, just use the same table name for the draina
 * linear
 * quadratic-->
 		<xsd:attribute name="viscosityModelType" type="geos_constitutive_ExponentApproximationType" default="linear" />
+		<!--name => A name is required for any non-unique nodes-->
+		<xsd:attribute name="name" type="groupName" use="required" />
+	</xsd:complexType>
+	<xsd:complexType name="ThomasGasOilGravityDrainagePressureType">
 		<!--name => A name is required for any non-unique nodes-->
 		<xsd:attribute name="name" type="groupName" use="required" />
 	</xsd:complexType>

@@ -28,9 +28,10 @@
     <PressurePorosity name="fracturePorosity" defaultReferencePorosity="1.0" referencePressure="3.83327805e7" compressibility="5.076e-10"/>
     <ConstantPermeability name="fracturePerm" permeabilityComponents="{ 9.869233e-13, 9.869233e-13, 9.869233e-13 }"/>
     <CompressibleSolidConstantPermeability name="fractureRock" solidModelName="nullSolid" porosityModelName="fracturePorosity" permeabilityModelName="fracturePerm"/>
-    <ThreePhaseTableRelativePermeability name="relperm" phaseNames="{ oil, gas, water }"
-      waterRelPermTableName="waterRelPermTable" gasRelPermTableName="gasRelPermTable"
-      oilRelPermTableName="oilRelPermTableForThomas"/>
+    <TableRelativePermeability name="relperm" phaseNames="{ oil, gas, water }"
+      wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
+      nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
+      threePhaseInterpolator="STONEII"/>
     <!-- Fracture relperm: straight-line endpoints (0 and 1) per Thomas 1983. -->
     <TableRelativePermeability name="fractureRelperm" phaseNames="{ oil, gas, water }"
       wettingIntermediateRelPermTableNames="{ fracWaterRelPermTable, fracOilRelPermTableForOW }"
@@ -126,8 +127,6 @@
     -->
     <TableFunction name="oilRelPermTableForOG" coordinates="{ 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80 }"
       values="{ 0.0, 0.070, 0.25, 0.44, 0.62, 0.80, 0.89, 1.0 }" interpolation="linear"/>
-    <TableFunction name="oilRelPermTableForThomas" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
-      values="{ 1.0, 0.89, 0.80, 0.62, 0.44, 0.25, 0.070, 0.0 }" interpolation="linear"/>
     <TableFunction name="waterCapPresTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
     <!--
