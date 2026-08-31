@@ -94,9 +94,11 @@ public:
                      MultiFluidAccessors const & multiFluidAccessors_f,
                      CapPressureAccessors const & capPressureAccessors_m,
                      CapPressureAccessors const & capPressureAccessors_f,
-                     PermeabilityAccessors const & permeabilityAccessors_m,
-                     PermeabilityAccessors const & permeabilityAccessors_f,
-                     GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors_m,
+                      PermeabilityAccessors const & permeabilityAccessors_m,
+                      PermeabilityAccessors const & permeabilityAccessors_f,
+                      RelativePermeabilityAccessors const & relativePermeabilityAccessors_m,
+                      GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors_m,
+                      arrayView1d< real64 const > const & matrixControlledReverseExchangeRelPerm,
                      real64 const dt,
                      CRSMatrixView< real64, globalIndex const > const & localMatrix,
                      arrayView1d< real64 > const & localRhs,
@@ -123,6 +125,13 @@ public:
     m_dPhaseMob_m( compFlowAccessors_m.get( fields::flow::dPhaseMobility {} ) ),
     m_phaseMob_f( compFlowAccessors_f.get( fields::flow::phaseMobility {} ) ),
     m_dPhaseMob_f( compFlowAccessors_f.get( fields::flow::dPhaseMobility {} ) ),
+    m_phaseDens_f( multiFluidAccessors_f.get( fields::multifluid::phaseDensity {} ) ),
+    m_dPhaseDens_f( multiFluidAccessors_f.get( fields::multifluid::dPhaseDensity {} ) ),
+    m_phaseVisc_f( multiFluidAccessors_f.get( fields::multifluid::phaseViscosity {} ) ),
+    m_dPhaseVisc_f( multiFluidAccessors_f.get( fields::multifluid::dPhaseViscosity {} ) ),
+    m_phaseRelPerm_m( relativePermeabilityAccessors_m.get( fields::relperm::phaseRelPerm {} ) ),
+    m_dPhaseRelPerm_dPhaseVolFrac_m(
+      relativePermeabilityAccessors_m.get( fields::relperm::dPhaseRelPerm_dPhaseVolFraction {} ) ),
     m_phaseMassDens_m( multiFluidAccessors_m.get( fields::multifluid::phaseMassDensity {} ) ),
     m_dPhaseMassDens_m( multiFluidAccessors_m.get( fields::multifluid::dPhaseMassDensity {} ) ),
     m_phaseMassDens_f( multiFluidAccessors_f.get( fields::multifluid::phaseMassDensity {} ) ),
@@ -132,6 +141,7 @@ public:
     m_phaseCapPressure_f( capPressureAccessors_f.get( fields::cappres::phaseCapPressure {} ) ),
     m_dPhaseCapPressure_dPhaseVolFrac_f( capPressureAccessors_f.get( fields::cappres::dPhaseCapPressure_dPhaseVolFraction {} ) ),
     m_gravityDrainagePressure_m( gravityDrainagePressureAccessors_m.get( fields::gravdrainage::gravityDrainagePressure {} ) ),
+    m_matrixControlledReverseExchangeRelPerm( matrixControlledReverseExchangeRelPerm ),
     m_stencilWrapper( stencilWrapper ),
     m_seri( stencilWrapper.getElementRegionIndices() ),
     m_sesri( stencilWrapper.getElementSubRegionIndices() ),
@@ -276,8 +286,9 @@ public:
         real64 const trans[numFluxSupportPoints] = { stack.transmissibility,
                                                      stack.transmissibility };
 
+        // The exchange transmissibility uses matrix permeability only.
         real64 const dTrans_dPres[numFluxSupportPoints] = { stack.dTrans_dPres,
-                                                            stack.dTrans_dPres };
+                                                            0.0 };
 
         //***** calculation of flux *****
         // loop over phases, compute and upwind phase flux and sum contributions to each component's flux
@@ -303,7 +314,7 @@ public:
               dTrans_dPres,
               m_pres_m, m_pres_f, // Using matrix pressure for first support point, fracture for second
               m_gravCoef_m, m_gravCoef_f, // Using matrix gravity coefficient for first support point, fracture for second
-              m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
+               m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
               m_phaseVolFrac_m, m_phaseVolFrac_f, m_dPhaseVolFrac_m, m_dPhaseVolFrac_f, // Using matrix phase volume fractions for first support point, fracture for second
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
@@ -326,9 +337,9 @@ public:
               trans,
               dTrans_dPres,
               m_pres_m, m_pres_f, // Using matrix pressure for first support point, fracture for second
-              m_gravCoef_m, m_gravCoef_f, // Using matrix gravity coefficient for first support point, fracture for second
-              m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
-              m_phaseVolFrac_m, m_phaseVolFrac_f, m_dPhaseVolFrac_m, m_dPhaseVolFrac_f, // Using matrix phase volume fractions for first support point, fracture for second
+               m_gravCoef_m, m_gravCoef_f, // Using matrix gravity coefficient for first support point, fracture for second
+               m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
+               m_phaseVolFrac_m, m_phaseVolFrac_f, m_dPhaseVolFrac_m, m_dPhaseVolFrac_f, // Using matrix phase volume fractions for first support point, fracture for second
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
               m_phaseCapPressure_m, m_phaseCapPressure_f, m_dPhaseCapPressure_dPhaseVolFrac_m, m_dPhaseCapPressure_dPhaseVolFrac_f, // Using matrix cap pressure for first support point, fracture for second
@@ -350,9 +361,9 @@ public:
               trans,
               dTrans_dPres,
               m_pres_m, m_pres_f, // Using matrix pressure for first support point, fracture for second
-              m_gravCoef_m, m_gravCoef_f, // Using matrix gravity coefficient for first support point, fracture for second
-              m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
-              m_phaseVolFrac_m, m_phaseVolFrac_f, m_dPhaseVolFrac_m, m_dPhaseVolFrac_f, // Using matrix phase volume fractions for first support point, fracture for second
+               m_gravCoef_m, m_gravCoef_f, // Using matrix gravity coefficient for first support point, fracture for second
+               m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
+               m_phaseVolFrac_m, m_phaseVolFrac_f, m_dPhaseVolFrac_m, m_dPhaseVolFrac_f, // Using matrix phase volume fractions for first support point, fracture for second
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
               m_phaseCapPressure_m, m_phaseCapPressure_f, m_dPhaseCapPressure_dPhaseVolFrac_m, m_dPhaseCapPressure_dPhaseVolFrac_f, // Using matrix cap pressure for first support point, fracture for second
@@ -364,19 +375,23 @@ public:
           }
           else
           {
-            PPUPhaseFlux::compute< numComp, numFluxSupportPoints >
+            PPUPhaseFlux::computeMatrixControlled< numComp, numFluxSupportPoints >
               ( m_numPhases,
               ip,
               m_kernelFlags.isSet( KernelFlags::CapPressure ),
               m_kernelFlags.isSet( KernelFlags::CheckPhasePresenceInGravity ),
               m_kernelFlags.isSet( KernelFlags::GravityDrainage),
+              m_kernelFlags.isSet( KernelFlags::MatrixControlledExchangeUpwinding ),
               seri, sesri, sei,
               trans,
               dTrans_dPres,
               m_pres_m, m_pres_f, // Using matrix pressure for first support point, fracture for second
-              m_gravCoef_m, m_gravCoef_f, // Using matrix gravity coefficient for first support point, fracture for second
-              m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
-              m_phaseVolFrac_m, m_phaseVolFrac_f, m_dPhaseVolFrac_m, m_dPhaseVolFrac_f, // Using matrix phase volume fractions for first support point, fracture for second
+               m_gravCoef_m, m_gravCoef_f, // Using matrix gravity coefficient for first support point, fracture for second
+               m_phaseMob_m, m_phaseMob_f, m_dPhaseMob_m, m_dPhaseMob_f, // Using matrix phase mobilities for first support point, fracture for second
+               m_phaseDens_f, m_dPhaseDens_f, m_phaseVisc_f, m_dPhaseVisc_f,
+               m_phaseRelPerm_m, m_dPhaseRelPerm_dPhaseVolFrac_m,
+               m_matrixControlledReverseExchangeRelPerm,
+               m_phaseVolFrac_m, m_phaseVolFrac_f, m_dPhaseVolFrac_m, m_dPhaseVolFrac_f, // Using matrix phase volume fractions for first support point, fracture for second
               m_dCompFrac_dCompDens_m, m_dCompFrac_dCompDens_f, // Using matrix comp frac derivatives for first support point, fracture for second
               m_phaseMassDens_m, m_phaseMassDens_f, m_dPhaseMassDens_m, m_dPhaseMassDens_f, // Using matrix phase mass densities for first support point, fracture for second
               m_phaseCapPressure_m, m_phaseCapPressure_f, m_dPhaseCapPressure_dPhaseVolFrac_m, m_dPhaseCapPressure_dPhaseVolFrac_f, // Using matrix cap pressure for first support point, fracture for second
@@ -394,7 +409,7 @@ public:
           // distribute on phaseComponentFlux here
           //TODO@LSL: 计算相中各组分的通量，并计算其对压力、组分浓度和传导率的导数。这里需要根据phaseFlux的符号来确定上游单元是k[0]还是k[1]，并使用对应的compFrac和其导数进行计算。
 
-          if(phaseFlux >= 0)
+          if( PPUPhaseFlux::selectCompositionUpstream( potGrad ) == 0 )
           {
             k_up = 0;
             PhaseComponentFlux::compute( ip, k_up, seri, sesri, sei,
@@ -574,6 +589,17 @@ protected:
   ElementViewConst< arrayView2d< real64 const, compflow::USD_PHASE > > const m_phaseMob_f;
   ElementViewConst< arrayView3d< real64 const, compflow::USD_PHASE_DC > > const m_dPhaseMob_f;
 
+  /// Fracture upstream PVT properties used by matrix-controlled reverse exchange.
+  ElementViewConst< arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > > const m_phaseDens_f;
+  ElementViewConst< arrayView4d< real64 const, constitutive::multifluid::USD_PHASE_DC > > const m_dPhaseDens_f;
+  ElementViewConst< arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > > const m_phaseVisc_f;
+  ElementViewConst< arrayView4d< real64 const, constitutive::multifluid::USD_PHASE_DC > > const m_dPhaseVisc_f;
+
+  /// Matrix relative permeability used by the Thomas direction-dependent exchange rule.
+  ElementViewConst< arrayView3d< real64 const, constitutive::relperm::USD_RELPERM > > const m_phaseRelPerm_m;
+  ElementViewConst< arrayView4d< real64 const, constitutive::relperm::USD_RELPERM_DS > > const
+    m_dPhaseRelPerm_dPhaseVolFrac_m;
+
   /// Views on phase mass densities
   ElementViewConst< arrayView3d< real64 const, constitutive::multifluid::USD_PHASE > > const m_phaseMassDens_m;
   ElementViewConst< arrayView4d< real64 const, constitutive::multifluid::USD_PHASE_DC > > const m_dPhaseMassDens_m;
@@ -587,7 +613,9 @@ protected:
   ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const m_dPhaseCapPressure_dPhaseVolFrac_f;
 
   /// 重力项
-  ElementViewConst< arrayView2d< real64 const > > const m_gravityDrainagePressure_m;
+  ElementViewConst< arrayView3d< real64 const > > const m_gravityDrainagePressure_m;
+
+  arrayView1d< real64 const > const m_matrixControlledReverseExchangeRelPerm;
 
   // Stencil information
 
@@ -635,6 +663,7 @@ public:
                    globalIndex const m_rankOffset_f,
                    string const & dofKey,
                    BitFlags< KernelFlags > kernelFlags,
+                   arrayView1d< real64 const > const & matrixControlledReverseExchangeRelPerm,
                    string const & primarySolverName,
                    string const & secondarySolverName,
                    ElementRegionManager const & matrixElemManager,
@@ -666,12 +695,15 @@ public:
       typename kernelType::CapPressureAccessors capPressureAccessors_f( fractureElemManager, secondarySolverName );
       typename kernelType::PermeabilityAccessors permeabilityAccessors_m( matrixElemManager, primarySolverName );
       typename kernelType::PermeabilityAccessors permeabilityAccessors_f( fractureElemManager, secondarySolverName );
+      typename kernelType::RelativePermeabilityAccessors relativePermeabilityAccessors_m(
+        matrixElemManager, primarySolverName );
       typename kernelType::GravityDrainagePressureAccessors gravityDrainagePressureAccessors_m(matrixElemManager,primarySolverName);
 
       kernelType kernel( numPhases, m_rankOffset_m, m_rankOffset_f, stencilWrapper, dofNumberAccessor_m,
-                         compFlowAccessors_m, multiFluidAccessors_m, dofNumberAccessor_f, compFlowAccessors_f, multiFluidAccessors_f,
-                         capPressureAccessors_m, capPressureAccessors_f, permeabilityAccessors_m, permeabilityAccessors_f,
-                         gravityDrainagePressureAccessors_m,
+                          compFlowAccessors_m, multiFluidAccessors_m, dofNumberAccessor_f, compFlowAccessors_f, multiFluidAccessors_f,
+                          capPressureAccessors_m, capPressureAccessors_f, permeabilityAccessors_m, permeabilityAccessors_f,
+                          relativePermeabilityAccessors_m, gravityDrainagePressureAccessors_m,
+                          matrixControlledReverseExchangeRelPerm,
                          dt, localMatrix, localRhs, kernelFlags );
       kernelType::template launch< POLICY >( stencilWrapper.size(), kernel );
     } );

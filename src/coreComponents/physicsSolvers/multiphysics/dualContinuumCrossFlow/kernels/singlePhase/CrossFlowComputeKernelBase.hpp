@@ -218,7 +218,7 @@ protected:
   ElementViewConst< arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > > const m_dDens_fracture;
 
   /// Views on gravity drainage pressure
-  ElementViewConst< arrayView2d< real64 const > > const m_gravityDrainagePressure;
+  ElementViewConst< arrayView3d< real64 const > > const m_gravityDrainagePressure;
 
   /// Flag indicating whether gravity drainage is active
   bool const m_hasGravityDrainage;

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Aggregate the Thomas 1983 dual-continuum single-block recovery and plot it.
 
-Key information: the matrix oil-component amount history is read from the GEOS
-TimeHistory output and compared against the digitized Thomas 1983 Fig. 4 curve.
-Both saturation-inventory and oil-component-mass recovery are reported, because
-SPE6/Thomas text only states an oil-recovery percentage without a normalization
-formula.
+Key information: matrix oil-component recovery is the Thomas-compatible result.
+Normalized oil-saturation reduction is retained only as a diagnostic. GEOS does
+not execute periodic time-history events at maxTime, so the final sample is read
+from the VTK output when it is absent from HDF5.
 """
 
 from __future__ import annotations
@@ -13,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import h5py
 import matplotlib
@@ -21,6 +21,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import numpy as np
+import vtk
 
 
 ROOT = Path(__file__).resolve().parents[0]
@@ -45,43 +46,61 @@ def configure_plotting() -> None:
     )
 
 
-def read_history(output_dir: Path, stem: str) -> list[dict[str, float]]:
+def read_history(output_dir: Path, stem: str) -> tuple[np.ndarray, np.ndarray]:
     roots = sorted(output_dir.glob(f"*{stem}.hdf5"))
     if not roots:
         raise FileNotFoundError(f"no {stem} history in {output_dir}")
     path = roots[0]
-    rows: list[dict[str, float]] = []
     with h5py.File(path, "r") as f:
-        phase = f["phaseVolumeFraction"]
-        time = np.ravel(f["phaseVolumeFraction Time"])
-        for index, t in enumerate(time):
-            values = np.ravel(phase[index])
-            rows.append(
-                {
-                    "time_seconds": float(t),
-                    "oil_saturation": float(values[0]),
-                    "gas_saturation": float(values[1]),
-                    "water_saturation": float(values[2]),
-                }
-            )
-    return rows
+        phase = np.asarray(f["phaseVolumeFraction"])
+        time = np.ravel(np.asarray(f["phaseVolumeFraction Time"]))
+    if phase.shape[0] != time.size or phase.shape[-1] != 3:
+        raise RuntimeError(f"unexpected phase history shape in {path}: {phase.shape}")
+    return time, phase.reshape(time.size, -1, 3).mean(axis=1)
 
 
-def read_amount_history(output_dir: Path, stem: str) -> list[dict[str, float]]:
+def read_amount_history(output_dir: Path, stem: str) -> tuple[np.ndarray, np.ndarray]:
     roots = sorted(output_dir.glob(f"*{stem}.hdf5"))
     if not roots:
         raise FileNotFoundError(f"no {stem} history in {output_dir}")
     path = roots[0]
-    rows: list[dict[str, float]] = []
     with h5py.File(path, "r") as f:
-        amount = f["compAmount"]
-        time = np.ravel(f["compAmount Time"])
-        for i, t in enumerate(time):
-            vals = np.asarray(amount[i])
-            rows.append(
-                {"time_seconds": float(t), "oil_amount": float(np.ravel(vals)[0])}
-            )
-    return rows
+        amount = np.asarray(f["compAmount"])
+        time = np.ravel(np.asarray(f["compAmount Time"]))
+    if amount.shape[0] != time.size or amount.shape[-1] != 3:
+        raise RuntimeError(f"unexpected component history shape in {path}: {amount.shape}")
+    return time, amount.reshape(time.size, -1, 3).sum(axis=1)
+
+
+def read_final_vtk(output_dir: Path) -> tuple[float, np.ndarray, np.ndarray]:
+    pvd = output_dir / "vtkFinalOutput.pvd"
+    datasets = ET.parse(pvd).getroot().findall("./Collection/DataSet")
+    if not datasets:
+        raise RuntimeError(f"no VTK timesteps found in {pvd}")
+    final = max(datasets, key=lambda node: float(node.attrib["timestep"]))
+    vtm = output_dir / final.attrib["file"]
+    matrix_files = [
+        node.attrib["file"]
+        for node in ET.parse(vtm).getroot().findall(".//DataSet")
+        if "matrixRegion" in node.attrib.get("file", "")
+    ]
+    if len(matrix_files) != 1:
+        raise RuntimeError(f"expected one matrixRegion dataset in {vtm}, found {matrix_files}")
+    reader = vtk.vtkXMLUnstructuredGridReader()
+    reader.SetFileName(str(vtm.parent / matrix_files[0]))
+    reader.Update()
+    data = reader.GetOutput().GetCellData()
+    amount_array = data.GetArray("compAmount")
+    phase_array = data.GetArray("phaseVolumeFraction")
+    if amount_array is None or phase_array is None:
+        raise RuntimeError(f"matrix compAmount or phaseVolumeFraction missing from {matrix_files[0]}")
+    amounts = np.asarray(
+        [[amount_array.GetComponent(i, j) for j in range(3)] for i in range(amount_array.GetNumberOfTuples())]
+    ).sum(axis=0)
+    phases = np.asarray(
+        [[phase_array.GetComponent(i, j) for j in range(3)] for i in range(phase_array.GetNumberOfTuples())]
+    ).mean(axis=0)
+    return float(final.attrib["timestep"]), amounts, phases
 
 
 def reference_curve() -> tuple[np.ndarray, np.ndarray]:
@@ -102,37 +121,49 @@ def reference_curve() -> tuple[np.ndarray, np.ndarray]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--analysis-dir", type=Path, default=ROOT / "analysis")
+    parser.add_argument("--figures-dir", type=Path, default=ROOT / "figures")
     args = parser.parse_args()
     output_root = args.output.resolve()
 
-    amount_rows = read_amount_history(output_root, "thomas_matrix_amount_history")
-    phase_rows = read_history(output_root, "thomas_matrix_phase_history")
-    if not amount_rows or not phase_rows:
+    amount_time, amounts = read_amount_history(output_root, "thomas_matrix_amount_history")
+    phase_time, phases = read_history(output_root, "thomas_matrix_phase_history")
+    if not amount_time.size or not phase_time.size:
         raise RuntimeError("no history samples found")
+    if amount_time.shape != phase_time.shape or not np.allclose(amount_time, phase_time, rtol=0.0, atol=1.0e-6):
+        raise RuntimeError("component and phase histories use different sample times")
 
-    initial_oil_amount = float(amount_rows[0]["oil_amount"])
-    initial_phase = phase_rows[0]
+    final_time, final_amounts, final_phases = read_final_vtk(output_root)
+    if final_time > amount_time[-1] + 1.0e-6:
+        amount_time = np.append(amount_time, final_time)
+        amounts = np.vstack((amounts, final_amounts))
+        phases = np.vstack((phases, final_phases))
+
+    initial_oil_amount = float(amounts[0, 0])
+    initial_oil_saturation = float(phases[0, 0])
     reference_time, reference_recovery = reference_curve()
 
     rows: list[dict[str, float]] = []
-    for index, (amount, phase) in enumerate(zip(amount_rows, phase_rows)):
-        time_years = float(amount["time_seconds"]) / YEAR
-        mass_recovery = 100.0 * (1.0 - float(amount["oil_amount"]) / initial_oil_amount)
+    for index, time_seconds in enumerate(amount_time):
+        time_years = float(time_seconds) / YEAR
+        mass_recovery = 100.0 * (1.0 - float(amounts[index, 0]) / initial_oil_amount)
+        saturation_reduction = 100.0 * (1.0 - float(phases[index, 0]) / initial_oil_saturation)
         benchmark = float(np.interp(time_years, reference_time, reference_recovery))
         rows.append(
             {
                 "time_years": time_years,
                 "matrix_oil_component_mass_recovery_pct": mass_recovery,
+                "normalized_oil_saturation_reduction_pct": saturation_reduction,
                 "oil_component_mass_minus_thomas_percentage_points": mass_recovery - benchmark,
                 "thomas_fig4_recovery_pct": benchmark,
-                "matrix_oil_saturation": float(phase["oil_saturation"]),
-                "matrix_gas_saturation": float(phase["gas_saturation"]),
-                "matrix_water_saturation": float(phase["water_saturation"]),
+                "matrix_oil_saturation": float(phases[index, 0]),
+                "matrix_gas_saturation": float(phases[index, 1]),
+                "matrix_water_saturation": float(phases[index, 2]),
             }
         )
 
-    analysis_dir = ROOT / "analysis"
-    figures_dir = ROOT / "figures"
+    analysis_dir = args.analysis_dir.resolve()
+    figures_dir = args.figures_dir.resolve()
     analysis_dir.mkdir(parents=True, exist_ok=True)
     figures_dir.mkdir(parents=True, exist_ok=True)
     with (analysis_dir / "recovery_results.csv").open("w", newline="", encoding="utf-8") as csv_file:

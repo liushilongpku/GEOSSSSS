@@ -156,3 +156,7 @@ install( TARGETS multiPhysicsSolvers LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}
 if( externalComponentDeps )
   target_include_directories( multiPhysicsSolvers PUBLIC ${CMAKE_SOURCE_DIR}/externalComponents )
 endif()
+
+if( ENABLE_TESTS )
+  add_subdirectory( unitTests )
+endif()

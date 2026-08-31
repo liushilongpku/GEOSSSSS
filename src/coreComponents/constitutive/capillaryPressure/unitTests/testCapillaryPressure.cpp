@@ -19,6 +19,7 @@
 #include "mainInterface/GeosxState.hpp"
 #include "mainInterface/initialization.hpp"
 #include "constitutive/capillaryPressure/CapillaryPressureFields.hpp"
+#include "constitutive/capillaryPressure/PressureScaledTableCapillaryPressure.hpp"
 
 using namespace geos;
 using namespace geos::testing;
@@ -467,6 +468,90 @@ public:
                               );
   }
 };
+
+TEST_F( CapillaryPressureTest, pressureDependentTable )
+{
+  array1d< real64_array > gasOilCoordinates( 2 );
+  fillArray( gasOilCoordinates[0], { 0.1, 0.5 } );
+  fillArray( gasOilCoordinates[1], { 1.0e6, 3.0e6 } );
+  real64_array gasOilValues;
+  // Pc_go = 1000 + 2000 Sg + 3e-4 P.
+  fillArray( gasOilValues, { 1500.0, 2300.0, 2100.0, 2900.0 } );
+  initializeTable( "pressureDependentGasOilPc", gasOilCoordinates, gasOilValues );
+
+  array1d< real64_array > waterOilCoordinates;
+  fillArray( waterOilCoordinates, { 0.1, 0.5 } );
+  real64_array waterOilValues;
+  fillArray( waterOilValues, { 500.0, 100.0 } );
+  initializeTable( "pressureDependentWaterOilPc", waterOilCoordinates, waterOilValues );
+
+  FunctionManager const & functionManager = FunctionManager::getInstance();
+  array1d< TableFunction::KernelWrapper > capillaryPressureTables;
+  capillaryPressureTables.emplace_back(
+    functionManager.getGroup< TableFunction >( "pressureDependentWaterOilPc" ).createKernelWrapper() );
+  capillaryPressureTables.emplace_back(
+    functionManager.getGroup< TableFunction >( "pressureDependentGasOilPc" ).createKernelWrapper() );
+
+  array1d< integer > phaseTypes( 3 );
+  array1d< integer > phaseOrder( 3 );
+  for( integer ip = 0; ip < 3; ++ip )
+  {
+    phaseTypes[ip] = ip;
+    phaseOrder[ip] = ip;
+  }
+
+  array3d< real64, cappres::LAYOUT_CAPPRES > phaseCapPressure( 1, 1, 3 );
+  array4d< real64, cappres::LAYOUT_CAPPRES_DS > dPhaseCapPressure_dPhaseVolFraction( 1, 1, 3, 3 );
+  array1d< real64 > pressure( 1 );
+  pressure[0] = 2.0e6;
+
+  PressureScaledTableCapillaryPressure::KernelWrapper kernelWrapper(
+    capillaryPressureTables.toViewConst(),
+    phaseTypes.toViewConst(),
+    phaseOrder.toViewConst(),
+    phaseCapPressure.toView(),
+    dPhaseCapPressure_dPhaseVolFraction.toView(),
+    pressure.toViewConst(),
+    false,
+    TableFunction::KernelWrapper{},
+    true,
+    functionManager.getGroup< TableFunction >( "pressureDependentGasOilPc" ).createKernelWrapper() );
+
+  array2d< real64, compflow::LAYOUT_PHASE > phaseVolFraction( 1, 3 );
+  phaseVolFraction[0][0] = 0.4;
+  phaseVolFraction[0][1] = 0.3;
+  phaseVolFraction[0][2] = 0.3;
+  kernelWrapper.compute( phaseVolFraction[0],
+                         pressure[0],
+                         phaseCapPressure[0][0],
+                         dPhaseCapPressure_dPhaseVolFraction[0][0] );
+
+  EXPECT_DOUBLE_EQ( phaseCapPressure[0][0][0], 0.0 );
+  EXPECT_DOUBLE_EQ( phaseCapPressure[0][0][1], -2200.0 );
+  EXPECT_DOUBLE_EQ( phaseCapPressure[0][0][2], 300.0 );
+  EXPECT_DOUBLE_EQ( dPhaseCapPressure_dPhaseVolFraction[0][0][1][1], -2000.0 );
+  EXPECT_DOUBLE_EQ( dPhaseCapPressure_dPhaseVolFraction[0][0][2][2], -1000.0 );
+}
+
+TEST_F( CapillaryPressureTest, pressureDependentAndScalingTablesAreMutuallyExclusive )
+{
+  PressureScaledTableCapillaryPressure & capPressure =
+    m_parent.registerGroup< PressureScaledTableCapillaryPressure >( "capPressure" );
+
+  string_array & phaseNames =
+    capPressure.getReference< string_array >( CapillaryPressureBase::viewKeyStruct::phaseNamesString() );
+  phaseNames.resize( 2 );
+  phaseNames[0] = "oil";
+  phaseNames[1] = "gas";
+  capPressure.getReference< string >(
+    PressureScaledTableCapillaryPressure::viewKeyStruct::wettingNonWettingCapPresTableNameString() ) = "gasOilPc";
+  capPressure.getReference< string >(
+    PressureScaledTableCapillaryPressure::viewKeyStruct::pressureScalingTableNameString() ) = "pressureScaling";
+  capPressure.getReference< string >(
+    PressureScaledTableCapillaryPressure::viewKeyStruct::pressureDependentTableNameString() ) = "pressureDependentPc";
+
+  EXPECT_THROW( capPressure.postInputInitializationRecursive(), InputError );
+}
 
 TEST_F( CapillaryPressureTest, numericalDerivatives_brooksCoreyCapPressureTwoPhase )
 {

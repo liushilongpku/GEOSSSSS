@@ -60,7 +60,7 @@ struct PotGrad
             ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
             ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
             ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
-            ElementViewConst< arrayView2d< real64 >> const & gravityDrainagePressure_m,
+            ElementViewConst< arrayView3d< real64 >> const & gravityDrainagePressure_m,
             real64 & potGrad,
             real64 & dPotGrad_dTrans,
             real64 ( & dPresGrad_dP )[numFluxSupportPoints],
@@ -152,8 +152,6 @@ struct PotGrad
       if( i==0 ) //判断是应该使用那种物质中的场
       {
         real64 gravityDrainagePressure = 0.0;
-        real64 dGDP_dP[numFluxSupportPoints]{};
-        real64 dGDP_dC[numFluxSupportPoints][numComp]{};
         if( hasGravityDraingae )
         {
           // Per-phase gravity-drainage head: GDP = s * |g| * rho_ip * Lz/2, stored per
@@ -162,39 +160,17 @@ struct PotGrad
           // phase-relative gravity force that drives counter-current drainage (as
           // opposed to a mixture-density scalar, which is absorbed by the
           // reference-pressure DOF).
-          gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][ip];
-          // GDP = c * rho_ip with c = s * |g| * Lz/2 treated as a locally constant
-          // scale, so dGDP/dx = (GDP/rho_ip) * d rho_ip/dx. Only the matrix-side phase
-          // density enters.
-          real64 const rho_ip = phaseMassDens_m[er][esr][ei][0][ip];
-          real64 gdpScale = 0.0;
-          if( std::fabs( rho_ip ) > 1.0e-12 )
-          {
-            gdpScale = gravityDrainagePressure / rho_ip;
-          }
-          dGDP_dP[0] = gdpScale * dPhaseMassDens_m[er][esr][ei][0][ip][Deriv::dP];
-          for( integer jc = 0; jc < numComp; ++jc )
-          {
-            dGDP_dC[0][jc] = gdpScale * dPhaseMassDens_m[er][esr][ei][0][ip][Deriv::dC+jc];
-          }
-          // Fracture side (support point 1): GDP does not depend on fracture density.
-          dGDP_dP[1] = 0.0;
+          gravityDrainagePressure = gravityDrainagePressure_m[er][esr][ei][0][ip];
         }
-        // GDP is added to matrix-side pressure. It is included implicitly: its
-        // dGDP/dP and dGDP/dC are added to the matrix pressure/component Jacobian
-        // entries below (fracture side has no GDP contribution).
+        // GDP is updated once at the start of a timestep and remains fixed during
+        // Newton iterations, so it contributes to the residual but not the Jacobian.
         real64 const dP = pres_m[er][esr][ei] - capPressure + gravityDrainagePressure;
         presGrad += trans[i] * dP;
         dPresGrad_dTrans += dP;
-        dPresGrad_dP[i] += trans[i] * ( 1 - dCapPressure_dP + dGDP_dP[i] ) + dTrans_dPres[i] * dP;
-        dPresGrad_dP[1] += trans[i] * dGDP_dP[1];
+        dPresGrad_dP[i] += trans[i] * ( 1 - dCapPressure_dP ) + dTrans_dPres[i] * dP;
         for( integer jc = 0; jc < numComp; ++jc )
         {
-          dPresGrad_dC[i][jc] += -trans[i] * dCapPressure_dC[jc] + trans[i] * dGDP_dC[i][jc];
-        }
-        for( integer jc = 0; jc < numComp; ++jc )
-        {
-          dPresGrad_dC[1][jc] += trans[i] * dGDP_dC[1][jc];
+          dPresGrad_dC[i][jc] -= trans[i] * dCapPressure_dC[jc];
         }
 
         real64 const gC = gravCoef_m[er][esr][ei];

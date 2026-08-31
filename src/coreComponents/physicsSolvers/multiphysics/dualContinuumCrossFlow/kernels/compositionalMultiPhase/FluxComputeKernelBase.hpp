@@ -12,6 +12,8 @@
 #include "constitutive/fluid/multifluid/MultiFluidFields.hpp"
 #include "constitutive/permeability/PermeabilityBase.hpp"
 #include "constitutive/permeability/PermeabilityFields.hpp"
+#include "constitutive/relativePermeability/RelativePermeabilityBase.hpp"
+#include "constitutive/relativePermeability/RelativePermeabilityFields.hpp"
 #include "mesh/ElementRegionManager.hpp"
 #include "physicsSolvers/fluidFlow/FlowSolverBaseFields.hpp"
 #include "physicsSolvers/fluidFlow/CompositionalMultiphaseBaseFields.hpp"
@@ -44,7 +46,9 @@ enum class KernelFlags
   /// Flag indicating whether HU 2-phase simplified version is used or not
   HU2PH = 1 << 7, // 128
   /// Flag indicating whether GravityDrainage uis used or not
-  GravityDrainage = 1 << 8
+  GravityDrainage = 1 << 8,
+  /// Flag indicating whether matrix properties control exchange upwinding
+  MatrixControlledExchangeUpwinding = 1 << 9
 };
 
 /******************************** FluxComputeKernelBase ********************************/
@@ -79,9 +83,11 @@ public:
                       fields::flow::dPhaseMobility >;
   using MultiFluidAccessors =
     StencilMaterialAccessors< constitutive::MultiFluidBase,
-                              fields::multifluid::phaseDensity,
-                              fields::multifluid::dPhaseDensity,
-                              fields::multifluid::phaseMassDensity,
+                               fields::multifluid::phaseDensity,
+                               fields::multifluid::dPhaseDensity,
+                               fields::multifluid::phaseViscosity,
+                               fields::multifluid::dPhaseViscosity,
+                               fields::multifluid::phaseMassDensity,
                               fields::multifluid::dPhaseMassDensity,
                               fields::multifluid::phaseCompFraction,
                               fields::multifluid::dPhaseCompFraction >;
@@ -100,6 +106,11 @@ public:
     StencilMaterialAccessors< constitutive::PermeabilityBase,
                               fields::permeability::permeability,
                               fields::permeability::dPerm_dPressure >;
+
+  using RelativePermeabilityAccessors =
+    StencilMaterialAccessors< constitutive::RelativePermeabilityBase,
+                              fields::relperm::phaseRelPerm,
+                              fields::relperm::dPhaseRelPerm_dPhaseVolFraction >;
 
   /**
    * @brief Constructor for the kernel interface
@@ -182,7 +193,7 @@ protected:
 
 
   /// 重力
-  ElementViewConst< arrayView2d< real64 const > > const m_gravityDrainagePressure;
+  ElementViewConst< arrayView3d< real64 const > > const m_gravityDrainagePressure;
 
 
   // Residual and jacobian

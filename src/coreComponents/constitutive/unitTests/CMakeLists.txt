@@ -34,6 +34,7 @@ set( gtest_geosx_tests
      testSoreideWhitsonFlash.cpp
      testStabilityTest2Comp.cpp
      testStabilityTest9Comp.cpp
+     testThomasGasOilGravityDrainagePressure.cpp
      testRachfordRice.cpp
      testTwoPhaseImmiscibleFluid.cpp )
 
@@ -46,10 +47,18 @@ endif()
 # Add gtest C++ based tests
 foreach(test ${gtest_geosx_tests})
     get_filename_component( test_name ${test} NAME_WE )
+    set( testDependencyList ${dependencyList} )
+    if( test_name STREQUAL testThomasGasOilGravityDrainagePressure )
+        list( APPEND testDependencyList mesh )
+    endif()
     blt_add_executable( NAME ${test_name}
             SOURCES ${test}
             OUTPUT_DIR ${TEST_OUTPUT_DIRECTORY}
-            DEPENDS_ON ${dependencyList} )
+            DEPENDS_ON ${testDependencyList} )
+
+    if( test_name STREQUAL testThomasGasOilGravityDrainagePressure )
+        target_link_options( ${test_name} PRIVATE "LINKER:--no-as-needed" )
+    endif()
 
     geos_add_test( NAME ${test_name}
                    COMMAND ${test_name} )

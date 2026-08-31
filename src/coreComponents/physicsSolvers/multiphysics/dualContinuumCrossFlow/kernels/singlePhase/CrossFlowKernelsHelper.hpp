@@ -157,7 +157,7 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
                                   ElementViewConst< arrayView3d< real64 const, constitutive::singlefluid::USD_FLUID_DER > > const & dDens_fracture,
                                   ElementViewConst< arrayView1d< real64 const > > const & mob_fracture,
                                   ElementViewConst< arrayView2d< real64 const, constitutive::singlefluid::USD_FLUID > > const & dMob_fracture,
-                                  ElementViewConst< arrayView2d< real64 const > > const & gravityDrainagePressure,
+                                  ElementViewConst< arrayView3d< real64 const > > const & gravityDrainagePressure,
                                   bool const hasGravityDrainage,
                                   real64 const gravityCoefficient,
                                   real64 const fractureSpacingLz,
@@ -203,7 +203,7 @@ void computeSinglePhaseCrossFlow( localIndex const ( &seri )[2],
 
     real64 const pressure = pres[er][esr][ei];
     real64 const gravD = gravCoef[er][esr][ei];
-    real64 const gdp = hasGravityDrainage ? gravityDrainagePressure[er][esr][ei][0] : 0.0;
+    real64 const gdp = hasGravityDrainage ? gravityDrainagePressure[er][esr][ei][0][0] : 0.0;
     real64 const pot = transmissibility * ( pressure - densMean * gravD + gdp );
 
     potGrad += pot;

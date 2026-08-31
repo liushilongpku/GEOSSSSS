@@ -60,6 +60,7 @@ public:
   using MultiFluidAccessors = AbstractBase::MultiFluidAccessors;
   using CapPressureAccessors = AbstractBase::CapPressureAccessors;
   using PermeabilityAccessors = AbstractBase::PermeabilityAccessors;
+  using RelativePermeabilityAccessors = AbstractBase::RelativePermeabilityAccessors;
   using GravityDrainagePressureAccessors = AbstractBase::GravityDrainagePressureAccessors;
 
   using AbstractBase::m_dt;
@@ -160,7 +161,9 @@ public:
                      CapPressureAccessors const & capPressureAccessors_f,
                      PermeabilityAccessors const & permeabilityAccessors_m,
                      PermeabilityAccessors const & permeabilityAccessors_f,
+                     RelativePermeabilityAccessors const & relativePermeabilityAccessors_m,
                      GravityDrainagePressureAccessors const & gravityDrainagePressureAccessors_m,
+                     arrayView1d< real64 const > const & matrixControlledReverseExchangeRelPerm,
                      ThermalConductivityAccessors const & thermalConductivityAccessors_m,
                      ThermalConductivityAccessors const & thermalConductivityAccessors_f,
                      real64 const dt,
@@ -178,10 +181,12 @@ public:
             compFlowAccessors_f,
             multiFluidAccessors_f,
             capPressureAccessors_m,
-            capPressureAccessors_f,
-            permeabilityAccessors_m,
-            permeabilityAccessors_f,
-            gravityDrainagePressureAccessors_m,
+             capPressureAccessors_f,
+             permeabilityAccessors_m,
+             permeabilityAccessors_f,
+             relativePermeabilityAccessors_m,
+             gravityDrainagePressureAccessors_m,
+             matrixControlledReverseExchangeRelPerm,
             dt,
             localMatrix,
             localRhs,
@@ -607,6 +612,7 @@ public:
                    globalIndex const rankOffset_f,
                    string const & dofKey,
                    BitFlags< isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernels::KernelFlags > kernelFlags,
+                   arrayView1d< real64 const > const & matrixControlledReverseExchangeRelPerm,
                    string const & primarySolverName,
                    string const & secondarySolverName,
                    ElementRegionManager const & matrixElemManager,
@@ -643,6 +649,8 @@ public:
       typename KernelType::CapPressureAccessors capPressureAccessors_f( fractureElemManager, secondarySolverName );
       typename KernelType::PermeabilityAccessors permeabilityAccessors_m( matrixElemManager, primarySolverName );
       typename KernelType::PermeabilityAccessors permeabilityAccessors_f( fractureElemManager, secondarySolverName );
+      typename KernelType::RelativePermeabilityAccessors relativePermeabilityAccessors_m(
+        matrixElemManager, primarySolverName );
       typename KernelType::GravityDrainagePressureAccessors gravityDrainagePressureAccessors_m(matrixElemManager,primarySolverName);
       typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors_m( matrixElemManager, primarySolverName );
       typename KernelType::ThermalConductivityAccessors thermalConductivityAccessors_f( fractureElemManager, secondarySolverName );
@@ -652,9 +660,11 @@ public:
                          multiFluidAccessors_m, thermalMultiFluidAccessors_m,
                          dofNumberAccessor_f, compFlowAccessors_f, thermalCompFlowAccessors_f,
                          multiFluidAccessors_f, thermalMultiFluidAccessors_f,
-                         capPressureAccessors_m, capPressureAccessors_f,
-                         permeabilityAccessors_m, permeabilityAccessors_f,
-                         gravityDrainagePressureAccessors_m,
+                          capPressureAccessors_m, capPressureAccessors_f,
+                          permeabilityAccessors_m, permeabilityAccessors_f,
+                          relativePermeabilityAccessors_m,
+                          gravityDrainagePressureAccessors_m,
+                          matrixControlledReverseExchangeRelPerm,
                          thermalConductivityAccessors_m, thermalConductivityAccessors_f,
                          dt, localMatrix, localRhs, kernelFlags );
       KernelType::template launch< POLICY >( stencilWrapper.size(), kernel );

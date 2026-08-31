@@ -63,6 +63,7 @@ public:
     arrayView2d< real64 const > const matrixPhaseVolumeFraction,
     arrayView3d< real64 const > const fracturePhaseMassDensity,
     arrayView2d< real64 const > const fracturePhaseVolumeFraction,
+    string_array const & phaseNames,
     real64 gravityCoefficient,
     real64 Lz ) const override;
 

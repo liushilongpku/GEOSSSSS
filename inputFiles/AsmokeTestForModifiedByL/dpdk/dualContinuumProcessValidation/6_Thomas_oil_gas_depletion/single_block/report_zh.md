@@ -1,178 +1,133 @@
-<!-- 目的：记录 Thomas 1983 气油单块重力排驱的双重介质单胞模型设置与运行结果。关键信息：10 ft 块、5545 psig、0.75 psi/day 裂缝衰竭、参考 Fig. 4 的约 46% 采收率；运行后终值约 23.7%，且已查明重力(GDP)项被单胞压力自由度精确吸收、对结果零影响，这是单胞无法复现 46% 的结构性原因。 -->
+<!-- 目的：记录 Thomas 1983 case 6 气油单块模型的原文映射、可复现结果和剩余限制。 -->
 
-# Thomas 1983 单块气油重力排驱（双重介质单胞模型）
+# Thomas 1983 Case 6 单块气油重力排驱
 
-## 1. 验证对象与文献对应
+## 1. 验证对象
 
-本目录复现 Thomas（1983）中一个被含气裂缝包围的 **10 ft 立方基质块** 的气油重力排驱
-单块算例。实现采用 GEOS 的 **双重介质单胞（dual-continuum single-cell）** 模型：一个
-基质单元和一个空间重叠的裂缝单元，通过 `CompositionalMultiPhaseDualContinuumFVM`
-交换，`gravityDrainageFlag=1`。这与 SPE6 单块双重介质算例（`8_SPE6_single_block_drainage`）
-使用同一求解结构。
+本模型以一个基质单元和一个共置裂缝单元表示 Thomas（1983）的 10 ft 气油块，不通过网格细分、
+形状因子、相渗端点或目标采收率反标进行拟合。
 
-文献对应：
-
-| 项目 | Thomas 1983 原文 | 本文输入 |
+| 项目 | 设置 | 依据 |
 | --- | --- | --- |
-| 基质块尺寸 | 10 ft（3 m） | 3.05 m 立方体 |
-| 初始矩阵压力 | 5,540 psig（正文）；Table 2/4 用 5,545 psig | 3.83327805e7 Pa（对应 5,545 psig） |
-| 裂缝外部状态 | 含气 | 近纯气（`Sg≈0.999`） |
-| 衰竭速率 | 0.75 psi/day | 0.75 psi/day |
-| 参考采收率 | Fig. 4：10 ft 块约 46%（2.5 年达到） | 参考 `reference/thomas_fig4_3d_model.csv` |
-| 终止时间 | 2.5 年 | `7.884e7 s` |
+| 网格 | 基质 `1x1x1`，裂缝 `1x1x1` | Thomas 单胞模型 |
+| 块尺寸 | 3.05 m 立方体 | Thomas 10 ft 块 |
+| 基质孔隙度/渗透率 | 0.30 / 1 md | Thomas Table 1 |
+| 初始压力 | 38.3327805 MPa | Table 2/4 的 5545 psig 绝对压力 |
+| 裂缝衰竭 | 0.75 psi/day，2.5 年 | Thomas case 6 正文 |
+| 形状因子 | 0.215278208 m^-2 | 原值 `0.02 ft^-2` 的 SI 换算 |
+| 相渗 | 初压 Table 4 `krg/kro` | Thomas 单胞伪函数 |
+| 伪毛管压力 | 二维 `Pcgo(Sg,P)` | Table 3、Eq. (28) 与 10-ft 垂向平衡重建 |
+| 显式 GDP | canonical GDP-on 使用半块高 `Lz/2` | Thomas Eq. (38) |
 
-> 注意：原文正文写 5,540 psig，Table 2/Table 4 写 5,545 psig。本输入沿用细网格算例
-> （`5_Thomas_fine_grid_depletion_liveoil`）采样的 5,545 psig（3.83327805e7 Pa），以便
-> 与同一组 PVT/岩石参数保持一致，避免引入双重压力基准。
+Thomas 正文一处写 5540 psig，而 Table 2/4 使用 5545 psig。模型采用 5545 psig，以与 PVT 和伪函数一致。
 
-## 2. 与细网格算例的区别
+## 2. 统计口径
 
-- `5_Thomas_fine_grid_depletion_liveoil` 用 `7×7×8` 单重介质细网格显式离散基质块内部的
-  垂向流动，采收率来自逐单元的压力/饱和度演化，其 2.5 年结果为 **46.627%**。
-- 本目录用 **单胞双重介质**，把基质视为一个单元，基质内部分布由
-  `SimpleGravityDrainagePressure` + 双连续体重力排驱交换项统一处理，而不是显式网格。
-- 因此本算例是“用双介质单胞公式复现同一物理”的独立版本；是否达到 46%，取决于
-  `DualContinuumCrossFlow` 的 `gravityDrainageFlag=1` 交换项与
-  `SimpleGravityDrainagePressure` 的组合，**尚未在本目录运行验证**。
+Thomas 按地面油计量。GEOS 的对应量是矩阵油组分质量采收率：
 
-## 3. 模型设置
-
-### 3.1 几何与网格
-
-- 两个重叠 `InternalMesh`，各一个 C3D8 单元，边长 `3.05 m`：
-  - `matrixMesh/matrixBlock` → `matrixRegion`
-  - `fractureMesh/fractureBlock` → `fractureRegion`
-
-### 3.2 岩石与流体
-
-| 项目 | 基质 | 裂缝 |
-| --- | --- | --- |
-| 本征孔隙度 | 0.30 | 1.0 |
-| 渗透率 | 9.869233e-16 m²（1 md） | 9.869233e-13 m²（1000 md） |
-| 毛管压力 | Thomas 气油 Pc（Table 3/4）+ 水油 Pc | 0 |
-| 相对渗透率 | Stone II 三相（Thomas Table 3） | 直线端点 |
-
-- 黑油流体：`surfaceDensities={819.18, 0.929, 1041.2}`,
-  `componentMolarWeight={120e-3, 25e-3, 18e-3}`，PVT 表见 `tables/`。
-- 温度 `366 K`，重力 `g=(0,0,-9.81)`。
-
-### 3.3 初始状态
-
-- 基质：`P=3.83327805e7`，组分 `(oil,gas,water)=(0.53683289,0.16590112,0.29726599)`，
-  对应 Thomas Table 4 在 5,545 psig 的状态；`gas` 组分是溶解气，不是初始自由气相。
-- 裂缝：`P=3.83327805e7`，近纯气（`oil=0.0005, gas=0.999, water=0.0005`）。
-
-### 3.4 边界条件（Thomas 衰竭）
-
-- 裂缝连续体压力按 `0.75 psi/day` 线性下降（`pressureDecline` 函数）。
-- 裂缝组分固定为近纯气，模拟持续的含气外部环境。
-
-## 4. 关键脚本
-
-- 主输入：[`thomas_singleblock_gas_oil_gravity_drainage.xml`](thomas_singleblock_gas_oil_gravity_drainage.xml)
-- 参数审计：[`prepare_thomas_single_block.py`](prepare_thomas_single_block.py)
-- 后处理：[`analyze_results.py`](analyze_results.py)
-- 参考曲线：[`reference/thomas_fig4_3d_model.csv`](reference/thomas_fig4_3d_model.csv)
-- PVT 表：[`tables/pvto_bo.txt`](tables/pvto_bo.txt)、[`tables/pvtg_norv_bo.txt`](tables/pvtg_norv_bo.txt)、
-  [`tables/pvtw_bo.txt`](tables/pvtw_bo.txt)
-
-## 5. 复现方法（待运行）
-
-```bash
-# 1) 审计参数（可选）
-python3 prepare_thomas_single_block.py
-
-# 2) 用 GEOS 运行 2.5 年
-/path/to/build/bin/geosx -i thomas_singleblock_gas_oil_gravity_drainage.xml
-
-# 3) 后处理，输出 analysis/ 与 figures/
-python3 analyze_results.py --output <GEOS 输出目录>
+```text
+R_o = 1 - matrix_oil_component_mass(t) / matrix_oil_component_mass(0)
 ```
 
-生成的日志、VTK、HDF5 与重启动文件只保存在本地运行目录，不纳入 Git；仓库只保存输入、
-脚本、CSV、图片与报告。
+该库存与 Thomas 的 `phi*b_o*S_o = phi*S_o/B_o` 成正比。`1-So/So0` 只是饱和度诊断；canonical
+GDP-on 在 2.5 年的该诊断值为 `49.3951%`，不能代替地面油采收率 `45.5305%`。精细垂向旁证算例
+按质量口径给出 `46.0030%`，也证明 Thomas 的 46% 不是简单饱和度降幅。
 
-## 6. 运行结果
+## 3. 压力相关垂向平衡伪毛管压力
 
-使用仓库 `build/bin/geosx` 本地运行 2.5 年，输出到 `/tmp/thomas_single_block_dual_continuum`
-未复制入本目录。GEOS 推进到 `7.884e7 s`，共 408 个时间步、0 次时间步切分，运行正常结束。
+Thomas Eq. (28) 缩放的是 Table 3 局部岩石毛管压力：
 
-### 6.1 采收率
+```text
+Pcgo_local(Sg,P) = sigma(P)/sigma_I * Pcgo_local(Sg,P_I)
+```
 
-**统计口径**：本算例采收率按油组分**质量**计算，即 `R = 1 − m_o/m_o,0 × 100%`（`m_o` 为基质油组分
-质量，`compAmount` 求和），与细网格算例（`6_Thomas_oil_gas_depletion/fine_grid`）一致。注意它与
-**体积**采收率 `(S_o,0 − S_o)/S_o,0 × 100%` 不同：活油排驱时油密度/Bo 随压力变化显著，两者相差约 3.7 个百分点。
+Table 4 已经是包含 10-ft 垂向重力积分的块平均伪函数。将整条 Table 4 直接乘
+`sigma(P)/sigma_I` 会把其中的重力偏移也错误缩放；完全不考虑压力变化同样不正确。
 
-| 时间 / 年 | GEOS 油组分质量采收率 / % | Thomas Fig. 4 / % | 差值 / pp |
-| ---: | ---: | ---: | ---: |
-| 0.25 | 15.252 | 12.5 | +2.752 |
-| 0.50 | 19.651 | 27.0 | -7.349 |
-| 0.75 | 21.642 | 35.25 | -13.608 |
-| 1.00 | 22.667 | 40.0 | -17.333 |
-| 1.50 | 23.559 | 44.15 | -20.591 |
-| 2.25 | 23.739 | 46.0 | -22.261 |
+`generate_vertical_equilibrium_pseudocapillary.py` 在每个 Table 2 压力执行以下步骤：
 
-![双介质单胞回收率与 Thomas Fig. 4 对比](figures/recovery_comparison.png)
+1. 用 Eq. (28) 缩放 Table 3 局部 `Pcgo(Sg)`。
+2. 用当前 `Bo/Bg/Rs` 计算油气密度。
+3. 在完整 10-ft 块高上重新积分垂向平衡。
+4. 输出普通二维 `TableFunction` 所需的 `Sg` 轴、绝对压力轴和 `Pcgo` 值。
 
-**结论：早期即低于 Thomas，平台显著偏低。** 0.5 年 GEOS 为 19.65%，比 Thomas 的 27.0% 低
-7.35 个百分点；1.0 年后采收率缓慢趋稳于约 23.7%，2.25 年比 Thomas 的 46% 低约 22.3 个百分点。
-因此本单胞模型**未能定量复现 Thomas 的 46%**。
+独立积分在初压对 Table 4 六个内部点的最大误差为 `0.006699 psi`。初压 Table 4 负责锚定参考曲线，
+压力变化完全来自上述物理重建，不使用采收率拟合。
 
-### 6.2 相饱和度演化
+`PressureScaledTableCapillaryPressure` 新增 `pressureDependentTableName`，双线性计算 `Pcgo(Sg,P)` 和
+`dPcgo/dSg`；三相模式仍保留水油毛管压力。该选项与旧的 `pressureScalingTableName` 互斥；未配置二维表时
+旧标量路径保持不变。
 
-| 时间 / 年 | `So` | `Sg` | `Sw` |
-| ---: | ---: | ---: | ---: |
-| 0.00 | 0.80052 | 0.00000 | 0.19948 |
-| 0.50 | 0.63382 | 0.16649 | 0.19969 |
-| 1.00 | 0.60106 | 0.19912 | 0.19987 |
-| 2.25 | 0.57100 | 0.22868 | 0.20032 |
+## 4. 交换闭合与 GDP
 
-`So` 从前 0.80 快降到 0.63，随后缓慢降到 0.57；`Sg` 持续上升。终态裂缝压力为
-`3.361418e7 Pa`，与设定衰竭函数完全一致（误差 0.00 Pa），说明边界施加正确。
+方向相关 PPU 交换规则为：
 
-### 6.3 平台低于 46% 的根本原因（本次已查明）
+- 基质到裂缝使用当前基质 mobility 和组成。
+- 裂缝到基质使用真实裂缝 PVT、组成和相覆盖率。
+- 反向有效相渗按相序 `{ oil, gas, water }` 设置为 `{ -1, 0.42, 0.03 }`；负油值表示使用当前基质 `kro`。
+- 纯气裂缝的油水覆盖率为零，因此不会构造非物理油水回灌。
 
-对单胞做了重力敏感性实验（均采用精时间步、0 次时间步切分）：
+Thomas GDP 只加到油相交换势：
 
-| 重力设置 | 终值采收率 |
-| --- | ---: |
-| `gravityVector=(0,0,-9.81)` | 23.441% |
-| `gravityVector=(0,0,0)` | 23.452% |
-| `gravityVector=(0,0,+9.81)`（反向） | 23.463% |
+```text
+GDP_o = (rho_o-rho_g)*abs(g_z)*Lz/2
+GDP_g = GDP_w = 0
+```
 
-三者之差 < 0.03 pp，即**即使在势差里反向施加重力，采收率也几乎不变**。逐项排查后确认原因并非符号/参数错误，而是结构性的：
+二维 Table 4 伪闭合与半高 GDP 在当前 GEOS 映射中都需要。关闭 GDP 明显欠排驱；使用完整块高则过驱到
+`54.6939%`，因此不能用全高修正终值。
 
-1. **基质与裂缝网格完全重合**（均为 `[0,3.05]³` 单胞，中心都在 `z=1.525 m`）。GEOS 的流动重力势项是
-   `gravityCoefficient = elemCenter · gravityVector`，两端相等故 `ρg(z_m−z_f)=0`，**geopotential 项恒为零**。
-2. **`SimpleGravityDrainagePressure` 的 GDP 项（`g_z(ρ_f−ρ_m)L_z/2`）被压力自由度精确吸收**：
-   - `g_z=-9.81`：矩阵压力 `3.360855e7`，GDP `5505 Pa`，有效势 `3.361405e7`；
-   - `g_z=0`：矩阵压力 `3.361405e7`，GDP `0 Pa`，有效势 `3.361405e7`；
-   - 两者有效势差完全一致（差 < 1 Pa）。即求解器让矩阵压力自适应抵消 GDP。
+## 5. Canonical 结果
 
-**结论**：在"封闭基质单胞 + 自由压力"的 GEOS 单胞实现里，重力驱替（GDP）会被压力平衡完全吸收，
-无法像 Thomas 单胞模型（Warren–Root 形状因子 + 垂直平衡伪曲线，`σ=36.6/L²`）那样产生"气体上侵、
-油下沉"的重力分异。因此**单胞平台由毛管力/伪曲线主导（约 23.7%），重力项对结果零贡献**。
+| 时间 / 年 | GDP-on / % | GDP-off / % | Thomas Fig. 4 / % | GDP-on 减 Thomas / pp |
+| ---: | ---: | ---: | ---: | ---: |
+| 0.25 | 17.4498 | 8.5795 | 12.50 | +4.9498 |
+| 0.50 | 27.3123 | 13.2473 | 27.00 | +0.3123 |
+| 0.75 | 33.5374 | 16.0587 | 35.25 | -1.7126 |
+| 1.00 | 37.6870 | 17.6848 | 40.00 | -2.3130 |
+| 1.50 | 42.4826 | 18.7291 | 44.15 | -1.6674 |
+| 2.00 | 44.7138 | 18.7311 | 46.00 | -1.2862 |
+| 2.50 | **45.5305** | **18.7311** | **46.00** | **-0.4695** |
 
-### 6.4 与 Thomas 单胞的区别
+GDP-on 终态 `So/Sg/Sw=0.40516/0.39470/0.20014`，GDP-off 为
+`0.60453/0.19533/0.20014`。两次运行均为 3,963 步、零切步、零丢弃 nonlinear iteration。
 
-Thomas 单胞模型用 **pseudo 气油相对渗透率 + 气油毛管伪压力（随 Sg 与压力变化，Table 4，负→正 signed 曲线）**
-+ 按 `σ` 形状因子、`L` 取半高、`A` 取底面的 1D 垂直流假定，把 3D 块的重力排驱**降维**到单胞。
-GEOS 的单胞用 `SimpleGravityDrainagePressure`（`g_z(ρ_f−ρ_m)L_z/2`）+ 独立压力自由度，两者等效思路不同，
-且 GDP 被压力吸收后 GEOS 单胞丢失了重力分异能力。这是"为什么单胞只能到 23.7% 而非 46%"的核心。
+0.5 年和 2.5 年分别与 Thomas 相差 `+0.3123 pp` 和 `-0.4695 pp`，落在 Fig. 4 约 `+/-1 pp` 的读图
+不确定性内。但 0.25 年高约 `4.95 pp`，0.75 至 2.0 年低约 `1.29--2.31 pp`，因此不能声称整条瞬态曲线
+严格重合。
 
-## 7. 当前状态与限制
+## 6. 独立 Oracle
 
-- 模型可运行且早期/边界行为正确，但 **定量复现 Thomas 的 46% 未通过**：终值约 23.7%（2.25 年），
-  比 Thomas Fig. 4 的 46% 低约 22.3 个百分点。
-- **已查明结构性原因**：单胞 + 自由压力使重力驱替（`SimpleGravityDrainagePressure` 的 GDP）
-  被矩阵压力自由度精确吸收（有效势差不变），GEOS 单胞无法像 Thomas 单胞模型那样产生重力分异。
-  因此**单胞平台由毛管力/伪曲线主导（约 23.7%），重力项对结果零贡献**——这已通过
-  `g_z = -9.81 / 0 / +9.81` 三组对照验证（三者差 < 0.03 pp）。
-- 早期 26.15% 的结果（源于 `initialDt=1000`、`maxEventDt=2e5` 的大时间步）是**时间离散误差产物**；
-  已改用精时间步（`initialDt=50`、`maxEventDt=2e4`），得到时间收敛的 23.7%。
-- 单块双重介质算例只规定 10 ft 立方基质块、气油重力排驱、零裂缝毛管压力和 2.5 年终止；
-  原文没有给出统一的井控或体积/质量采收率归一化公式，因此本文以油组分质量为主报告。
-- 若要达到 Thomas 的 46%，建议采用显式解析基质内部垂向流动的细网格方案
-  （参考 `5_Thomas_fine_grid_depletion_liveoil` 的 46.627%），而不是单胞双介质；
-  或在 GEOS 单胞中引入能重现重力分异的势差形式（而非会被压力吸收的 GDP 标量源项）。
-- 运行生成日志、VTK、HDF5 与重启动文件只保存在本地运行目录，不纳入 Git。
+`thomas_single_cell_oracle.py` 独立积分黑油库存和单胞交换方程，并使用同一物理定义生成的二维 VE 曲线及
+半高 GDP。裂缝 `Pc=0` 时 2.5 年结果为 `45.4514%`，与 GEOS 相差 `0.0792 pp`。11 个季度采样点上的
+最大绝对差同样为 `0.0792 pp`，说明二者在完整历史上闭合，而不仅是终点偶合。
+
+裂缝取端点伪毛管压力的诊断结果为 `65.3323%`，不是 canonical 边界条件。
+
+## 7. 复现命令
+
+在本目录运行：
+
+```bash
+python3 generate_vertical_equilibrium_pseudocapillary.py
+python3 prepare_thomas_single_block.py
+/home/lsl/codes/GEOSSSSS/build/bin/geosx \
+  -i thomas_singleblock_gas_oil_gravity_drainage_gdp_on.xml \
+  -o /tmp/thomas_singleblock_canonical_gdp_on
+python3 analyze_results.py \
+  --output /tmp/thomas_singleblock_canonical_gdp_on \
+  --analysis-dir /tmp/thomas_analysis_canonical_gdp_on \
+  --figures-dir /tmp/thomas_figures_canonical_gdp_on
+python3 thomas_single_cell_oracle.py --output analysis/thomas_single_cell_oracle_ve.csv
+```
+
+所有运行输出均写入独立 `/tmp` 目录。
+
+## 8. 已排除解释与剩余限制
+
+- `1x1x2/4/8` 的 2.5 年结果为 `48.4454%/50.5551%/51.0888%`，不是网格收敛；每个子单元重复完整块尺度闭合。
+- 三倍形状因子在 0.5 年已达 `44.0406%`，早期严重过驱，不能用于拟合 46%。
+- 解除裂缝持续组分约束、改变初始 `Pcgo` 或改用气压主变量均不能解释旧结果差异。
+- 交换 transmissibility 仅由基质渗透率决定；Jacobian 为 `dT/dP_matrix`，`dT/dP_fracture=0`。
+- Table 4 `kro(Sg)` 通过 GEOS 三相相渗接口映射，仍需要更多独立算例验证。
+- Fig. 4 中间点来自图像读取；0.25 年和中期残余瞬态差异目前尚无原文证据可进一步消除。

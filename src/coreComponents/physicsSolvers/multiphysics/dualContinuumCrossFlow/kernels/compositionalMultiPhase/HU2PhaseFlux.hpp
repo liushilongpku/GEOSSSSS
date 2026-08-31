@@ -94,7 +94,7 @@ struct HU2PhaseFlux
            ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
-           ElementViewConst< arrayView2d< real64 const > > const & gravityDrainagePressure_m,
+           ElementViewConst< arrayView3d< real64 const > > const & gravityDrainagePressure_m,
            real64 & GEOS_UNUSED_PARAM( potGrad ),
            real64 ( &phaseFlux ),
            real64 ( & dPhaseFlux_dP )[numFluxSupportPoints],
@@ -177,7 +177,7 @@ protected:
                       ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
                       ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
                       ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
-                      ElementViewConst< arrayView2d< real64 const >> const & gravityDrainagePressure_m,
+                      ElementViewConst< arrayView3d< real64 const >> const & gravityDrainagePressure_m,
                       real64 ( &phaseFlux ),
                       real64 ( & dPhaseFlux_dP )[numFluxSupportPoints],
                       real64 ( & dPhaseFlux_dC )[numFluxSupportPoints][numComp] )
@@ -476,7 +476,7 @@ protected:
                     ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
                     ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
                     ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
-                    ElementViewConst< arrayView2d< real64 const >> const & gravityDrainagePressure_m,
+                    ElementViewConst< arrayView3d< real64 const >> const & gravityDrainagePressure_m,
                     real64 & totFlux, real64 (& dTotFlux_dP)[numFluxSupportPoints], real64 (& dTotFlux_dC)[numFluxSupportPoints][numComp] )
   {
     for( integer jp = 0; jp < numPhase; ++jp )
@@ -491,6 +491,7 @@ protected:
                              hasCapPressure,
                              checkPhasePresenceInGravity,
                              hasGravityDraingae,
+                             0,
                              seri, sesri, sei,
                              trans, dTrans_dPres,
                              pres_m, pres_f, gravCoef_m, gravCoef_f,

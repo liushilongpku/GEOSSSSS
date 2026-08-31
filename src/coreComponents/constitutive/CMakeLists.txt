@@ -40,6 +40,7 @@ set( constitutive_headers
      gravityDrainagePressure/GravityDrainagePressureBase.hpp
      gravityDrainagePressure/GravityDrainagePressureFields.hpp
      gravityDrainagePressure/SimpleGravityDrainagePressure.hpp
+     gravityDrainagePressure/ThomasGasOilGravityDrainagePressure.hpp
      contact/BartonBandis.hpp
      contact/CoulombFriction.hpp
      contact/FrictionSelector.hpp
@@ -170,6 +171,7 @@ set( constitutive_headers
      relativePermeability/RelativePermeabilityFields.hpp
      relativePermeability/RelativePermeabilityInterpolators.hpp
      relativePermeability/TableRelativePermeability.hpp
+     relativePermeability/ThreePhaseTableRelativePermeability.hpp
      relativePermeability/TableRelativePermeabilityHelpers.hpp
      relativePermeability/TableRelativePermeabilityHysteresis.hpp
      relativePermeability/VanGenuchtenBakerRelativePermeability.hpp
@@ -240,6 +242,7 @@ set( constitutive_sources
      capillaryPressure/VanGenuchtenCapillaryPressure.cpp
      gravityDrainagePressure/GravityDrainagePressureBase.cpp
      gravityDrainagePressure/SimpleGravityDrainagePressure.cpp
+     gravityDrainagePressure/ThomasGasOilGravityDrainagePressure.cpp
      contact/BartonBandis.cpp
      contact/CoulombFriction.cpp
      contact/FrictionBase.cpp
@@ -322,6 +325,7 @@ set( constitutive_sources
      relativePermeability/KilloughHysteresis.cpp
      relativePermeability/RelativePermeabilityBase.cpp
      relativePermeability/TableRelativePermeability.cpp
+     relativePermeability/ThreePhaseTableRelativePermeability.cpp
      relativePermeability/TableRelativePermeabilityHelpers.cpp
      relativePermeability/TableRelativePermeabilityHysteresis.cpp
      relativePermeability/VanGenuchtenBakerRelativePermeability.cpp

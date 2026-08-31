@@ -1715,7 +1715,7 @@ struct IHUPhaseFlux
            ElementViewConst< arrayView3d< real64 const, constitutive::cappres::USD_CAPPRES > > const & phaseCapPressure_f,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_m,
            ElementViewConst< arrayView4d< real64 const, constitutive::cappres::USD_CAPPRES_DS > > const & dPhaseCapPressure_dPhaseVolFrac_f,
-           ElementViewConst< arrayView2d< real64 const > > const & gravityDrainagePressure_m,
+           ElementViewConst< arrayView3d< real64 const > > const & gravityDrainagePressure_m,
            real64 & potGrad,
            real64 ( &phaseFlux ),
            real64 ( & dPhaseFlux_dP )[numFluxSupportPoints],
@@ -1738,7 +1738,7 @@ struct IHUPhaseFlux
     for( integer jp = 0; jp < numPhase; ++jp )
     {
       PPUPhaseFlux::compute( numPhase, jp,
-                             hasCapPressure, checkPhasePresenceInGravity,hasGravityDraingae,
+                             hasCapPressure, checkPhasePresenceInGravity,hasGravityDraingae, 0,
                              seri, sesri, sei,
                              trans, dTrans_dPres,
                              pres_m, pres_f, gravCoef_m, gravCoef_f,

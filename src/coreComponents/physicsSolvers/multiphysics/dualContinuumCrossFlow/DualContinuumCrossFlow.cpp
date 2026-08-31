@@ -56,6 +56,22 @@ DualContinuumCrossFlow::DualContinuumCrossFlow( string const & name,
         setDefaultValue( 0 ).
         setDescription( "flag of gravity drainage" );
 
+  registerWrapper( viewKeyStruct::matrixControlledExchangeUpwindingString(),
+                   &m_matrixControlledExchangeUpwinding ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setApplyDefaultValue( 0 ).
+    setDescription( "Use matrix-side mobility for compositional matrix-fracture exchange. For fracture-to-matrix "
+                    "flow, scale mobility by fracture phase coverage and transport the fracture-side composition. "
+                    "The default is false, which preserves standard phase-potential upwinding." );
+
+  registerWrapper( viewKeyStruct::matrixControlledReverseExchangeRelPermString(),
+                   &m_matrixControlledReverseExchangeRelPerm ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setApplyDefaultValue( {} ).
+    setDescription( "Effective matrix relative permeability for fracture-to-matrix exchange, ordered by fluid "
+                    "phase. A negative value uses the current matrix relative permeability. Required when "
+                    "matrixControlledExchangeUpwinding is enabled." );
+
   registerWrapper( viewKeyStruct::shapeFactorTypeString(), &m_shapeFactorType ).
     setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Matrix-fracture shape factor formulation. Valid options:\n* " +
@@ -345,6 +361,13 @@ void DualContinuumCrossFlow::setupGravityDrainagePressure( MeshLevel & meshMatri
               matrixSubRegion.getField< fields::flow::phaseVolumeFraction >();
 
             constitutive::MultiFluidBase const & fluidFracture = fractureConstitutiveModels.getGroup< constitutive::MultiFluidBase >( fluidNameFracture );
+            GEOS_THROW_IF_NE_MSG( multiFluidMatrix->numFluidPhases(), fluidFracture.numFluidPhases(),
+                                  "Matrix and fracture fluids must use the same number of phases.", InputError );
+            for( integer ip = 0; ip < multiFluidMatrix->numFluidPhases(); ++ip )
+            {
+              GEOS_THROW_IF_NE_MSG( multiFluidMatrix->phaseNames()[ip], fluidFracture.phaseNames()[ip],
+                                    "Matrix and fracture fluids must use the same phase ordering.", InputError );
+            }
             arrayView3d< real64 const > const fracturePhaseMassDensity = fluidFracture.phaseMassDensity();
             arrayView2d< real64 const > const fracturePhaseVolumeFraction =
               fractureSubRegion.getField< fields::flow::phaseVolumeFraction >();
@@ -354,6 +377,7 @@ void DualContinuumCrossFlow::setupGravityDrainagePressure( MeshLevel & meshMatri
               matrixPhaseVolumeFraction,
               fracturePhaseMassDensity,
               fracturePhaseVolumeFraction,
+              multiFluidMatrix->phaseNames(),
               gravityCoefficient,
               m_fracSpacingLz );
           }

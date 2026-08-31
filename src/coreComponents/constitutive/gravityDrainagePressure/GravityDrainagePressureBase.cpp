@@ -62,13 +62,14 @@ void GravityDrainagePressureBase::setupGravityDrainagePressureFromPhaseMassDensi
   arrayView2d< real64 const > const matrixPhaseVolumeFraction,
   arrayView3d< real64 const > const fracturePhaseMassDensity,
   arrayView2d< real64 const > const fracturePhaseVolumeFraction,
+  string_array const & phaseNames,
   real64 gravityCoefficient,
   real64 Lz ) const
 {
   // Default implementation: do nothing, let derived classes override if needed
   GEOS_UNUSED_VAR( matrixPhaseMassDensity, matrixPhaseVolumeFraction,
                    fracturePhaseMassDensity, fracturePhaseVolumeFraction,
-                   gravityCoefficient, Lz );
+                   phaseNames, gravityCoefficient, Lz );
 }
 
 void GravityDrainagePressureBase::allocateConstitutiveData( dataRepository::Group & parent,
@@ -77,7 +78,7 @@ void GravityDrainagePressureBase::allocateConstitutiveData( dataRepository::Grou
   // Store one gravity-drainage head per phase. The single-phase path uses only
   // index 0, while the compositional multiphase path uses one entry per phase.
   localIndex const phaseNumber = 3;
-  m_gravityDrainagePressure.resize( numPts, phaseNumber);
+  m_gravityDrainagePressure.resize( 0, numPts, phaseNumber );
   m_gravityDrainagePressure.zero();
 
   //需要放在设置值的后边，才能分配到constitutive中的subgroup中。

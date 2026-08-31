@@ -48,7 +48,7 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressure(arrayView2d< re
     // fracture (and the lighter fracture fluid imbibes into the matrix) - the
     // conventional gravity-drainage direction. When the contrast reverses, so does GDP.
     real64 const densityDifference = fractureFluidDensity[ei][0] - matrixFluidDensity[ei][0];
-    gravDrainPressView[ei][0] = gravityCoefficient * densityDifference * Lz / 2;
+    gravDrainPressView[ei][0][0] = gravityCoefficient * densityDifference * Lz / 2;
   } );
 }
 
@@ -71,7 +71,8 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressure(arrayView3d< re
     // falls back to the first phase as a representative density. The compositional
     // setup path instead passes matrix/fracture TOTAL densities to the 2-arg overload,
     // which is dimensionally consistent and should be preferred.
-    gravDrainPressView[ei][0] = gravityCoefficient * ( fractureTotalDensity[ei][0] - matrixFluidDensity[ei][0][0] ) * Lz / 2;
+    gravDrainPressView[ei][0][0] =
+      gravityCoefficient * ( fractureTotalDensity[ei][0] - matrixFluidDensity[ei][0][0] ) * Lz / 2;
   } );
 }
 
@@ -80,9 +81,11 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressureFromPhaseMassDen
   arrayView2d< real64 const > const matrixPhaseVolumeFraction,
   arrayView3d< real64 const > const fracturePhaseMassDensity,
   arrayView2d< real64 const > const fracturePhaseVolumeFraction,
+  string_array const & phaseNames,
   real64 gravityCoefficient,
   real64 Lz ) const
 {
+  GEOS_UNUSED_VAR( phaseNames );
   localIndex const numE = m_gravityDrainagePressure.size( 0 );
   localIndex const numPhase = matrixPhaseMassDensity.size( 2 );
   auto gravDrainPressView = m_gravityDrainagePressure.toView();
@@ -122,7 +125,8 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressureFromPhaseMassDen
     }
     for( localIndex ip = 0; ip < numPhase; ++ip )
     {
-      gravDrainPressView[ei][ip] = sign * ( -gravityCoefficient ) * matrixPhaseMassDensity[ei][0][ip] * Lz / 2;
+      gravDrainPressView[ei][0][ip] =
+        sign * ( -gravityCoefficient ) * matrixPhaseMassDensity[ei][0][ip] * Lz / 2;
     }
   } );
 }
@@ -140,7 +144,7 @@ void SimpleGravityDrainagePressure::updateState( real64 const gravityCoefficient
   {
     // SIGNED GDP (see setupGravityDrainagePressure): the sign encodes the drive direction.
     real64 const densityDifference = densityFracture[k] - densityMatrix[k];
-    gravDrainPressView[k][0] = gravityCoefficient * densityDifference * halfLz;
+    gravDrainPressView[k][0][0] = gravityCoefficient * densityDifference * halfLz;
   } );
 }
 

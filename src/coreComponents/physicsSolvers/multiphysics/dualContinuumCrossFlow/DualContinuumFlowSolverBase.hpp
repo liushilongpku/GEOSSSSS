@@ -364,6 +364,17 @@ public:
     return m_crossFlow.getInterporosityExchangeCoefficient();
   }
 
+  /// Whether compositional exchange properties are always evaluated on the matrix side.
+  bool getMatrixControlledExchangeUpwinding() const
+  {
+    return m_crossFlow.getMatrixControlledExchangeUpwinding();
+  }
+
+  arrayView1d< real64 const > getMatrixControlledReverseExchangeRelPerm() const
+  {
+    return m_crossFlow.getMatrixControlledReverseExchangeRelPerm();
+  }
+
   /// Required REV fracture volume fraction v_f (from DualContinuumCrossFlow)
   real64 getFractureVolumeFraction() const
   {

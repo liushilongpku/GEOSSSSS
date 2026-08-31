@@ -16,7 +16,7 @@
       materialList="{ fractureRock, fluid, fractureRelperm, fractureCapPressure }"/>
   </ElementRegions>
   <Constitutive>
-    <SimpleGravityDrainagePressure name="gravityDrainagePressure"/>
+    <ThomasGasOilGravityDrainagePressure name="gravityDrainagePressure"/>
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"
@@ -28,10 +28,9 @@
     <PressurePorosity name="fracturePorosity" defaultReferencePorosity="1.0" referencePressure="3.83327805e7" compressibility="5.076e-10"/>
     <ConstantPermeability name="fracturePerm" permeabilityComponents="{ 9.869233e-13, 9.869233e-13, 9.869233e-13 }"/>
     <CompressibleSolidConstantPermeability name="fractureRock" solidModelName="nullSolid" porosityModelName="fracturePorosity" permeabilityModelName="fracturePerm"/>
-    <TableRelativePermeability name="relperm" phaseNames="{ oil, gas, water }"
-      wettingIntermediateRelPermTableNames="{ waterRelPermTable, oilRelPermTableForOW }"
-      nonWettingIntermediateRelPermTableNames="{ gasRelPermTable, oilRelPermTableForOG }"
-      threePhaseInterpolator="STONEII"/>
+    <ThreePhaseTableRelativePermeability name="relperm" phaseNames="{ oil, gas, water }"
+      waterRelPermTableName="waterRelPermTable" gasRelPermTableName="gasRelPermTable"
+      oilRelPermTableName="oilRelPermTableForThomas"/>
     <!-- Fracture relperm: straight-line endpoints (0 and 1) per Thomas 1983. -->
     <TableRelativePermeability name="fractureRelperm" phaseNames="{ oil, gas, water }"
       wettingIntermediateRelPermTableNames="{ fracWaterRelPermTable, fracOilRelPermTableForOW }"
@@ -40,7 +39,7 @@
     <PressureScaledTableCapillaryPressure name="matrixCapPressure" phaseNames="{ oil, gas, water }"
       wettingIntermediateCapPressureTableName="waterCapPresTable"
       nonWettingIntermediateCapPressureTableName="gasCapPresTable"
-      pressureScalingTableName="gasOilSurfaceTensionScaling"/>
+      pressureDependentTableName="gasOilVerticalEquilibriumPseudoPc"/>
     <TableCapillaryPressure name="fractureCapPressure" phaseNames="{ oil, gas, water }"
       wettingIntermediateCapPressureTableName="fracWaterCapPresTable"
       nonWettingIntermediateCapPressureTableName="fracGasCapPresTable"/>
@@ -59,9 +58,11 @@
     <CompositionalMultiPhaseDualContinuumFVM name="dualFlow" flowSolverName="matrixFlow" flowSolverName1="fractureFlow" logLevel="1" initialDt="5.0"
       matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"
       targetRegions="{ mesh1/matrixRegion, mesh2/fractureRegion }">
+      <!-- Thomas gas/oil 10-ft value: 0.02 ft^-2 = 0.215278208 m^-2. -->
       <DualContinuumCrossFlow fractureSpacingLx="3.05" fractureSpacingLy="3.05" fractureSpacingLz="3.05"
-        gravityDrainageFlag="1" fractureVolumeFraction="0.01"
-        shapeFactorType="direct" shapeFactorValue="3.9344"
+        gravityDrainageFlag="0" matrixControlledExchangeUpwinding="1" fractureVolumeFraction="0.01"
+        matrixControlledReverseExchangeRelPerm="{ -1, 0.42, 0.03 }"
+        shapeFactorType="direct" shapeFactorValue="0.215278208"
         matrixRegionList="{ matrixRegion }" fractureRegionList="{ fractureRegion }"/>
       <NonlinearSolverParameters newtonTol="1.0e-6" newtonMaxIter="100" lineSearchAction="Attempt" maxTimeStepCuts="10" timeStepCutFactor="0.5"/>
       <LinearSolverParameters solverType="direct" directParallel="0"/>
@@ -72,35 +73,35 @@
     <FieldSpecification name="matrixPressure" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
       fieldName="pressure" setNames="{ all }" scale="3.83327805e7"/>
     <FieldSpecification name="matrixOilFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.53683289"/>
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.53678013"/>
     <FieldSpecification name="matrixGasFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.16590112"/>
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.16595388"/>
     <FieldSpecification name="matrixWaterFrac" initialCondition="1" targetMesh="mesh1" objectPath="ElementRegions"
       fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.29726599"/>
     <!-- Initial fracture continuum: gas-filled at the same pressure, matching the surrounding gas environment. -->
     <FieldSpecification name="fracturePressure" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
       fieldName="pressure" setNames="{ all }" scale="3.83327805e7"/>
     <FieldSpecification name="fractureGasFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.999"/>
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="1"/>
     <FieldSpecification name="fractureOilFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.0005"/>
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.0"/>
     <FieldSpecification name="fractureWaterFrac" initialCondition="1" targetMesh="mesh2" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.0005"/>
+      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.0"/>
     <!-- Thomas depletion: the fracture continuum follows a 0.75-psi/day pressure decline as the draining oil leaves the matrix. -->
     <FieldSpecification name="fractureDepletionPressure" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
       fieldName="pressure" setNames="{ all }" functionName="pressureDecline" scale="1.0"/>
     <FieldSpecification name="fractureBoundaryGasFrac" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="0.999"/>
+      fieldName="globalCompFraction" component="1" setNames="{ all }" scale="1"/>
     <FieldSpecification name="fractureBoundaryOilFrac" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.0005"/>
+      fieldName="globalCompFraction" component="0" setNames="{ all }" scale="0.0"/>
     <FieldSpecification name="fractureBoundaryWaterFrac" initialCondition="0" targetMesh="mesh2" objectPath="ElementRegions"
-      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.0005"/>
+      fieldName="globalCompFraction" component="2" setNames="{ all }" scale="0.0"/>
   </FieldSpecifications>
   <Functions>
     <TableFunction name="waterRelPermTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
       values="{ 0.0, 0.005, 0.010, 0.020, 0.030, 0.045, 0.060, 0.110, 0.180, 0.230 }" interpolation="linear"/>
-    <!-- Thomas Eq. (25): krow is a function of Sw, which remains approximately Swc=0.20 here,
-         so krow stays near 1 over the active oil-saturation range (same fix as the fine-grid case). -->
+    <!-- GEOS evaluates this oil branch against So. Since Thomas Table 3 gives krow=1
+         at the nearly constant Swc=0.20, keep krow near one whenever oil is present. -->
     <TableFunction name="oilRelPermTableForOW" coordinates="{ 0.0, 0.001, 1.0 }"
       values="{ 0.0, 0.998, 1.0 }" interpolation="linear"/>
     <!--
@@ -125,27 +126,29 @@
     -->
     <TableFunction name="oilRelPermTableForOG" coordinates="{ 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80 }"
       values="{ 0.0, 0.070, 0.25, 0.44, 0.62, 0.80, 0.89, 1.0 }" interpolation="linear"/>
+    <TableFunction name="oilRelPermTableForThomas" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
+      values="{ 1.0, 0.89, 0.80, 0.62, 0.44, 0.25, 0.070, 0.0 }" interpolation="linear"/>
     <TableFunction name="waterCapPresTable" coordinates="{ 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.75 }"
       values="{ 344738, 62052.84, 13789.52, 3447.38, 0, -2757.90, -8273.71, -27579.04, -68947.6, -275790.4 }" interpolation="linear"/>
     <!--
       Thomas 1983 Table 4 gas/oil pseudo-capillary-pressure data at 5545 psig.
-      Pressure-dependent scaling (Eq. 28, Pc_go = sigma(P)/sigma_I * Pc_goI) is
-      applied via the pressureScalingTableName below (sigma table from Thomas
-      Table 2), so the input values are the raw 5545-psig pseudodata. GEOS
-      internally uses p_g = p_o - pc_og, so the input values are the negative of
-      the Thomas table.
+      These are the raw 5545-psig pseudodata. Pressure dependence is generated
+      by scaling the local Table 3 rock Pc with Eq. (28), then repeating the
+      10-ft vertical-equilibrium integration at each pressure. GEOS
+       internally converts the user gas/oil table to its stored capillary-pressure
+       convention, so these input values retain the signs reported by Thomas.
     -->
     <TableFunction name="gasCapPresTable" coordinates="{ 0.0, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.55 }"
       values="{ -5102.12, -3240.54, -2275.27, -413.69, 1447.90, 3309.48, 5171.07, 8756.34 }" interpolation="linear"/>
 
-    <!--
-      Thomas 1983 Table 2 gas/oil surface tension sigma [dyn/cm] vs pressure,
-      normalized by sigma_I = sigma(5545 psig) = 0.090 dyn/cm to give the
-      pressure-dependent scaling factor sigma(P)/sigma_I (Eq. 28).
-    -->
+    <!-- Local Eq. (28) scaling reference used only by optional diagnostic decks.
+         The canonical matrix closure below does not scale the Table 4 curve directly. -->
     <TableFunction name="gasOilSurfaceTensionScaling" inputVarNames="{pressure}"
-      coordinates="{ 2.4497e7, 2.8337e7, 3.1330e7, 3.4026e7, 3.6232e7, 3.8231e7 }"
+      coordinates="{ 2.4598325e7, 2.8438325e7, 3.1431325e7, 3.4127325e7, 3.6333325e7, 3.8332325e7 }"
       values="{ 14.2222, 8.0000, 4.9333, 2.8333, 1.7222, 1.0000 }" interpolation="linear"/>
+    <TableFunction name="gasOilVerticalEquilibriumPseudoPc"
+      coordinateFiles="{ tables/ve_pseudo_pc_sg_axis.txt, tables/ve_pseudo_pc_pressure_axis.txt }"
+      voxelFile="tables/ve_pseudo_pc_values.txt" interpolation="linear"/>
 
     <TableFunction name="fracWaterRelPermTable" coordinates="{ 0.0, 1.0 }"
       values="{ 0.0, 1.0 }" interpolation="linear"/>

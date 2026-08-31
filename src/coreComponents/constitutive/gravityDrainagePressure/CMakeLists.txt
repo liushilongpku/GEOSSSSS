@@ -1,12 +1,14 @@
 set( gravityDrainagePressureSources
      GravityDrainagePressureBase.cpp
      SimpleGravityDrainagePressure.cpp
+     ThomasGasOilGravityDrainagePressure.cpp
    )
 
 set( gravityDrainagePressureHeaders
      GravityDrainagePressureBase.hpp
      GravityDrainagePressureFields.hpp
      SimpleGravityDrainagePressure.hpp
+     ThomasGasOilGravityDrainagePressure.hpp
    )
 
 set( dependencyList

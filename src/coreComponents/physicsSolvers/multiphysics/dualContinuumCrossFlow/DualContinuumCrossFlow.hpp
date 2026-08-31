@@ -65,6 +65,12 @@ public:
   // Accessor for the directly specified shape factor value
   real64 getShapeFactorValue() const { return m_shapeFactorValue; }
 
+  /// Whether matrix properties and fracture phase coverage control matrix-fracture exchange mobility.
+  bool getMatrixControlledExchangeUpwinding() const { return m_matrixControlledExchangeUpwinding != 0; }
+
+  arrayView1d< real64 const > getMatrixControlledReverseExchangeRelPerm() const
+  { return m_matrixControlledReverseExchangeRelPerm; }
+
   static string catalogName() { return "DualContinuumCrossFlow"; }
 
   struct viewKeyStruct : public dataRepository::Group::viewKeyStruct
@@ -76,6 +82,10 @@ public:
     static constexpr char const * fractureRegionList() { return "fractureRegionList"; }
     static constexpr char const * DualContinuumStencilString() {return "DualContinuumStencil";}
     static constexpr char const * gravityDrainageFlag() { return "gravityDrainageFlag"; }
+    static constexpr char const * matrixControlledExchangeUpwindingString()
+    { return "matrixControlledExchangeUpwinding"; }
+    static constexpr char const * matrixControlledReverseExchangeRelPermString()
+    { return "matrixControlledReverseExchangeRelPerm"; }
     /// Shape factor formulation (direct value or Kazemi).
     static constexpr char const * shapeFactorTypeString() { return "shapeFactorType"; }
     /// Directly specified shape factor sigma [m^-2], used when shapeFactorType=direct.
@@ -150,6 +160,13 @@ private:
 
   /// Directly specified shape factor sigma [m^-2] (used when shapeFactorType=direct)
   real64 m_shapeFactorValue = 0.0;
+
+  /// Use matrix mobility with fracture phase coverage for compositional matrix-fracture exchange.
+  integer m_matrixControlledExchangeUpwinding = 0;
+
+  /// Effective matrix relative permeability for fracture-to-matrix flow, ordered by fluid phase.
+  /// A negative entry uses the current matrix relative permeability.
+  real64_array m_matrixControlledReverseExchangeRelPerm;
 
   string_array m_matrixRegionList;
   string_array m_fractureRegionList;

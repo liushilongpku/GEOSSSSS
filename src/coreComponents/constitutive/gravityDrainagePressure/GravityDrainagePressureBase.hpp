@@ -89,12 +89,12 @@ public:
   /**
    * @brief Get gravity drainage pressure field
    */
-  arrayView2d< real64 > gravityDrainagePressure() { return m_gravityDrainagePressure; }
+  arrayView3d< real64 > gravityDrainagePressure() { return m_gravityDrainagePressure; }
 
   /**
    * @brief Get gravity drainage pressure field (const)
    */
-  arrayView2d< real64 const > gravityDrainagePressure() const { return m_gravityDrainagePressure; }
+  arrayView3d< real64 const > gravityDrainagePressure() const { return m_gravityDrainagePressure; }
 
   /**
    * @brief Update gravity drainage pressure
@@ -128,12 +128,13 @@ public:
     arrayView2d< real64 const > const matrixPhaseVolumeFraction,
     arrayView3d< real64 const > const fracturePhaseMassDensity,
     arrayView2d< real64 const > const fracturePhaseVolumeFraction,
+    string_array const & phaseNames,
     real64 gravityCoefficient,
     real64 Lz ) const;
 
 protected:
 
-  array2d< real64 > m_gravityDrainagePressure;
+  array3d< real64 > m_gravityDrainagePressure;
 };
 
 }

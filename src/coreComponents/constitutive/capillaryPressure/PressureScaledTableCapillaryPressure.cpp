@@ -74,8 +74,15 @@ PressureScaledTableCapillaryPressure::PressureScaledTableCapillaryPressure( std:
     setInputFlag( InputFlags::OPTIONAL ).
     setDescription( "Optional name of the pressure-dependent scaling factor table sigma(P)/sigma_ref "
                     "(surface tension as a function of pressure). When provided, the gas/oil capillary "
-                    "pressure is scaled as Pc_go = sigma(P)/sigma_ref * Pc_go_table (Thomas 1983 Eq. 28). "
-                    "Leave empty to disable pressure-dependent scaling." );
+                     "pressure is scaled as Pc_go = sigma(P)/sigma_ref * Pc_go_table (Thomas 1983 Eq. 28). "
+                     "Leave empty to disable pressure-dependent scaling." );
+
+  registerWrapper( viewKeyStruct::pressureDependentTableNameString(), &m_pressureDependentTableName ).
+    setRTTypeName( rtTypes::CustomTypes::groupNameRef ).
+    setInputFlag( InputFlags::OPTIONAL ).
+    setDescription( "Optional two-dimensional gas/oil capillary-pressure table Pc_go(Sg, pressure). "
+                    "This is mutually exclusive with pressureScalingTableName." );
+
 }
 
 void PressureScaledTableCapillaryPressure::postInputInitialization()
@@ -83,6 +90,12 @@ void PressureScaledTableCapillaryPressure::postInputInitialization()
   CapillaryPressureBase::postInputInitialization();
 
   integer const numPhases = m_phaseNames.size();
+  GEOS_THROW_IF( !m_pressureScalingTableName.empty() && !m_pressureDependentTableName.empty(),
+                 GEOS_FMT( "{}: {} and {} are mutually exclusive",
+                           getFullName(),
+                           viewKeyStruct::pressureScalingTableNameString(),
+                           viewKeyStruct::pressureDependentTableNameString() ),
+                 InputError );
   GEOS_THROW_IF( numPhases != 2 && numPhases != 3,
                  GEOS_FMT( "{}: the expected number of fluid phases is either two, or three",
                            getFullName() ),
@@ -115,6 +128,19 @@ void PressureScaledTableCapillaryPressure::initializePreSubGroups()
 
   integer const numPhases = m_phaseNames.size();
   FunctionManager const & functionManager = FunctionManager::getInstance();
+
+  if( !m_pressureDependentTableName.empty() )
+  {
+    GEOS_THROW_IF( !functionManager.hasGroup( m_pressureDependentTableName ),
+                   GEOS_FMT( "{}: the table function named {} could not be found",
+                             getFullName(), m_pressureDependentTableName ),
+                   InputError );
+    TableFunction const & table = functionManager.getGroup< TableFunction >( m_pressureDependentTableName );
+    GEOS_THROW_IF_NE_MSG( table.numDimensions(), 2,
+                          GEOS_FMT( "{}: {} must have dimensions (gas saturation, pressure)",
+                                    getFullName(), m_pressureDependentTableName ),
+                          InputError );
+  }
 
   if( numPhases == 2 )
   {
@@ -177,10 +203,12 @@ PressureScaledTableCapillaryPressure::KernelWrapper::
                  arrayView1d< integer const > const & phaseTypes,
                  arrayView1d< integer const > const & phaseOrder,
                  arrayView3d< real64, cappres::USD_CAPPRES > const & phaseCapPres,
-                 arrayView4d< real64, cappres::USD_CAPPRES_DS > const & dPhaseCapPres_dPhaseVolFrac,
-                 arrayView1d< real64 const > const & pressure,
-                 bool const hasPressureScaling,
-                 TableFunction::KernelWrapper const & pressureScalingWrapper )
+                  arrayView4d< real64, cappres::USD_CAPPRES_DS > const & dPhaseCapPres_dPhaseVolFrac,
+                  arrayView1d< real64 const > const & pressure,
+                  bool const hasPressureScaling,
+                  TableFunction::KernelWrapper const & pressureScalingWrapper,
+                  bool const hasPressureDependentTable,
+                  TableFunction::KernelWrapper const & pressureDependentTableWrapper )
   : CapillaryPressureBaseUpdate( phaseTypes,
                                  phaseOrder,
                                  phaseCapPres,
@@ -188,7 +216,9 @@ PressureScaledTableCapillaryPressure::KernelWrapper::
   m_capPresKernelWrappers( capPresKernelWrappers ),
   m_pressure( pressure ),
   m_hasPressureScaling( hasPressureScaling ),
-  m_pressureScalingWrapper( pressureScalingWrapper )
+  m_pressureScalingWrapper( pressureScalingWrapper ),
+  m_hasPressureDependentTable( hasPressureDependentTable ),
+  m_pressureDependentTableWrapper( pressureDependentTableWrapper )
 {}
 
 PressureScaledTableCapillaryPressure::KernelWrapper
@@ -219,14 +249,25 @@ PressureScaledTableCapillaryPressure::createKernelWrapper()
     pressureScalingWrapper = pressureScalingTable.createKernelWrapper();
   }
 
+  bool const hasPressureDependentTable = !m_pressureDependentTableName.empty();
+  TableFunction::KernelWrapper pressureDependentTableWrapper;
+  if( hasPressureDependentTable )
+  {
+    FunctionManager const & functionManager = FunctionManager::getInstance();
+    TableFunction const & table = functionManager.getGroup< TableFunction >( m_pressureDependentTableName );
+    pressureDependentTableWrapper = table.createKernelWrapper();
+  }
+
   return KernelWrapper( m_capPresKernelWrappers,
                         m_phaseTypes,
                         m_phaseOrder,
                         m_phaseCapPressure,
                         m_dPhaseCapPressure_dPhaseVolFrac,
-                        pressure,
-                        hasPressureScaling,
-                        pressureScalingWrapper );
+                         pressure,
+                         hasPressureScaling,
+                         pressureScalingWrapper,
+                         hasPressureDependentTable,
+                         pressureDependentTableWrapper );
 }
 
 REGISTER_CATALOG_ENTRY( ConstitutiveBase, PressureScaledTableCapillaryPressure, std::string const &, Group * const )

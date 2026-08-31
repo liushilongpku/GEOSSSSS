@@ -74,6 +74,8 @@ assembleCouplingTerms(real64 const GEOS_UNUSED_PARAM( time_n ),
     kernelFlags.set( KernelFlags::CheckPhasePresenceInGravity );
   if( Base::getGravityDrainageFlag() )
     kernelFlags.set( KernelFlags::GravityDrainage);
+  if( Base::getMatrixControlledExchangeUpwinding() )
+    kernelFlags.set( KernelFlags::MatrixControlledExchangeUpwinding );
 
 
 //    forDiscretizationOnMeshTargets( domain.getMeshBodies(), [&]( string const &,
@@ -108,6 +110,17 @@ assembleCouplingTerms(real64 const GEOS_UNUSED_PARAM( time_n ),
 
 
     auto const & upwindingParams = fluxApprox.upwindingParams();
+    GEOS_THROW_IF( Base::getMatrixControlledExchangeUpwinding() &&
+                   upwindingParams.upwindingScheme != UpwindingScheme::PPU,
+                   "matrixControlledExchangeUpwinding is currently supported only with PPU.", InputError );
+    GEOS_THROW_IF( Base::getMatrixControlledExchangeUpwinding() &&
+                   (this->primarySolver()->isThermal() || this->secondarySolver()->isThermal()),
+                   "matrixControlledExchangeUpwinding is currently supported only for isothermal flow.", InputError );
+    GEOS_THROW_IF( Base::getMatrixControlledExchangeUpwinding() &&
+                   Base::getMatrixControlledReverseExchangeRelPerm().size() != this->primarySolver()->numFluidPhases(),
+                   GEOS_FMT( "matrixControlledReverseExchangeRelPerm must contain one value per fluid phase ({}) when "
+                             "matrixControlledExchangeUpwinding is enabled.",
+                             this->primarySolver()->numFluidPhases() ), InputError );
     if( upwindingParams.upwindingScheme == UpwindingScheme::C1PPU &&
         isothermalDualContinuumCompositionalMultiPhaseCrossFlowKernelUtilities::epsC1PPU > 0 )
       kernelFlags.set( KernelFlags::C1PPU );
@@ -155,6 +168,7 @@ assembleCouplingTerms(real64 const GEOS_UNUSED_PARAM( time_n ),
                                                    dofManager.rankOffset(),
                                                    elemDofKey,
                                                    kernelFlags,
+                                                   Base::getMatrixControlledReverseExchangeRelPerm(),
                                                    this->primarySolver()->getName(),
                                                    this->secondarySolver()->getName(),
                                                    matrixMeshPtr->getElemManager(),
@@ -180,6 +194,7 @@ assembleCouplingTerms(real64 const GEOS_UNUSED_PARAM( time_n ),
                                                      dofManager.rankOffset(),//TODO@LSL 裂缝与基质的总偏移量是相同的
                                                      elemDofKey,
                                                      kernelFlags,
+                                                     Base::getMatrixControlledReverseExchangeRelPerm(),
                                                      this->primarySolver()->getName(),
                                                      this->secondarySolver()->getName(),
                                                      matrixMeshPtr->getElemManager(),

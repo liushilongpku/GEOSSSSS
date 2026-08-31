@@ -30,15 +30,15 @@ namespace constitutive
 {
 
 /**
- * @brief Table-based capillary pressure with an optional pressure-dependent scaling.
+ * @brief Table-based capillary pressure with optional pressure dependence.
  *
- * This model behaves like TableCapillaryPressure, but the gas/oil capillary
- * pressure can be scaled by a pressure-dependent factor:
+ * This model behaves like TableCapillaryPressure, but gas/oil capillary
+ * pressure can either be scaled by a pressure-dependent factor:
  *
  *   Pc_go = sigma(P) / sigma_ref * Pc_go_table   (Thomas 1983 Eq. 28)
  *
- * where sigma(P) is provided as a table of surface tension (or, more generally,
- * of the scaling factor sigma(P)/sigma_ref) versus the reference phase pressure.
+ * where sigma(P) is provided as a table, or supplied directly as a
+ * two-dimensional Pc_go(Sg, P) table for pressure-dependent pseudofunctions.
  *
  * It is provided as a separate model (instead of extending TableCapillaryPressure)
  * so that the existing TableCapillaryPressure behavior is left completely untouched.
@@ -72,10 +72,12 @@ public:
                    arrayView1d< integer const > const & phaseTypes,
                    arrayView1d< integer const > const & phaseOrder,
                    arrayView3d< real64, cappres::USD_CAPPRES > const & phaseCapPres,
-                   arrayView4d< real64, cappres::USD_CAPPRES_DS > const & dPhaseCapPres_dPhaseVolFrac,
-                   arrayView1d< real64 const > const & pressure,
-                   bool const hasPressureScaling,
-                   TableFunction::KernelWrapper const & pressureScalingWrapper );
+                    arrayView4d< real64, cappres::USD_CAPPRES_DS > const & dPhaseCapPres_dPhaseVolFrac,
+                    arrayView1d< real64 const > const & pressure,
+                    bool const hasPressureScaling,
+                    TableFunction::KernelWrapper const & pressureScalingWrapper,
+                    bool const hasPressureDependentTable,
+                    TableFunction::KernelWrapper const & pressureDependentTableWrapper );
 
     GEOS_HOST_DEVICE
     void compute( arraySlice1d< real64 const, compflow::USD_PHASE - 1 > const & phaseVolFraction,
@@ -103,6 +105,12 @@ private:
     /// Kernel wrapper for the pressure-dependent scaling factor sigma(P)/sigma_ref
     TableFunction::KernelWrapper m_pressureScalingWrapper;
 
+    /// Whether gas/oil capillary pressure is supplied directly as Pc(Sg, pressure)
+    bool m_hasPressureDependentTable;
+
+    /// Kernel wrapper for the pressure-dependent gas/oil capillary-pressure table
+    TableFunction::KernelWrapper m_pressureDependentTableWrapper;
+
   };
 
   /**
@@ -119,6 +127,8 @@ private:
     static constexpr char const * capPresWrappersString() { return "capPresWrappers"; }
     /// Optional pressure-dependent scaling factor table sigma(P)/sigma_ref for the gas/oil capillary pressure.
     static constexpr char const * pressureScalingTableNameString() { return "pressureScalingTableName"; }
+    /// Optional two-dimensional gas/oil capillary-pressure table Pc(Sg, pressure).
+    static constexpr char const * pressureDependentTableNameString() { return "pressureDependentTableName"; }
 
   };
 
@@ -148,6 +158,9 @@ private:
   /// Optional name of the pressure-dependent scaling factor table sigma(P)/sigma_ref (empty = no scaling)
   string m_pressureScalingTableName;
 
+  /// Optional name of a two-dimensional gas/oil capillary-pressure table Pc(Sg, pressure)
+  string m_pressureDependentTableName;
+
 };
 
 GEOS_HOST_DEVICE
@@ -165,7 +178,22 @@ PressureScaledTableCapillaryPressure::KernelWrapper::
   integer const ipOil   = m_phaseOrder[PT::OIL];
   integer const ipGas   = m_phaseOrder[PT::GAS];
 
-  if( ipWater >= 0 && ipOil >= 0 && ipGas >= 0 )
+  if( m_hasPressureDependentTable && ipGas >= 0 )
+  {
+    if( ipWater >= 0 && ipOil >= 0 )
+    {
+      using TPT = PressureScaledTableCapillaryPressure::ThreePhasePairPhaseType;
+      phaseCapPres[ipWater] =
+        m_capPresKernelWrappers[TPT::INTERMEDIATE_WETTING].compute( &(phaseVolFraction)[ipWater],
+                                                                    &(dPhaseCapPres_dPhaseVolFrac)[ipWater][ipWater] );
+    }
+    real64 const coordinates[2] = { phaseVolFraction[ipGas], pressure };
+    real64 derivatives[2] = { 0.0, 0.0 };
+    phaseCapPres[ipGas] = -m_pressureDependentTableWrapper.compute( coordinates, derivatives );
+    dPhaseCapPres_dPhaseVolFrac[ipGas][ipGas] = -derivatives[0];
+  }
+
+  if( !m_hasPressureDependentTable && ipWater >= 0 && ipOil >= 0 && ipGas >= 0 )
   {
     using TPT = PressureScaledTableCapillaryPressure::ThreePhasePairPhaseType;
 
@@ -184,7 +212,7 @@ PressureScaledTableCapillaryPressure::KernelWrapper::
     phaseCapPres[ipGas] *= -1;
     dPhaseCapPres_dPhaseVolFrac[ipGas][ipGas] *= -1;
   }
-  else if( ipWater < 0 )
+  else if( !m_hasPressureDependentTable && ipWater < 0 )
   {
     // put capillary pressure on the non-wetting phase
     phaseCapPres[ipGas] =
@@ -206,7 +234,7 @@ PressureScaledTableCapillaryPressure::KernelWrapper::
 
   // Optional pressure-dependent scaling of the gas/oil capillary pressure:
   // Pc_go = sigma(P)/sigma_ref * Pc_go_table (Thomas 1983 Eq. 28).
-  if( m_hasPressureScaling && ipGas >= 0 )
+  if( m_hasPressureScaling && !m_hasPressureDependentTable && ipGas >= 0 )
   {
     real64 const scaling = m_pressureScalingWrapper.compute( &pressure );
     phaseCapPres[ipGas] *= scaling;

@@ -53,6 +53,7 @@ set( constitutiveDrivers_sources
      relativePermeability/RelpermDriverVanGenuchtenBakerRunTest.cpp
      relativePermeability/RelpermDriverVanGenuchtenStone2RunTest.cpp
      relativePermeability/RelpermDriverTableRelativeRunTest.cpp
+     relativePermeability/RelpermDriverThreePhaseTableRunTest.cpp
      relativePermeability/RelpermDriverTableRelativeHysteresisRunTest.cpp
      solid/TriaxialDriver.cpp
    )
