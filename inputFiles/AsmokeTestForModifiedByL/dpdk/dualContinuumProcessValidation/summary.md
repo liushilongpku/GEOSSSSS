@@ -1,54 +1,41 @@
-<!-- Purpose: summarize the purpose, target, justification, evidence, and status of every dual-continuum validation case. 关键信息：除 6、8 未验证上，其余案例均验证或复现成功。 -->
+<!-- Purpose: summarize the evidence and implementation status of dual-continuum validation cases 1-8. -->
 
-# 双重介质过程验证总表
+# 双重介质过程验证总报告
 
-本目录对双重介质基质—裂缝交叉流相关机制进行拆开验证：压差驱动、重力驱替、毛管/渗吸驱替、
-`PotGrad` 导数契约，以及两个细网格文献复现（Thomas 活油枯竭、SPE6 重力排驱）。它们不是
-一个混合算例，而是按机制拆开的证据链。
+本目录按机制和文献案例组织双重介质基质-裂缝交换验证。case1-case4 隔离验证压力、重力、毛管和
+`PotGrad` 导数；case5-case7 验证 Thomas 1983 与 SPE6 的水油/气油单块问题。当前结论是：
+
+- **case1-case7 均已实现，并达到各自报告规定的验证或复现标准。**
+- **case8 尚未实现。** 目录内仅保留探索性输入、试算结果和问题记录，当前结果不能作为 SPE6
+  单块双重介质复现。
+
+“实现”不表示所有案例采用同一种验证强度。case1-case3、case5-case7 有 GEOS 运行结果；case3.1
+还有闭式解；case4 是独立有限差分代数检查，不是完整 GEOS 运行时验证。
 
 ## 状态总览
 
-| 编号 | 案例 | 过程 | 验证级别 | 当前状态 |
+| 编号 | 目录 | 验证对象 | 主要证据 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| 1 | pressure exchange | 压差驱动交换（等体积 + 不等体积） | GEOS 运行 + 两储集体解析解 | **通过** |
-| 2 | gravity exchange | 重力驱替交换 | GEOS 运行 + 重力驱替势差平衡 | **通过** |
-| 3 | capillary exchange | 毛管/渗吸交换（动力学版） | GEOS 组装诊断 + 毛管状态 + 动态响应与守恒判据 | **通过** |
-| 3.1 | analytical | 毛管渗吸解析基准版 | 严格两储集体闭式解 + 数值对照 | **通过** |
-| 4 | potgrad | `PotGrad` 毛管导数契约 | 独立有限差分代数检查 | **通过，但非运行时验证** |
-| 5 | Thomas fine grid | Thomas 1983 活油细网格枯竭 | 论文 Fig. 4 采收率曲线 | **复现成功** |
-| 7 | SPE6 fine grid | SPE6 单块气油重力排驱 | 论文 Fig. 1 采收率曲线（7×7×8 / 10×10×10） | **验证成功** |
-| 6 | Thomas single block | Thomas 单块驱替 | 目标基准尚未建立 | **未验证** |
-| 8 | SPE6 single block | SPE6 单块（单重介质单网格）驱替 | 论文约 40% 采收率 | **未验证上** |
+| 1 | `1_pressure_exchange_combined` | 等体积/不等体积压差交换 | GEOS 历史 + 两储集体解析解 | **已实现，通过** |
+| 2 | `2_gravity_exchange` | 单相重力驱替压力交换 | GEOS 稳态 + GDP 解析平衡 | **已实现，通过** |
+| 3 | `3_capillary_exchange` | 多相毛管渗吸动力学 | GEOS 动态历史 + 守恒与方向检查 | **已实现，通过** |
+| 3.1 | `3.1_analytical` | 可闭式求解的毛管渗吸 | 严格单指数解析解 + 数值对照 | **已实现，通过** |
+| 4 | `4_potgrad_derivative` | `PotGrad` 势差与 Jacobian 契约 | 独立有限差分检查 | **已实现，通过（非运行时）** |
+| 5 | `5_Thomas_water_oil` | Thomas 水油渗吸，细网格与单胞 | Fig. 2 + 细网格/单胞交叉验证 | **已实现，复现成功** |
+| 6 | `6_Thomas_oil_gas_depletion` | Thomas 气油枯竭，细网格与单胞 | Fig. 4 + GDP A/B + 独立 oracle | **已实现，复现成功** |
+| 7 | `7_SPE6_fine_grid_gravity_drainage` | SPE6 气油重力排驱细网格 | Fig. 1 + 两种网格分辨率 | **已实现，验证成功** |
+| 8 | `8_SPE6_single_block_drainage` | SPE6 双重介质单胞模型 | 当前仅有探索性试算，未达到约 40% 基准 | **尚未实现** |
 
-说明：编号 `6` 与 `8` 目前未通过验证。其余案例（1、2、3、3.1、4、5、7）均已通过对应的
-验证或复现判据。各案例的子报告、输入、脚本、图片与运行归档保留在各自目录中。
+## 1：压差驱动交换
 
-## 1：压差驱动交换（pressure exchange）
-
-### 验证目的
-
-隔离最基本的基质—裂缝压力交换，确认交叉流项的方向、两侧等量反向装配、储集量守恒和后向
-Euler 时间推进。
-
-### 验证目标与影像
-
-两个封闭、共位、单相单元从初始压差出发，应满足：高压侧压力下降、低压侧压力上升、压差单调
-衰减；加权平均压力不变；首步衰减因子等于解析值。
-
-基质初始高压、裂缝低压，流体经交叉通道从基质流向裂缝，两端最终趋近同一平衡压力
-（本算例约 `1.5 MPa`）。方程退化为
+case1 隔离无重力、无毛管压力的基质-裂缝压差交换。两个封闭储集体满足：
 
 ```text
 Cm dpm/dt = -A (pm - pf)
 Cf dpf/dt = +A (pm - pf)
 ```
 
-因此压差解析解与守恒量可直接写出。
-
-### 参考解和结果
-
-输入为 `1_pressure_exchange_combined/` 下的等体积/不等体积两个算例；详细推导、图片与数值见
-[`1_pressure_exchange_combined/report_zh.md`](1_pressure_exchange_combined/report_zh.md)。
+检查内容包括流向、两侧等量反向装配、加权平均压力守恒和后向 Euler 压差衰减。等体积案例的关键结果为：
 
 ```text
 GEOS exit code               0
@@ -59,123 +46,167 @@ relative mean-pressure drift 8.81e-8
 resolved-curve max error     4.39e-7
 ```
 
-在可分辨区间内误差满足判据，因此 1 通过；它不验证毛管、重力或 compositional `PotGrad`。
+等体积和不等体积案例均通过。详见
+[`1_pressure_exchange_combined/report_zh.md`](1_pressure_exchange_combined/report_zh.md)。
 
-## 2：重力驱替交换（gravity exchange）
+![case1 等体积压差交换：GEOS 数值历史与解析解对比](1_pressure_exchange_combined/equal_volume/figures/A0_pressure_exchange.png)
 
-### 验证目的与目标
+## 2：重力驱替交换
 
-验证 Kazemi 型重力驱替势差（GDP）的符号、大小及加入矩阵侧势差的方向。初始两侧等压，但
-`rho_m=1100`、`rho_f=800 kg/m3`、`g_z=-9.81 m/s2`、`Lz=100 m`。目标平衡压差
-
-```text
-p_m - p_f = -GDP,  GDP = 147150 Pa
-```
-
-### 影像与依据
-
-两个连续体各一个共位单元，普通单元中心重力水头相互抵消，初始压差为零，剩余驱动力只能是
-GDP；稳态势差为零直接得到上式。
-
-### 结果
+case2 在初始等压条件下隔离密度差和 GDP。参数为 `rho_m=1100 kg/m3`、`rho_f=800 kg/m3`、
+`g_z=-9.81 m/s2`、`Lz=100 m`，解析目标为：
 
 ```text
-reference GDP                 147150.0000 Pa
+GDP                           147150.0000 Pa
+target p_m - p_f             -147150.0000 Pa
 final p_m - p_f              -147150.0803 Pa
 relative error                5.46e-7
 ```
 
-判据相对误差 `<1e-5`、绝对误差 `<1 Pa` 均满足，因此 2 通过（单相验证）。详见
-[`2_gravity_exchange/report.md`](2_gravity_exchange/report.md)。
+相对误差小于 `1e-5` 且绝对误差小于 `1 Pa`，因此通过。该案例只验证单相 GDP，不替代 case5/case6
+的 compositional 逐相 GDP 验证。详见 [`2_gravity_exchange/report.md`](2_gravity_exchange/report.md)。
 
-## 3：毛管/渗吸交换动力学版（capillary exchange）
+![case2 重力驱替交换：压力差向 GDP 解析平衡收敛](2_gravity_exchange/figures/G0_gravity_exchange.png)
 
-### 验证目的与依据
+## 3：毛管渗吸交换
 
-验证饱和度相关毛管压力、零重力下的渗吸过程。采用非零驱动 + 相分数变化 + 组分守恒的过程判据，
-证明模块未破坏物理；由于其物性（CO2-brine flash、Brooks-Corey）无法化为闭式解，故采用动态
-历史与守恒判据而非独立解析参考。
+case3 使用 CO2-brine 物性和 Brooks-Corey 毛管压力，在零重力条件下验证饱和度相关毛管交换。
+GEOS 完成 `10449` 个接受时间步、零切步，毛管驱动方向、相分数响应和组分守恒检查均通过。
 
-### 结果
+![case3 毛管渗吸：GEOS 动态历史、毛管驱动和守恒检查](3_capillary_exchange/figures/I0_capillary_exchange.png)
 
-GEOS 正常完成（`10449` 个接受步、零切步），动态历史与守恒判据通过。详见
-[`3_capillary_exchange/report.md`](3_capillary_exchange/report.md)。
+case3.1 进一步构造可严格闭式求解的两储集体问题。在线性毛管压力和近恒定 mobility 下，基质水
+饱和度相对平衡点 `S_eq=0.6` 的偏差满足单指数衰减，数值响应与解析解一致。
 
-## 3.1：毛管渗吸解析基准版（analytical）
+![case3.1 毛管渗吸解析基准：数值结果与闭式解对比](3.1_analytical/figures/I0_analytical.png)
 
-### 验证目的与依据
+详见：
 
-在动力学版之上，另建一个可严格闭式求解的两储集体毛管渗吸问题：水不可压缩、气体密度与黏度
-恒定、相对渗透率近乎恒定、基质毛管压力线性、裂缝毛管压力为零。基质水饱和度偏离平衡值的量
-严格满足一阶线性 ODE，解析解为单指数。
+- [`3_capillary_exchange/report.md`](3_capillary_exchange/report.md)
+- [`3.1_analytical/report_zh.md`](3.1_analytical/report_zh.md)
 
-### 结果
+## 4：PotGrad 导数契约
 
-用平衡点 `S_eq=0.6`、基质初始 Pc `5.0e5 Pa` 与线性下降构造的闭式解与数值响应一致，因此
-3.1 通过。相渗/毛管曲线与推导见
-[`3.1_analytical/report_zh.md`](3.1_analytical/report_zh.md) 及对应图片。
+case4 对压力、饱和度、重力和毛管项组合后的 `PotGrad` 及 Jacobian 做独立有限差分检查。代数契约
+通过，但该案例不启动完整 GEOS 求解器，因此结论限定为“实现和导数检查通过”，不能替代 case1-case3
+的运行时字段映射证据。详见 [`4_potgrad_derivative/report.md`](4_potgrad_derivative/report.md)。
 
-## 4：`PotGrad` 毛管导数契约（potgrad）
+![case4 PotGrad 导数：解析 Jacobian 与有限差分结果对比](4_potgrad_derivative/figures/J0_potgrad_derivative.png)
 
-### 验证目的与结果
+## 5：Thomas 水油渗吸
 
-独立有限差分代数检查压力、饱和度、重力与毛管项的组合 Jacobian 契约。该检查通过但**不是运行时
-验证**：它不能替代 1/2/3 的运行时字段映射证明。详见
-[`4_potgrad_derivative/report.md`](4_potgrad_derivative/report.md)。
+case5 复现 Thomas 1983 Fig. 2 中被水包围的 `10 ft` 立方基质块，同时包含单重介质细网格和
+双重介质单胞模型：
 
-## 5：Thomas 1983 活油细网格枯竭（Thomas fine grid）
+| 模型 | 0.5 年采收率 | 终止点采收率 | Thomas 平台值 | 结论 |
+| --- | ---: | ---: | ---: | --- |
+| 细网格，Table 1 `7x7x8` | 27.134% | 33.428%（2.0 年） | 约 34.2% | 通过 |
+| 双重介质单胞 | 24.981% | 34.606%（1.9 年历史点） | 约 34.2% | 通过 |
 
-### 验证对象与结果
+单胞模型使用 `CompositionalPerPhaseGravityDrainagePressure`、裂缝
+`krw(Pc=0)=0.03` 和 Thomas 形状因子 `sigma=25/L^2`。迁移到独立逐相 GDP catalog 后，单胞完整
+历史与已登记基线的最大差为 `0.000624 pp`。细网格与单胞终值分别为 `33.43%` 和 `34.61%`，均与
+Thomas 平台值一致。
 
-复现 Thomas（1983）中被含气裂缝包围的 `10 ft` 基质块，采用 `7 x 7 x 8` 单重介质细网格。
-外部气体压力以 `0.75 psi/day` 下降，气体由上部侵入、较重油向下排出。验证基准为论文 Fig. 4
-`3D model` 曲线约 46% 平台值。
+![case5 Thomas 水油渗吸：细网格采收率与 Fig. 2 对比](5_Thomas_water_oil/fine_grid/figures/recovery_comparison.png)
 
-最终案例位于 `5_Thomas_fine_grid_depletion_liveoil/continuous_pc_pvt_hydrostatic_thomas_stone/`：
+![case5 Thomas 水油渗吸：双重介质单胞采收率与 Fig. 2 对比](5_Thomas_water_oil/single_block/figures/recovery_comparison.png)
 
-| 时间 | GEOS | Thomas Fig. 4 | 差值 |
-| ---: | ---: | ---: | ---: |
-| 1.0 年 | 38.298% | 40.0% | -1.702 pp |
-| 1.5 年 | 44.177% | 44.15% | +0.027 pp |
-| 2.5 年 | **46.627%** | **46.0%** | **+0.627 pp** |
+详见：
 
-终值落在论文读图不确定度内，主要机制与终值通过，早期 0.5--1.0 年约有 1.7--1.8 个百分点
-差异，因此结论为“终值和主要物理机制验证通过，瞬态曲线近似复现”。详见
-[`5_Thomas_fine_grid_depletion_liveoil/report_zh.md`](5_Thomas_fine_grid_depletion_liveoil/report_zh.md)。
+- [`5_Thomas_water_oil/fine_grid/report_zh.md`](5_Thomas_water_oil/fine_grid/report_zh.md)
+- [`5_Thomas_water_oil/single_block/report_zh.md`](5_Thomas_water_oil/single_block/report_zh.md)
 
-## 7：SPE6 单块气油重力排驱细网格（SPE6 fine grid）
+## 6：Thomas 气油枯竭
 
-### 验证对象与结果
+case6 复现 Thomas 1983 Fig. 4 的 `10 ft` 活油块气油重力排驱，包括细网格、双重介质单胞、GDP
+开关对照和独立黑油 oracle。
 
-在 SPE6 单块物理约束下（4500 psig、5 年、活油 PVT、零裂缝毛管压力、固定裂缝薄壳）用细网格
-复现气油重力排驱。两种分辨率均为 VTK-only、不设 `maxEventDt`：
+### 细网格
 
-| 子目录 | 总网格 | 内部基质 | 5 年体积采收率 | 相对 SPE6 40% |
-| --- | ---: | ---: | ---: | ---: |
-| `7x7x8` | 392 | 150 | 38.960% | -1.040 pp |
-| `10x10x10` | 1000 | 512 | 39.751% | -0.249 pp |
+`7x7x8` 细网格使用压力相关二维垂向平衡伪毛管压力 `Pcgo(Sg,P)`，完整运行至 2.5 年、零时间步
+切分，采收率为：
 
-两者都接近 SPE6 约 40% 的工程目标，且保持“上部富气、下部富油、水相基本不动”的重力驱替
-特征。因无时间步上限，数值含可见时间离散误差（10×10×10 若限制 100000 s 则约 39.924%），
-但结论仍为验证成功。详见
+| 时间 | GEOS |
+| ---: | ---: |
+| 0.5 年 | 25.1973% |
+| 1.0 年 | 38.1167% |
+| 2.0 年 | 45.8090% |
+| 2.5 年 | **46.0030%** |
+
+终值与 Thomas Fig. 4 的约 `46%` 一致。详见
+[`6_Thomas_oil_gas_depletion/fine_grid/report_zh.md`](6_Thomas_oil_gas_depletion/fine_grid/report_zh.md)。
+
+![case6 Thomas 气油枯竭：细网格采收率与 Fig. 4 对比](6_Thomas_oil_gas_depletion/fine_grid/figures/recovery_comparison.png)
+
+### 双重介质单胞
+
+canonical 单胞为 `1x1x1` 基质和 `1x1x1` 裂缝，仅通过 `gravityDrainageFlag` 区分 GDP-on/off：
+
+| 模式 | 0.5 年 | 2.5 年 | 结果 |
+| --- | ---: | ---: | --- |
+| GDP-off | 13.2576% | 18.7370% | 严格基线通过 |
+| GDP-on | 27.3364% | 45.5423% | 严格基线通过 |
+| Thomas Fig. 4 | 约 27.0% | 约 46.0% | 外部参考 |
+
+GDP-on 全程无时间步切分；2.5 年与 Thomas 相差 `-0.4577 pp`。独立 oracle 在裂缝 `Pc=0` 时给出
+`45.4514%`，与 GEOS 相差 `0.0909 pp`。
+
+![case6 Thomas 气油枯竭：GDP-on 单胞、独立 oracle 与 Fig. 4 对比](6_Thomas_oil_gas_depletion/single_block/figures/recovery_comparison.png)
+
+复现入口为：
+
+```bash
+python3 6_Thomas_oil_gas_depletion/single_block/scripts/reproduce.py
+python3 6_Thomas_oil_gas_depletion/single_block/scripts/reproduce.py --run
+```
+
+详见：
+
+- [`6_Thomas_oil_gas_depletion/single_block/RESULTS.md`](6_Thomas_oil_gas_depletion/single_block/RESULTS.md)
+- [`6_Thomas_oil_gas_depletion/single_block/REPRODUCIBILITY.md`](6_Thomas_oil_gas_depletion/single_block/REPRODUCIBILITY.md)
+- [`6_Thomas_oil_gas_depletion/single_block/report_zh.md`](6_Thomas_oil_gas_depletion/single_block/report_zh.md)
+
+## 7：SPE6 气油重力排驱细网格
+
+case7 在 SPE6 单块物理约束下比较两种单重介质细网格。两者均保持上部富气、下部富油和水相基本
+不动的重力分异：
+
+| 网格 | 内部基质单元 | 5 年体积采收率 | 相对 SPE6 40% |
+| --- | ---: | ---: | ---: |
+| `7x7x8` | 150 | 38.960% | -1.040 pp |
+| `10x10x10` | 512 | 39.751% | -0.249 pp |
+
+两种分辨率均接近 SPE6 Fig. 1 的约 `40%` 工程基准，其中 `10x10x10` 更接近。该案例证明细网格
+模型已实现并能复现主要物理和终值，但不宣称使用了 SPE6 原始未公开网格。详见
 [`7_SPE6_fine_grid_gravity_drainage/report_zh.md`](7_SPE6_fine_grid_gravity_drainage/report_zh.md)。
 
-## 6：Thomas 单块驱替（未验证）
+![case7 SPE6 细网格：两种网格分辨率的采收率与 Fig. 1 对比](7_SPE6_fine_grid_gravity_drainage/10x10x10/figures/grid_sensitivity_comparison.png)
 
-对应目录 `6_Thomas_single_block_drainage`。当前目录为空，尚未建立可对比的论文基准，也无
-GEOS 运行结果，因此标记为**未验证**。需要后续补充 Thomas 单块解析/文献基准或运行算例后再更新。
+## 8：SPE6 双重介质单胞
 
-## 8：SPE6 单块（单重介质单网格）驱替（未验证）
+case8 的目标是用一个基质单元和一个重叠裂缝单元实现 SPE6 约 `40%` 的 5 年气油重力排驱。目前该
+目标**尚未实现**：
 
-对应目录 `8_SPE6_single_block_drainage`（承接原 `P0_thomas_single_block`）。该单网格、
-单重介质算例尝试复现 SPE6 单块约 40% 采收率，但反复试错后仍未与论文结果对上，因此标记为
-**未验证上**。原 `P0_thomas_single_block` 的全部输入、脚本、图片与试错记录已迁入此目录；
-后续若更换物性/相渗/毛管处理需重跑并重新登记状态。
+- 目录中已有输入、参数审计、控制变量试算和问题分析记录；这些是探索性材料，不是完成的验证案例。
+- 当前修正版可以稳定运行 5 年并呈现正确供气/排油方向，但体积采收率仅约 `23.04%`。
+- 该结果与 SPE6 约 `40%` 仍有明显差距，不能标记为复现成功，也不能作为 case8 最终实现。
+- 后续仍需明确 SPE6 单胞统计口径、双重介质边界、交换闭合和参赛程序井控映射，再建立 canonical 输入与
+  自动验收基线。
 
-## 综合说明
+下图仅展示 case8 当前控制变量试算与 SPE6 参考的差距，属于**未通过诊断图**，不能作为验证成功证据。
 
-1. 编号 1/2/3/3.1 的“通过”只对各自隔离的单一机制负责。
-2. 编号 4 的通过是代数契约检查，不能替代运行时字段映射证明。
-3. 编号 5/7 是文献细网格复现，结论为“终值与主要机制通过、瞬态近似复现”，不是逐点精确匹配。
-4. 编号 6/8 未验证，需在补充基准或修正物理设置后重跑再更新本表。
-5. 各案例的运行输出归档在其目录内，不依赖公共输出目录；`/tmp` 运行数据不纳入 Git。
+![case8 SPE6 双重介质单胞：当前探索性试算与参考曲线对比（尚未实现）](8_SPE6_single_block_drainage/figures/p0_recovery_comparison.png)
+
+详见 [`8_SPE6_single_block_drainage/report_zh.md`](8_SPE6_single_block_drainage/report_zh.md)。在上述问题
+解决并完成重新验证前，case8 状态保持为“尚未实现”。
+
+## 综合结论
+
+1. case1-case3.1 已建立从解析解、运行历史到守恒检查的基础交换机制证据链。
+2. case4 已实现 `PotGrad` 导数有限差分检查，但其验证范围仅限代数契约。
+3. case5 已实现 Thomas 水油细网格和双重介质单胞，两者均复现约 34% 平台值。
+4. case6 已实现 Thomas 气油细网格、GDP-on/off 单胞和独立 oracle，终值复现约 46%。
+5. case7 已实现两种 SPE6 细网格分辨率，5 年采收率接近约 40%。
+6. case8 尚未实现，现有 23.04% 试算只能作为诊断，不属于通过结果。
+7. 因此本目录当前总体状态为：**case1-case7 已实现，case8 尚未实现。**

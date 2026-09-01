@@ -1,0 +1,13 @@
+# Purpose: archive the Thomas 10-ft fine-grid oil-component mass recovery reported in report_zh.md.
+time_years,oil_component_mass_recovery_pct
+0.00,0.00
+0.25,14.28
+0.50,25.1973
+0.75,32.91
+1.00,38.1167
+1.25,41.58
+1.50,43.80
+1.75,45.12
+2.00,45.8090
+2.25,46.00
+2.50,46.0030

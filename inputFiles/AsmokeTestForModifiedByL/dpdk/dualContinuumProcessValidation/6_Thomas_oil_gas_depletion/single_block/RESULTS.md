@@ -35,16 +35,16 @@ times is `0.0909 pp`.
 
 - `thomas_singleblock_gas_oil_gravity_drainage_gdp_on.xml`: canonical GDP-on deck.
 - `thomas_singleblock_gas_oil_gravity_drainage.xml`: canonical GDP-off deck.
-- `generate_vertical_equilibrium_pseudocapillary.py`: rebuilds `Pcgo(Sg,P)` from
+- `scripts/generate_vertical_equilibrium_pseudocapillary.py`: rebuilds `Pcgo(Sg,P)` from
   Thomas Tables 2 and 3 and checks the initial-pressure Table 4 reconstruction.
 - `tables/ve_pseudo_pc_sg_axis.txt`: gas-saturation axis.
 - `tables/ve_pseudo_pc_pressure_axis.txt`: absolute-pressure axis.
 - `tables/ve_pseudo_pc_values.txt`: two-dimensional pseudocapillary values.
 - Matrix three-phase relative permeability uses the existing GEOS
   `TableRelativePermeability` model with the modified Stone-II interpolator.
-- `thomas_single_cell_oracle.py`: independent single-cell black-oil oracle.
-- `analyze_results.py`: computes oil-component mass recovery and plots Fig. 4 comparison.
-- `reproduce.py`: checks all case and repository dependencies; with `--run`,
+- `scripts/thomas_single_cell_oracle.py`: independent single-cell black-oil oracle.
+- `scripts/analyze_results.py`: computes oil-component mass recovery and plots Fig. 4 comparison.
+- `scripts/reproduce.py`: checks all case and repository dependencies; with `--run`,
   executes both canonical cases and verifies their key recoveries.
 - `REPRODUCIBILITY.md`: detailed derivation and reproduction procedure.
 - `report_zh.md`: Chinese technical report and limitations.

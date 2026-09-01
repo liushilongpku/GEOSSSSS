@@ -44,7 +44,7 @@ Pcgo_local(Sg,P) = sigma(P)/sigma_I * Pcgo_local(Sg,P_I)
 Table 4 已经是包含 10-ft 垂向重力积分的块平均伪函数。将整条 Table 4 直接乘
 `sigma(P)/sigma_I` 会把其中的重力偏移也错误缩放；完全不考虑压力变化同样不正确。
 
-`generate_vertical_equilibrium_pseudocapillary.py` 在每个 Table 2 压力执行以下步骤：
+`scripts/generate_vertical_equilibrium_pseudocapillary.py` 在每个 Table 2 压力执行以下步骤：
 
 1. 用 Eq. (28) 缩放 Table 3 局部 `Pcgo(Sg)`。
 2. 用当前 `Bo/Bg/Rs` 计算油气密度。
@@ -98,7 +98,7 @@ GDP-on 终态 `So/Sg/Sw=0.40507/0.39479/0.20014`，GDP-off 为
 
 ## 6. 独立 Oracle
 
-`thomas_single_cell_oracle.py` 独立积分黑油库存和单胞交换方程，并使用同一物理定义生成的二维 VE 曲线及
+`scripts/thomas_single_cell_oracle.py` 独立积分黑油库存和单胞交换方程，并使用同一物理定义生成的二维 VE 曲线及
 半高 GDP。裂缝 `Pc=0` 时 2.5 年结果为 `45.4514%`，与 GEOS 相差 `0.0909 pp`。11 个季度采样点上的
 最大绝对差同样为 `0.0909 pp`，说明二者在完整历史上闭合，而不仅是终点偶合。
 
@@ -109,16 +109,16 @@ GDP-on 终态 `So/Sg/Sw=0.40507/0.39479/0.20014`，GDP-off 为
 在本目录运行：
 
 ```bash
-python3 generate_vertical_equilibrium_pseudocapillary.py
-python3 prepare_thomas_single_block.py
+python3 scripts/generate_vertical_equilibrium_pseudocapillary.py
+python3 scripts/prepare_thomas_single_block.py
 /home/lsl/codes/GEOSSSSS/build/bin/geosx \
   -i thomas_singleblock_gas_oil_gravity_drainage_gdp_on.xml \
   -o /tmp/thomas_singleblock_canonical_gdp_on
-python3 analyze_results.py \
+python3 scripts/analyze_results.py \
   --output /tmp/thomas_singleblock_canonical_gdp_on \
   --analysis-dir /tmp/thomas_analysis_canonical_gdp_on \
   --figures-dir /tmp/thomas_figures_canonical_gdp_on
-python3 thomas_single_cell_oracle.py --output analysis/thomas_single_cell_oracle_ve.csv
+python3 scripts/thomas_single_cell_oracle.py --output analysis/thomas_single_cell_oracle_ve.csv
 ```
 
 所有运行输出均写入独立 `/tmp` 目录。

@@ -20,9 +20,10 @@ YEARS_TO_SECONDS = 31_536_000.0
 MAX_TIME_YEARS = 2.5
 INITIAL_COMPONENTS = (0.53678013, 0.16595388, 0.29726599)
 INITIAL_GAS_OIL_PC_PA = -0.74 * PSI_TO_PA
+ROOT = Path(__file__).resolve().parent.parent
 DECKS = {
-    "gdp_off": Path(__file__).with_name("thomas_singleblock_gas_oil_gravity_drainage.xml"),
-    "gdp_on": Path(__file__).with_name("thomas_singleblock_gas_oil_gravity_drainage_gdp_on.xml"),
+    "gdp_off": ROOT / "thomas_singleblock_gas_oil_gravity_drainage.xml",
+    "gdp_on": ROOT / "thomas_singleblock_gas_oil_gravity_drainage_gdp_on.xml",
 }
 EXPECTED_CROSSFLOW = {
     "matrixControlledExchangeUpwinding": "1",
@@ -91,7 +92,7 @@ def main() -> None:
 
     end_time_s = MAX_TIME_YEARS * YEARS_TO_SECONDS
     end_pressure_pa = INITIAL_PRESSURE_PA - DEPLETION_PSI_PER_DAY * PSI_TO_PA * 365.0 * MAX_TIME_YEARS
-    pressure_units_file = Path(__file__).parent / "reference" / "thomas_fig4_3d_model.csv"
+    pressure_units_file = ROOT / "reference" / "thomas_fig4_3d_model.csv"
     print(f"initial pressure = {INITIAL_PRESSURE_PA:.4f} Pa")
     print(f"  5545 psig -> Pa = {5545.0 * PSI_TO_PA:.4f} Pa (atm offset not included)")
     print(f"0.75 psi/day over {MAX_TIME_YEARS} years = {DEPLETION_PSI_PER_DAY * PSI_TO_PA * 365.0 * MAX_TIME_YEARS:.2f} Pa")

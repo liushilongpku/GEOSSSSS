@@ -13,7 +13,8 @@ import sys
 import tempfile
 
 
-ROOT = Path(__file__).resolve().parent
+SCRIPTS = Path(__file__).resolve().parent
+ROOT = SCRIPTS.parent
 EXPECTED_RECOVERY = {
     "gdp_off": {0.5: 13.2576, 2.5: 18.7370},
     "gdp_on": {0.5: 27.3364, 2.5: 45.5423},
@@ -73,7 +74,7 @@ def check_generated_tables() -> None:
     )
     with tempfile.TemporaryDirectory(prefix="thomas_ve_check_") as temporary:
         output = Path(temporary)
-        run([sys.executable, "generate_vertical_equilibrium_pseudocapillary.py",
+        run([sys.executable, str(SCRIPTS / "generate_vertical_equilibrium_pseudocapillary.py"),
              "--output-dir", str(output)])
         different = [name for name in names
                      if (output / name).read_bytes() != (ROOT / "tables" / name).read_bytes()]
@@ -115,7 +116,7 @@ def main() -> None:
     require_files([args.geosx], "GEOS executable")
     check_python_dependencies()
     check_generated_tables()
-    run([sys.executable, "prepare_thomas_single_block.py"])
+    run([sys.executable, str(SCRIPTS / "prepare_thomas_single_block.py")])
 
     validation_root = args.output_root / "input_validation"
     for case, deck in DECKS.items():
@@ -133,7 +134,7 @@ def main() -> None:
         run([str(args.geosx), "-i", deck.name, "-o", str(simulation_dir)])
         run([
             sys.executable,
-            "analyze_results.py",
+            str(SCRIPTS / "analyze_results.py"),
             "--output", str(simulation_dir),
             "--analysis-dir", str(analysis_dir),
             "--figures-dir", str(figures_dir),
@@ -141,7 +142,7 @@ def main() -> None:
         verify_recovery(case, analysis_dir / "recovery_results.csv")
 
     oracle = args.output_root / "analysis/thomas_single_cell_oracle_ve.csv"
-    run([sys.executable, "thomas_single_cell_oracle.py", "--output", str(oracle)])
+    run([sys.executable, str(SCRIPTS / "thomas_single_cell_oracle.py"), "--output", str(oracle)])
     print(f"Reproduction completed successfully under {args.output_root}")
 
 

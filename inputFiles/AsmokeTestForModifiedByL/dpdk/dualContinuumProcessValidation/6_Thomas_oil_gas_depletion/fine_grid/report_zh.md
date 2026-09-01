@@ -11,7 +11,7 @@
 气油密度差、三相相对渗透率和活油 PVT 共同控制采收率。验证基准为论文 Fig. 4 的 `3D model`
 曲线及其约 46% 的平台值。
 
-参考文献：`Thomas_1983_Fractured_Reservoir_Simulation.pdf`。
+参考文献：[`../single_block/reference/Thomas_1983_Fractured_Reservoir_Simulation.pdf`](../single_block/reference/Thomas_1983_Fractured_Reservoir_Simulation.pdf)。
 
 ## 2. 最终结果
 
@@ -46,6 +46,8 @@
 终值 46.00% 与论文 Fig. 4 的 46% **完全一致**（差值 0 pp）。早期 0.5–1.0 年仍偏低约 1.8–2.3 pp，
 因此结论是：**终值和主要物理机制验证通过，瞬态曲线近似复现。**
 
+![细网格油组分质量采收率与 Thomas Fig. 4 对比](figures/recovery_comparison.png)
+
 ## 3. 关键设置与做法
 
 | 项 | 设置 |
@@ -79,11 +81,14 @@
 - 主输入：`thomas_10ft_7x7x8_liveoil_depletion_pressurescaled_full_abs.xml`
 - PVT 表：`tables/`（`pvto_bo_surface_condition.txt`、`pvtg_norv_bo.txt`、`pvtw_bo.txt`）
 - 论文参考曲线：`../single_block/reference/thomas_fig4_3d_model.csv`（Fig. 4 读图）
+- 归档采收率：`analysis/recovery_results.csv`
+- 绘图脚本：`scripts/plot_recovery.py`
 
 运行命令：
 
 ```bash
 mpirun -np 1 <build>/bin/geosx -i thomas_10ft_7x7x8_liveoil_depletion_pressurescaled_full_abs.xml
+python3 scripts/plot_recovery.py
 ```
 
 GEOS 运行生成的 `runs/`、HDF5、VTK、重启动文件和日志不进入 Git。Git 只保存输入、PVT 表、参考曲线和本报告。

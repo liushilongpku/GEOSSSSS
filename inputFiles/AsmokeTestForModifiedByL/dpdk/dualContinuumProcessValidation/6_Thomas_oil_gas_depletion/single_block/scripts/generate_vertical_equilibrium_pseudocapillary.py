@@ -85,7 +85,7 @@ def write_values(path: Path, values: np.ndarray) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path, default=Path(__file__).with_name("tables"))
+    parser.add_argument("--output-dir", type=Path, default=Path(__file__).resolve().parent.parent / "tables")
     args = parser.parse_args()
 
     pressure_axis_psig = PRESSURE_PSIG[(PRESSURE_PSIG >= 3553.0) & (PRESSURE_PSIG <= REFERENCE_PRESSURE_PSIG)]

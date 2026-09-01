@@ -22,8 +22,8 @@ matrix oil relative permeability. Gas and water use the Thomas endpoint values.
 Run from this directory:
 
 ```bash
-python3 reproduce.py
-python3 reproduce.py --run
+python3 scripts/reproduce.py
+python3 scripts/reproduce.py --run
 ```
 
 The first command checks every local data dependency, regenerates and compares
@@ -38,7 +38,7 @@ code. It is not intended to duplicate GEOS source code. Reproduction therefore
 requires the surrounding GEOS checkout to contain the implementations used by
 the decks: `ThomasGasOilGravityDrainagePressure`, the `pressureDependentTableName` path in
 `PressureScaledTableCapillaryPressure`, and matrix-controlled dual-continuum PPU
-exchange. `reproduce.py` checks these source and executable dependencies.
+exchange. `scripts/reproduce.py` checks these source and executable dependencies.
 
 With GEOS commit `3de23377b` and the current worktree:
 
@@ -77,7 +77,7 @@ Table 4 is not that local curve. It is a block-average pseudofunction that alrea
 contains the 10-ft vertical gravity integration. Multiplying the entire Table 4
 curve by `sigma(P)/sigma_I` incorrectly scales its embedded gravity offset.
 
-`generate_vertical_equilibrium_pseudocapillary.py` therefore scales Table 3 at
+`scripts/generate_vertical_equilibrium_pseudocapillary.py` therefore scales Table 3 at
 each Table 2 pressure, recomputes oil and gas density, and repeats the full-height
 vertical-equilibrium integration. It writes the ordinary two-dimensional
 `TableFunction` files:
@@ -110,7 +110,7 @@ The pressure-dependent Table 4 closure and this half-height exchange head are
 both needed in the GEOS mapping. GDP-off reaches only `18.7370%`; using the full
 height overdrives the model to `54.6939%`.
 
-`thomas_single_cell_oracle.py` independently integrates the single-cell black-oil
+`scripts/thomas_single_cell_oracle.py` independently integrates the single-cell black-oil
 inventory and exchange equations. With zero fracture capillary pressure it gives
 `45.4514%` at 2.5 years. Across all 11 quarter-year output points, the maximum
 absolute recovery difference between GEOS and the oracle is `0.0909 pp`. The

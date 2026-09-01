@@ -1,86 +1,48 @@
-<!-- Purpose: define the isolated validation package for dual-continuum pressure, gravity, and imbibition processes. -->
+<!-- Purpose: index dual-continuum validation cases and state their implementation status. -->
 
 # Dual-continuum process validation
 
-This directory contains the inputs, reference calculations, run commands, and
-case-by-case reports for the three processes affected by the dual-continuum
-cross-flow potential:
-
-| Case | Process | What is isolated | Reference type |
-| --- | --- | --- | --- |
-| A0 | pressure-driven exchange | pressure contrast only; no gravity, capillary pressure, or mechanics | exact two-compartment solution |
-| G0 | gravity-driven exchange | gravity-density contrast only; equal initial pressure | exact GDP sign and hydrostatic equilibrium |
-| I0 | capillary imbibition | saturation-dependent capillary pressure; zero gravity | GEOS history, capillary-potential, and conservation checks |
-| J0 | potential/Jacobian contract | pressure, saturation, gravity, and capillary terms | finite-difference algebraic check |
-| P1 | coupled poromechanics pressure response | existing DPDP Mandel problem | published analytical solution and existing workflow |
-
-The cases are deliberately separated. A passing result means only the
-mechanism named in that row has passed the stated checks; it does not prove all
-multiphase, gravity, and poromechanics combinations.
-
-## Evidence standard
-
-Each case report must contain:
-
-1. validation purpose;
-2. validation target;
-3. why the case can validate that target;
-4. governing equations and parameters;
-5. exact or semi-analytic reference and pass criterion;
-6. the executable command and the actual output location;
-7. numerical result, error, and limitations.
-
-Each case keeps its own reference/check/plot scripts. A0/G0/I0 histories and
-the four P1 Mandel outputs are archived under their respective case-local
-`runs/20260821/` directories.
-
-The three I0 `.txt` files are legacy CO2-brine parameter inputs. Their parser
-currently accepts model records only and does not accept comment lines, so
-their purpose is documented by the I0 XML and report rather than by an
-in-file comment that would make the input invalid.
-
-The P1 package is self-contained: its relative Mandel loading tables,
-analytical reference data, problem description, four input decks, run
-artifacts, and comparison scripts are all under `P1_dpdp_mandel/`. The
-`archive/` subdirectory preserves a duplicate run directory that was found
-outside this package during the final audit; it is historical provenance and
-is not searched by the active plotting workflow.
+本目录保存双重介质交叉流基础机制、Thomas 1983 单块问题和 SPE6 重力排驱的输入、参考数据、脚本、
+结果与报告。当前总体状态为：**case1-case7 已实现，case8 尚未实现。**
 
 ## Case status
 
-| Case | Input present | Reference check | GEOS run | Report |
+| 编号 | 目录 | 内容 | 状态 | 报告 |
 | --- | --- | --- | --- | --- |
-| A0 | yes | equal- and unequal-volume pressure exchange passed | passed: GEOS exit code 0 | [综合中文报告](A0_pressure_exchange_combined/report_zh.md) |
-| G0 | yes | passed | passed: GEOS exit code 0 | [report](G0_gravity_exchange/report.md) |
-| I0 | yes | passed: dynamic history and conservation | passed: GEOS exit code 0, 10449 accepted steps, zero cuts | [report](I0_capillary_exchange/report.md) |
-| J0 | yes | passed | not applicable | [report](J0_potgrad_derivative/report.md) |
-| P1 | four inputs and analytical workflow | qualified quantitative comparison | passed runtime; qualified analytical agreement | [report](P1_dpdp_mandel/report.md) |
+| 1 | `1_pressure_exchange_combined` | 等体积/不等体积压差交换 | 已实现，通过 | [报告](1_pressure_exchange_combined/report_zh.md) |
+| 2 | `2_gravity_exchange` | 单相重力驱替交换 | 已实现，通过 | [报告](2_gravity_exchange/report.md) |
+| 3 | `3_capillary_exchange` | 毛管渗吸动力学 | 已实现，通过 | [报告](3_capillary_exchange/report.md) |
+| 3.1 | `3.1_analytical` | 毛管渗吸闭式解析基准 | 已实现，通过 | [报告](3.1_analytical/report_zh.md) |
+| 4 | `4_potgrad_derivative` | `PotGrad` 有限差分导数检查 | 已实现，通过（非运行时） | [报告](4_potgrad_derivative/report.md) |
+| 5 | `5_Thomas_water_oil` | Thomas 水油渗吸细网格与单胞 | 已实现，复现成功 | [细网格](5_Thomas_water_oil/fine_grid/report_zh.md) / [单胞](5_Thomas_water_oil/single_block/report_zh.md) |
+| 6 | `6_Thomas_oil_gas_depletion` | Thomas 气油枯竭细网格与单胞 | 已实现，复现成功 | [细网格](6_Thomas_oil_gas_depletion/fine_grid/report_zh.md) / [单胞](6_Thomas_oil_gas_depletion/single_block/RESULTS.md) |
+| 7 | `7_SPE6_fine_grid_gravity_drainage` | SPE6 气油重力排驱细网格 | 已实现，验证成功 | [报告](7_SPE6_fine_grid_gravity_drainage/report_zh.md) |
+| 8 | `8_SPE6_single_block_drainage` | SPE6 双重介质单胞 | 尚未实现 | [探索记录](8_SPE6_single_block_drainage/report_zh.md) |
 
-The status table is intentionally conservative and is updated only after a
-command has been run and its output inspected.
+case8 目录中的输入和试算用于诊断，当前约 `23.04%` 的 5 年体积采收率尚未达到 SPE6 约 `40%`
+参考值，因此不能视为完成或通过。
 
-The complete case-by-case explanation is in
-[`summary.md`](summary.md). It states the purpose, target, justification,
-reference, criterion, result, and limitations for every case.
+## Evidence standard
 
-Each case owns its input, scripts, run archive, and figures. Regenerate figures
-independently with:
+每个完成的案例应说明验证目的、目标、控制方程、输入参数、参考解或文献基准、运行命令、实际结果、
+误差和适用范围。不同案例的证据强度不同：
+
+- case1-case3 使用 GEOS 运行历史和解析/守恒检查。
+- case3.1 使用严格闭式解。
+- case4 使用独立有限差分代数检查，不代表完整求解器运行验证。
+- case5-case7 使用文献曲线、细网格/单胞交叉验证或独立 oracle。
+- case8 尚未建立可接受的 canonical 实现和自动验收基线。
+
+完整的案例说明、关键结果和限制见 [`summary.md`](summary.md)。
+
+## Reproduction notes
+
+case6 单胞提供统一复现入口：
 
 ```bash
-python3 A0_pressure_exchange/scripts/plot_A0.py
-python3 G0_gravity_exchange/scripts/plot_G0.py
-python3 I0_capillary_exchange/scripts/plot_I0.py
-python3 J0_potgrad_derivative/scripts/plot_J0.py
-bash P1_dpdp_mandel/scripts/plot_P1.sh
+python3 6_Thomas_oil_gas_depletion/single_block/scripts/reproduce.py
+python3 6_Thomas_oil_gas_depletion/single_block/scripts/reproduce.py --run
 ```
 
-The independent checks are `A0_pressure_exchange/scripts/check_A0.py`,
-`G0_gravity_exchange/scripts/check_G0.py`,
-`I0_capillary_exchange/scripts/check_I0.py`, and
-`bash J0_potgrad_derivative/scripts/run_J0.sh`. Their outputs stay in the
-corresponding case directories.
-
-Each command writes only to its own `figures/` directory. The A0, G0, and I0
-histories used by the plots are archived under their respective
-`runs/20260821/` directories; P1 keeps its four run trees and analytical
-workflow under `P1_dpdp_mandel/`.
+运行产生的大型 VTK、HDF5、restart 和日志通常写入 `/tmp`，不作为验证输入提交。仓库保留能够重新生成
+结果的 XML、表格、参考曲线、脚本、紧凑 CSV、图片和报告。

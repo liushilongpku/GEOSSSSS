@@ -24,7 +24,7 @@ import numpy as np
 import vtk
 
 
-ROOT = Path(__file__).resolve().parents[0]
+ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = Path("/tmp/thomas_single_block_dual_continuum")
 YEAR = 31_536_000.0
 
