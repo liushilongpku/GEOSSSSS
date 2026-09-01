@@ -37,6 +37,7 @@ set( constitutive_headers
      capillaryPressure/VanGenuchtenCapillaryPressure.hpp
      capillaryPressure/CapillaryPressureSelector.hpp
      capillaryPressure/Layouts.hpp
+     gravityDrainagePressure/CompositionalPerPhaseGravityDrainagePressure.hpp
      gravityDrainagePressure/GravityDrainagePressureBase.hpp
      gravityDrainagePressure/GravityDrainagePressureFields.hpp
      gravityDrainagePressure/SimpleGravityDrainagePressure.hpp
@@ -239,6 +240,7 @@ set( constitutive_sources
      capillaryPressure/TableCapillaryPressure.cpp
      capillaryPressure/TableCapillaryPressureHelpers.cpp
      capillaryPressure/VanGenuchtenCapillaryPressure.cpp
+     gravityDrainagePressure/CompositionalPerPhaseGravityDrainagePressure.cpp
      gravityDrainagePressure/GravityDrainagePressureBase.cpp
      gravityDrainagePressure/SimpleGravityDrainagePressure.cpp
      gravityDrainagePressure/ThomasGasOilGravityDrainagePressure.cpp

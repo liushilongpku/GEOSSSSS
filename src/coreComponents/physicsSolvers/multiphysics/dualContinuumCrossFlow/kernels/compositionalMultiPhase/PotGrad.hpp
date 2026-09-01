@@ -12,10 +12,6 @@
 #include "constitutive/capillaryPressure/Layouts.hpp"
 #include "mesh/ElementRegionManager.hpp"
 
-#include <algorithm>
-#include <cmath>
-
-
 namespace geos
 {
 

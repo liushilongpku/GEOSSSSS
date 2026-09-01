@@ -1,10 +1,12 @@
 set( gravityDrainagePressureSources
+     CompositionalPerPhaseGravityDrainagePressure.cpp
      GravityDrainagePressureBase.cpp
      SimpleGravityDrainagePressure.cpp
      ThomasGasOilGravityDrainagePressure.cpp
    )
 
 set( gravityDrainagePressureHeaders
+     CompositionalPerPhaseGravityDrainagePressure.hpp
      GravityDrainagePressureBase.hpp
      GravityDrainagePressureFields.hpp
      SimpleGravityDrainagePressure.hpp

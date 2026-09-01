@@ -4,6 +4,7 @@ set( gtest_geosx_tests
      testCO2SpycherPruessModels.cpp
      testCO2BrinePVTModels.cpp
      testCompositionalDensity.cpp
+     testCompositionalPerPhaseGravityDrainagePressure.cpp
      testCompositionalPhillipsBrineDensity.cpp
      testCompositionalPhillipsBrineViscosity.cpp
      testCompositionalProperties.cpp

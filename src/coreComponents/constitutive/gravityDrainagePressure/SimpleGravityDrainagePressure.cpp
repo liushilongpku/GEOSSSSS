@@ -90,43 +90,22 @@ void SimpleGravityDrainagePressure::setupGravityDrainagePressureFromPhaseMassDen
   localIndex const numPhase = matrixPhaseMassDensity.size( 2 );
   auto gravDrainPressView = m_gravityDrainagePressure.toView();
 
-  // Per-phase gravity-drainage head: GDP_alpha = s * |g| * rho_alpha * Lz / 2,
-  // where s = sign( rho_m_mix - rho_f_mix ) encodes the drainage direction.
-  //
-  // The magnitude uses each phase's own mass density (not a single mixture-density
-  // scalar) so that the heads differ between phases, which produces the
-  // phase-relative (rho_dense - rho_light) * |g| * Lz/2 driving force for
-  // counter-current drainage. The direction, however, is set by the *mixture*
-  // density contrast between matrix and fracture:
-  //   - gas-oil drainage (matrix denser, rho_m_mix > rho_f_mix): s = +1, the dense
-  //     matrix phase drains toward the fracture.
-  //   - water-oil imbibition (matrix lighter, rho_m_mix < rho_f_mix): s = -1, the
-  //     dense fracture phase (water) imbibes into the matrix and oil drains out.
-  // This mirrors the single-scalar GDP sign convention GDP = g_z*(rho_f - rho_m)*Lz/2,
-  // which is automatically negative when the fracture fluid is denser.
   forAll< parallelDevicePolicy<> >( numE, [=] GEOS_HOST_DEVICE ( localIndex const ei )
   {
-    real64 matrixMixDens = 0.0;
-    real64 fractureMixDens = 0.0;
+    real64 matrixMassDensity = 0.0;
+    real64 fractureMassDensity = 0.0;
     for( localIndex ip = 0; ip < numPhase; ++ip )
     {
-      matrixMixDens += matrixPhaseVolumeFraction[ei][ip] * matrixPhaseMassDensity[ei][0][ip];
-      fractureMixDens += fracturePhaseVolumeFraction[ei][ip] * fracturePhaseMassDensity[ei][0][ip];
+      matrixMassDensity += matrixPhaseVolumeFraction[ei][ip] * matrixPhaseMassDensity[ei][0][ip];
+      fractureMassDensity += fracturePhaseVolumeFraction[ei][ip] * fracturePhaseMassDensity[ei][0][ip];
     }
-    real64 const densityContrast = matrixMixDens - fractureMixDens;
-    real64 sign = 0.0;
-    if( densityContrast > 0.0 )
+
+    // Keep the original scalar closure available to every phase in the phase-aware field.
+    real64 const gravityDrainagePressure =
+      gravityCoefficient * ( fractureMassDensity - matrixMassDensity ) * Lz / 2;
+    for( localIndex ip = 0; ip < gravDrainPressView.size( 2 ); ++ip )
     {
-      sign = 1.0;
-    }
-    else if( densityContrast < 0.0 )
-    {
-      sign = -1.0;
-    }
-    for( localIndex ip = 0; ip < numPhase; ++ip )
-    {
-      gravDrainPressView[ei][0][ip] =
-        sign * ( -gravityCoefficient ) * matrixPhaseMassDensity[ei][0][ip] * Lz / 2;
+      gravDrainPressView[ei][0][ip] = gravityDrainagePressure;
     }
   } );
 }

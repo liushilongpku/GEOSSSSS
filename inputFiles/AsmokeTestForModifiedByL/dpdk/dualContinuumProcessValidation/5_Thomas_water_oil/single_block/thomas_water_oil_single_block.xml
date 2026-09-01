@@ -16,7 +16,7 @@
       materialList="{ fractureRock, fluid, fractureRelperm, fractureCapPressure }"/>
   </ElementRegions>
   <Constitutive>
-    <SimpleGravityDrainagePressure name="gravityDrainagePressure"/>
+    <CompositionalPerPhaseGravityDrainagePressure name="gravityDrainagePressure"/>
     <BlackOilFluid name="fluid" phaseNames="{ oil, gas, water }"
       surfaceDensities="{ 819.18, 0.929, 1041.2 }"
       componentMolarWeight="{ 120e-3, 25e-3, 18e-3 }"

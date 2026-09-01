@@ -286,9 +286,8 @@ public:
         real64 const trans[numFluxSupportPoints] = { stack.transmissibility,
                                                      stack.transmissibility };
 
-        // The exchange transmissibility uses matrix permeability only.
         real64 const dTrans_dPres[numFluxSupportPoints] = { stack.dTrans_dPres,
-                                                            0.0 };
+                                                            stack.dTrans_dPres };
 
         //***** calculation of flux *****
         // loop over phases, compute and upwind phase flux and sum contributions to each component's flux
@@ -409,7 +408,9 @@ public:
           // distribute on phaseComponentFlux here
           //TODO@LSL: 计算相中各组分的通量，并计算其对压力、组分浓度和传导率的导数。这里需要根据phaseFlux的符号来确定上游单元是k[0]还是k[1]，并使用对应的compFrac和其导数进行计算。
 
-          if( PPUPhaseFlux::selectCompositionUpstream( potGrad ) == 0 )
+          if( ( m_kernelFlags.isSet( KernelFlags::MatrixControlledExchangeUpwinding ) &&
+                PPUPhaseFlux::selectCompositionUpstream( potGrad ) == 0 ) ||
+              ( !m_kernelFlags.isSet( KernelFlags::MatrixControlledExchangeUpwinding ) && phaseFlux >= 0.0 ) )
           {
             k_up = 0;
             PhaseComponentFlux::compute( ip, k_up, seri, sesri, sei,
