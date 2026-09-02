@@ -75,7 +75,7 @@ def main() -> None:
       "axes.linewidth": 0.6,
   })
 
-  import dpdp_mandel_analytical as analytical
+  import inputFiles.AsmokeTestForModifiedByL.dpdk.dpdpMandelValidation.dualPorosity.script.dpdp_mandel_analytical as analytical
 
   fig, ax = plt.subplots(figsize=(FIGURE_WIDTH_IN, FIGURE_HEIGHT_IN), constrained_layout=True)
   media = (

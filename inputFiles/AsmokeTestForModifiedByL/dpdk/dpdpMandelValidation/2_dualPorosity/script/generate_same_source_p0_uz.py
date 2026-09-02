@@ -21,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
-import dpdp_mandel_analytical as an
+import inputFiles.AsmokeTestForModifiedByL.dpdk.dpdpMandelValidation.dualPorosity.script.dpdp_mandel_analytical as an
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 VALIDATION_DIR = SCRIPT_DIR.parent

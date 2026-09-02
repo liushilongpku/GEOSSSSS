@@ -49,7 +49,7 @@ DEFAULT_MATRIX_REFERENCE = DEFAULT_ANALYTICAL_DIR / "fig5c_primary_analitical.cs
 DEFAULT_FRACTURE_REFERENCE = DEFAULT_ANALYTICAL_DIR / "fig5c_secondary_analitical.csv"
 
 sys.path.insert(0, str(SCRIPT_DIR))
-import dpdp_mandel_analytical as an
+import inputFiles.AsmokeTestForModifiedByL.dpdk.dpdpMandelValidation.dualPorosity.script.dpdp_mandel_analytical as an
 
 PM0 = 4.55e5
 PF0 = 4.88e5
