@@ -1,0 +1,6 @@
+Single-porosity GEOS versus classical Mandel solution
+GEOS output: /home/lsl/codes/GEOSSSSS/inputFiles/AsmokeTestForModifiedByL/dpdk/dpdkHMValidation/result/single_porosity_geos
+K=1.100000e+09 Pa, G=7.573800e+08 Pa, nu=0.220000, alpha=0.95925926
+B=0.92071950, nu_u=0.46084275, c=9.02527551e-09 m^2/s, t0=9.97199475e+04 s
+P0+=4.48342136e+05 Pa, Pc=1.00000000e+06 Pa
+Pressure normalized RMSE=3.94803727e-03, max error=1.15501131e-02
