@@ -1,0 +1,2 @@
+# Pressure [Pa], Bw [m3/sm3], compressibility [Pa^-1], viscosity [Pa.s].
+	17236900	1.07	5.076E-10	3.49E-04
